@@ -9,7 +9,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @main
-struct QuixoteSwiftApp: App {
+struct QuixoteApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     private let updaterController: SPUStandardUpdaterController
 

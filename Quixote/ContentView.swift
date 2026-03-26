@@ -10,7 +10,7 @@ struct ContentView: View {
                 .font(.system(size: 64))
                 .foregroundStyle(Color.accentColor)
 
-            Text("Quixote Swift")
+            Text("Quixote")
                 .font(.title)
                 .fontWeight(.semibold)
 
