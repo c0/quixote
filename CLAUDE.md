@@ -1,4 +1,4 @@
-# Quixote Swift — AI Context
+# Quixote — AI Context
 
 ## What this is
 
@@ -11,10 +11,10 @@ Single macOS application target. No widget.
 | File | Purpose |
 |---|---|
 | `project.yml` | XcodeGen spec — source of truth for all Xcode settings |
-| `QuixoteSwift.xcodeproj` | Generated — never edit by hand |
-| `QuixoteSwift/QuixoteSwiftApp.swift` | App entry point + Sparkle init |
-| `QuixoteSwift/ContentView.swift` | Main UI (replace with your app) |
-| `QuixoteSwift/QuixoteSwift.entitlements` | Sandbox + network.client (for Sparkle) |
+| `Quixote.xcodeproj` | Generated — never edit by hand |
+| `Quixote/QuixoteApp.swift` | App entry point + Sparkle init |
+| `Quixote/ContentView.swift` | Main UI (replace with your app) |
+| `Quixote/Quixote.entitlements` | Sandbox + network.client (for Sparkle) |
 | `ExportOptions.plist` | Developer ID export config (sed-substituted at release) |
 | `scripts/release.sh` | Full release pipeline |
 | `site/` | Astro marketing site |
@@ -24,7 +24,7 @@ Single macOS application target. No widget.
 
 ```sh
 make setup       # install xcodegen (once)
-make generate    # regenerate QuixoteSwift.xcodeproj from project.yml
+make generate    # regenerate Quixote.xcodeproj from project.yml
 make build       # xcodebuild Release
 make open        # open in Xcode
 make dev         # build Debug and launch app

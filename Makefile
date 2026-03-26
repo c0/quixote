@@ -7,18 +7,18 @@ generate:
 	xcodegen generate
 
 build:
-	xcodebuild -project QuixoteSwift.xcodeproj \
-	           -scheme QuixoteSwift \
+	xcodebuild -project Quixote.xcodeproj \
+	           -scheme Quixote \
 	           -configuration Release \
 	           -derivedDataPath .build
 
 open:
-	open QuixoteSwift.xcodeproj
+	open Quixote.xcodeproj
 
 dev:
-	xcodebuild -project QuixoteSwift.xcodeproj -scheme QuixoteSwift \
+	xcodebuild -project Quixote.xcodeproj -scheme Quixote \
 	           -configuration Debug -derivedDataPath .build build \
-	  && open .build/Build/Products/Debug/Quixote\ Swift.app
+	  && open .build/Build/Products/Debug/Quixote.app
 
 release:
 	@[ -f .env ] || (echo "ERROR: .env not found. Copy .env.example."; exit 1)

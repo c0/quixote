@@ -72,9 +72,9 @@ echo "▶ Releasing v${VERSION}"
 echo ""
 
 BUILD_DIR="$REPO_ROOT/build"
-ARCHIVE_PATH="$BUILD_DIR/QuixoteSwift.xcarchive"
+ARCHIVE_PATH="$BUILD_DIR/Quixote.xcarchive"
 EXPORT_DIR="$BUILD_DIR/export"
-DMG_NAME="QuixoteSwift-${VERSION}.dmg"
+DMG_NAME="Quixote-${VERSION}.dmg"
 DMG_PATH="$BUILD_DIR/$DMG_NAME"
 
 mkdir -p "$BUILD_DIR"
@@ -100,8 +100,8 @@ xcodegen generate
 
 echo "▶ Archiving..."
 xcodebuild archive \
-  -project QuixoteSwift.xcodeproj \
-  -scheme QuixoteSwift \
+  -project Quixote.xcodeproj \
+  -scheme Quixote \
   -configuration Release \
   -archivePath "$ARCHIVE_PATH" \
   CODE_SIGN_IDENTITY="$SIGNING_IDENTITY_NAME" \
@@ -125,7 +125,7 @@ xcodebuild -exportArchive \
   -exportPath "$EXPORT_DIR" \
   -exportOptionsPlist "$EXPORT_OPTIONS"
 
-APP_PATH="$EXPORT_DIR/Quixote Swift.app"
+APP_PATH="$EXPORT_DIR/Quixote.app"
 if [ ! -d "$APP_PATH" ]; then
   echo "ERROR: Exported app not found at $APP_PATH"
   exit 1
@@ -135,29 +135,29 @@ fi
 
 echo "▶ Creating DMG..."
 DMG_STAGING="$BUILD_DIR/dmg-staging"
-DMG_TMP="$BUILD_DIR/QuixoteSwift-tmp.dmg"
+DMG_TMP="$BUILD_DIR/Quixote-tmp.dmg"
 rm -rf "$DMG_STAGING" "$DMG_TMP"
 mkdir -p "$DMG_STAGING"
 
-ditto "$APP_PATH" "$DMG_STAGING/Quixote Swift.app"
+ditto "$APP_PATH" "$DMG_STAGING/Quixote.app"
 ln -s /Applications "$DMG_STAGING/Applications"
 
 hdiutil create \
   -srcfolder "$DMG_STAGING" \
-  -volname "QuixoteSwift" \
+  -volname "Quixote" \
   -fs HFS+ \
   -fsargs "-c c=64,a=16,b=16" \
   -format UDRW \
   -size 80m \
   "$DMG_TMP"
 
-MOUNT_DIR="/Volumes/QuixoteSwift"
+MOUNT_DIR="/Volumes/Quixote"
 hdiutil detach -force "$MOUNT_DIR" 2>/dev/null || true
 hdiutil attach -readwrite -noverify -noautoopen -mountpoint "$MOUNT_DIR" "$DMG_TMP"
 
 osascript <<EOF
 tell application "Finder"
-  tell disk "QuixoteSwift"
+  tell disk "Quixote"
     open
     set current view of container window to icon view
     set toolbar visible of container window to false
@@ -166,7 +166,7 @@ tell application "Finder"
     set viewOptions to the icon view options of container window
     set arrangement of viewOptions to not arranged
     set icon size of viewOptions to 128
-    set position of item "Quixote Swift.app" of container window to {130, 170}
+    set position of item "Quixote.app" of container window to {130, 170}
     set position of item "Applications" of container window to {390, 170}
     close
     open
@@ -219,7 +219,7 @@ fi
   -o "$APPCAST_DIR/appcast.xml" \
   "$BUILD_DIR"
 
-git add "$APPCAST_DIR/appcast.xml" project.yml QuixoteSwift.xcodeproj/project.pbxproj site/src/pages/index.astro
+git add "$APPCAST_DIR/appcast.xml" project.yml Quixote.xcodeproj/project.pbxproj site/src/pages/index.astro
 git commit -m "chore: update appcast for v${VERSION}"
 git push origin main
 

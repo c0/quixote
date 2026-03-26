@@ -1,4 +1,4 @@
-name: QuixoteSwift
+name: Quixote
 options:
   deploymentTarget:
     macOS: "14.0"
@@ -14,14 +14,14 @@ packages:
     minorVersion: "2.6.0"
 
 targets:
-  QuixoteSwift:
+  Quixote:
     type: application
     platform: macOS
     sources:
-      - QuixoteSwift/
+      - Quixote/
     settings:
       base:
-        PRODUCT_NAME: "Quixote Swift"
+        PRODUCT_NAME: "Quixote"
         PRODUCT_BUNDLE_IDENTIFIER: com.c0.quixote-swift
         SWIFT_VERSION: "5.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -33,7 +33,7 @@ targets:
         Release:
           CODE_SIGN_IDENTITY: "Developer ID Application"
     entitlements:
-      path: QuixoteSwift/QuixoteSwift.entitlements
+      path: Quixote/Quixote.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
@@ -41,10 +41,10 @@ targets:
           - $(PRODUCT_BUNDLE_IDENTIFIER)-spks
           - $(PRODUCT_BUNDLE_IDENTIFIER)-spki
     info:
-      path: QuixoteSwift/Info.plist
+      path: Quixote/Info.plist
       properties:
-        CFBundleName: QuixoteSwift
-        CFBundleDisplayName: Quixote Swift
+        CFBundleName: Quixote
+        CFBundleDisplayName: Quixote
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSMinimumSystemVersion: "14.0"
