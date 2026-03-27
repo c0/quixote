@@ -95,7 +95,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					789E0AD5CB8DD12036DB4D76 = {
-						ProvisioningStyle = Automatic;
+						DevelopmentTeam = BH93JMP63R;
 					};
 				};
 			};
@@ -151,9 +151,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Quixote/Quixote.entitlements;
 				CODE_SIGN_IDENTITY = "Developer ID Application";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BH93JMP63R;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Quixote/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -239,6 +240,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BH93JMP63R;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Quixote/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
