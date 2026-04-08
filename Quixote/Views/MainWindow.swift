@@ -5,6 +5,10 @@ struct MainWindow: View {
     @StateObject private var dataPreview = DataPreviewViewModel()
     @StateObject private var promptEditor = PromptEditorViewModel()
     @StateObject private var processing = ProcessingViewModel()
+    @StateObject private var resultsVM = ResultsViewModel()
+
+    // Tracks which model was active when the run started, for result column header
+    @State private var activeModelID: String = ModelConfig.builtIn[1].id
 
     var body: some View {
         NavigationSplitView {
@@ -13,7 +17,7 @@ struct MainWindow: View {
         } detail: {
             VStack(spacing: 0) {
                 VSplitView {
-                    DataTableView(viewModel: dataPreview)
+                    DataTableView(viewModel: dataPreview, results: resultsVM)
                         .frame(minHeight: 200)
 
                     PromptEditorView(
@@ -29,19 +33,27 @@ struct MainWindow: View {
                     processing: processing,
                     prompt: promptEditor.prompt,
                     rows: dataPreview.allRows,
-                    columns: dataPreview.columns
+                    columns: dataPreview.columns,
+                    onModelChanged: { activeModelID = $0 }
                 )
             }
             .navigationTitle(workspace.selectedFile?.displayName ?? "Quixote")
             .navigationSubtitle(subtitleText)
         }
         .frame(minWidth: 720, minHeight: 560)
-        .onAppear {
-            loadSelectedFile()
-        }
+        .onAppear { loadSelectedFile() }
         .onChange(of: workspace.selectedFileID) {
             processing.cancel()
+            resultsVM.clear()
             loadSelectedFile()
+        }
+        .onChange(of: processing.results) {
+            let model = ModelConfig.builtIn.first { $0.id == activeModelID }
+            resultsVM.update(
+                results: processing.results,
+                prompt: promptEditor.prompt,
+                model: model
+            )
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             handleDrop(providers: providers)

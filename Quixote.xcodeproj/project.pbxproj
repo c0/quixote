@@ -20,6 +20,7 @@
 		AB871107515E0665ED2EF240 /* FileParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47BD9C6322AB886FD3A0546F /* FileParser.swift */; };
 		C4606B0B2D6593AE39026FF6 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C7596ACFD51D8674A5582B /* SidebarView.swift */; };
 		D6082993DFFDD2F5A355DA0F /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617B83335699A4ED1577F375 /* MainWindow.swift */; };
+		DDEEB18542EC80F49CDE0EE4 /* ResultsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38DF6825342EF1993AE33C0B /* ResultsViewModel.swift */; };
 		E1280BF31DF342FA1274E9F6 /* RunControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7065ADAF137B64DF3144BCFC /* RunControlsView.swift */; };
 		E22355DD353854B4F108DEE5 /* CSVParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C8E07AE503BF6F881CB3CA9 /* CSVParser.swift */; };
 		EEAF0D3E97646ACF01637743 /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4826DD61DBE02CB111475C52 /* OpenAIService.swift */; };
@@ -30,6 +31,7 @@
 /* Begin PBXFileReference section */
 		2411C06BA0AC1D7EEBF6247C /* InterpolationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterpolationEngine.swift; sourceTree = "<group>"; };
 		31C7596ACFD51D8674A5582B /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		38DF6825342EF1993AE33C0B /* ResultsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsViewModel.swift; sourceTree = "<group>"; };
 		3AFAAF62A283A04EB745B022 /* LLMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMService.swift; sourceTree = "<group>"; };
 		47BD9C6322AB886FD3A0546F /* FileParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileParser.swift; sourceTree = "<group>"; };
 		4826DD61DBE02CB111475C52 /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
@@ -122,6 +124,7 @@
 				CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */,
 				C7AAD0FEBB815B9058EE7894 /* ProcessingViewModel.swift */,
 				AEA90B80C515CF3D6A218CB6 /* PromptEditorViewModel.swift */,
+				38DF6825342EF1993AE33C0B /* ResultsViewModel.swift */,
 				497D3020B9DBF7CF4AC9173A /* WorkspaceViewModel.swift */,
 			);
 			path = ViewModels;
@@ -240,6 +243,7 @@
 				84BD210A9BD009FB27B7CC6F /* PromptEditorView.swift in Sources */,
 				293470BD38BC4772D572E01A /* PromptEditorViewModel.swift in Sources */,
 				58C07C4A872E322BB4C74AC2 /* QuixoteApp.swift in Sources */,
+				DDEEB18542EC80F49CDE0EE4 /* ResultsViewModel.swift in Sources */,
 				E1280BF31DF342FA1274E9F6 /* RunControlsView.swift in Sources */,
 				C4606B0B2D6593AE39026FF6 /* SidebarView.swift in Sources */,
 				0238424EAB04626680B65860 /* WorkspaceViewModel.swift in Sources */,

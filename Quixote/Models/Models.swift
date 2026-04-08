@@ -152,7 +152,7 @@ struct ProcessingRun: Identifiable, Codable {
 
 // MARK: - PromptResult
 
-struct PromptResult: Identifiable, Codable {
+struct PromptResult: Identifiable, Codable, Equatable {
     let id: UUID
     var runID: UUID
     var rowID: UUID
