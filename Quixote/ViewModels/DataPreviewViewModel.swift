@@ -10,7 +10,7 @@ final class DataPreviewViewModel: ObservableObject {
     @Published private(set) var totalRowCount: Int = 0
     @Published var currentPage: Int = 0
 
-    private var allRows: [Row] = []
+    private(set) var allRows: [Row] = []
 
     var pageCount: Int {
         max(1, Int(ceil(Double(allRows.count) / Double(Self.pageSize))))
