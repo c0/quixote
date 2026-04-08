@@ -9,6 +9,7 @@ struct RunControlsView: View {
     let prompt: Prompt?
     let rows: [Row]
     let columns: [ColumnDef]
+    var onModelChanged: ((String) -> Void)? = nil
 
     @AppStorage(kAPIKey) private var apiKey: String = ""
     @AppStorage(kSelectedModel) private var selectedModelID: String = "gpt-4o-mini"
@@ -67,6 +68,7 @@ struct RunControlsView: View {
             }
             .frame(width: 130)
             .font(.caption)
+            .onChange(of: selectedModelID) { onModelChanged?(selectedModelID) }
 
             Divider().frame(height: 16)
 
