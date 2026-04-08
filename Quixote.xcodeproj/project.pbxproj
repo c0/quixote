@@ -8,9 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		0238424EAB04626680B65860 /* WorkspaceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 497D3020B9DBF7CF4AC9173A /* WorkspaceViewModel.swift */; };
+		0E552C64E53183E0C3049B48 /* InterpolationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2411C06BA0AC1D7EEBF6247C /* InterpolationEngine.swift */; };
+		293470BD38BC4772D572E01A /* PromptEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA90B80C515CF3D6A218CB6 /* PromptEditorViewModel.swift */; };
 		58C07C4A872E322BB4C74AC2 /* QuixoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD22DB7736A6662220F2DA80 /* QuixoteApp.swift */; };
 		62D95681EB0E26F69EF70D9C /* DataPreviewViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */; };
 		72F481F830548F7D98647DA0 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = E26C91657706E603C44C9555 /* Models.swift */; };
+		84BD210A9BD009FB27B7CC6F /* PromptEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78C00E9148433C0EEB63FF2 /* PromptEditorView.swift */; };
 		896A90755BFE179BAC7179A6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = E99737654BBA8327C4CF245C /* Sparkle */; };
 		A7DBB81D4847189FBF08AC36 /* DataTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C62EE375D61EAF9527A7A6C /* DataTableView.swift */; };
 		AB871107515E0665ED2EF240 /* FileParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47BD9C6322AB886FD3A0546F /* FileParser.swift */; };
@@ -21,6 +24,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2411C06BA0AC1D7EEBF6247C /* InterpolationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterpolationEngine.swift; sourceTree = "<group>"; };
 		31C7596ACFD51D8674A5582B /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		47BD9C6322AB886FD3A0546F /* FileParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileParser.swift; sourceTree = "<group>"; };
 		497D3020B9DBF7CF4AC9173A /* WorkspaceViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceViewModel.swift; sourceTree = "<group>"; };
@@ -31,6 +35,8 @@
 		7F748859BA653F3B9AE625C1 /* Quixote.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Quixote.entitlements; sourceTree = "<group>"; };
 		8DF623633B8639C60192AA99 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		AD22DB7736A6662220F2DA80 /* QuixoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuixoteApp.swift; sourceTree = "<group>"; };
+		AEA90B80C515CF3D6A218CB6 /* PromptEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptEditorViewModel.swift; sourceTree = "<group>"; };
+		B78C00E9148433C0EEB63FF2 /* PromptEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptEditorView.swift; sourceTree = "<group>"; };
 		C49C51218E1B7C13CBB0CF53 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataPreviewViewModel.swift; sourceTree = "<group>"; };
 		E26C91657706E603C44C9555 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -69,6 +75,7 @@
 			children = (
 				4C62EE375D61EAF9527A7A6C /* DataTableView.swift */,
 				617B83335699A4ED1577F375 /* MainWindow.swift */,
+				B78C00E9148433C0EEB63FF2 /* PromptEditorView.swift */,
 				31C7596ACFD51D8674A5582B /* SidebarView.swift */,
 			);
 			path = Views;
@@ -78,6 +85,7 @@
 			isa = PBXGroup;
 			children = (
 				6C8E07AE503BF6F881CB3CA9 /* CSVParser.swift */,
+				2411C06BA0AC1D7EEBF6247C /* InterpolationEngine.swift */,
 			);
 			path = Parsers;
 			sourceTree = "<group>";
@@ -102,6 +110,7 @@
 			isa = PBXGroup;
 			children = (
 				CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */,
+				AEA90B80C515CF3D6A218CB6 /* PromptEditorViewModel.swift */,
 				497D3020B9DBF7CF4AC9173A /* WorkspaceViewModel.swift */,
 			);
 			path = ViewModels;
@@ -202,8 +211,11 @@
 				62D95681EB0E26F69EF70D9C /* DataPreviewViewModel.swift in Sources */,
 				A7DBB81D4847189FBF08AC36 /* DataTableView.swift in Sources */,
 				AB871107515E0665ED2EF240 /* FileParser.swift in Sources */,
+				0E552C64E53183E0C3049B48 /* InterpolationEngine.swift in Sources */,
 				D6082993DFFDD2F5A355DA0F /* MainWindow.swift in Sources */,
 				72F481F830548F7D98647DA0 /* Models.swift in Sources */,
+				84BD210A9BD009FB27B7CC6F /* PromptEditorView.swift in Sources */,
+				293470BD38BC4772D572E01A /* PromptEditorViewModel.swift in Sources */,
 				58C07C4A872E322BB4C74AC2 /* QuixoteApp.swift in Sources */,
 				C4606B0B2D6593AE39026FF6 /* SidebarView.swift in Sources */,
 				0238424EAB04626680B65860 /* WorkspaceViewModel.swift in Sources */,

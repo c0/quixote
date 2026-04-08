@@ -289,7 +289,7 @@ No multi-model, no statistics, no cosine similarity, no queue persistence, no se
 | **AO-9** | Change detection — content hash on reload, invalidate results when file changes on disk | CP-1 |
 | **AO-10** | Cosine similarity — compute between input and output, display in results and stats | CP-4 |
 | **AO-11** | Extrapolated projections — scale selector (1K / 1M / 10M), projected cost and token display | AO-6 |
-| **AO-12** | Additional file parsers — `TSVParser`, `JSONParser`, `ExcelParser` each conforming to `FileParser` | CP-1 |
+| **AO-12** | Additional file parsers — `JSONParser`, `ExcelParser` conforming to `FileParser`; TSV is already handled by `CSVParser` via delimiter detection | CP-1 |
 
 ---
 
@@ -307,6 +307,17 @@ protocol FileParser {
 ```
 
 `WorkspaceViewModel` detects the file type by extension and routes to the appropriate parser. Adding a new format requires only one new conforming type. CSV is the first implementation; all others are add-ons (AO-12).
+
+### 7.2 Delimiter and Line-Ending Detection
+
+No library is used for CSV/TSV parsing — the parser is hand-rolled. Before parsing, the parser **sniffs the first ~6 rows** of raw text to auto-detect:
+
+| Property | How detected |
+|---|---|
+| **Line ending** | Count occurrences of `\r\n`, `\r`, and `\n` in the sample; use the most frequent. |
+| **Delimiter** | For each candidate (`,` `\t` `;` `\|`), count occurrences per line in the sample and score consistency (low variance across lines = likely delimiter); pick the highest-scoring candidate. Ties broken by preference order: `,` > `\t` > `;` > `\|`. |
+
+Detection happens once per file open and is not user-configurable (no override UI). If detection fails or the file has only one column, the parser falls back to `,`.
 
 ### 7.2 Opening Files
 
