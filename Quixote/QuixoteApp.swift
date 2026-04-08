@@ -19,7 +19,27 @@ struct QuixoteApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(updater: updaterController.updater)
+            MainWindow()
+        }
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                // Handled by WorkspaceViewModel via toolbar button;
+                // expose Cmd+O here by posting to the active window
+                Button("Open File…") {
+                    NotificationCenter.default.post(name: .openFilePicker, object: nil)
+                }
+                .keyboardShortcut("o", modifiers: .command)
+            }
+        }
+
+        Settings {
+            Text("Settings coming in AO-5")
+                .padding()
+                .frame(width: 300, height: 200)
         }
     }
+}
+
+extension Notification.Name {
+    static let openFilePicker = Notification.Name("QuixoteOpenFilePicker")
 }

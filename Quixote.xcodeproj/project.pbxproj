@@ -7,19 +7,33 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0238424EAB04626680B65860 /* WorkspaceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 497D3020B9DBF7CF4AC9173A /* WorkspaceViewModel.swift */; };
 		58C07C4A872E322BB4C74AC2 /* QuixoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD22DB7736A6662220F2DA80 /* QuixoteApp.swift */; };
-		5F1922B2524AE61FDC2EE292 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D45215DB1BA38A14B9E200FF /* ContentView.swift */; };
+		62D95681EB0E26F69EF70D9C /* DataPreviewViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */; };
+		72F481F830548F7D98647DA0 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = E26C91657706E603C44C9555 /* Models.swift */; };
 		896A90755BFE179BAC7179A6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = E99737654BBA8327C4CF245C /* Sparkle */; };
+		A7DBB81D4847189FBF08AC36 /* DataTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C62EE375D61EAF9527A7A6C /* DataTableView.swift */; };
+		AB871107515E0665ED2EF240 /* FileParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47BD9C6322AB886FD3A0546F /* FileParser.swift */; };
+		C4606B0B2D6593AE39026FF6 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C7596ACFD51D8674A5582B /* SidebarView.swift */; };
+		D6082993DFFDD2F5A355DA0F /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617B83335699A4ED1577F375 /* MainWindow.swift */; };
+		E22355DD353854B4F108DEE5 /* CSVParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C8E07AE503BF6F881CB3CA9 /* CSVParser.swift */; };
 		FE8BAEAF3CEB9E878FB244FD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C49C51218E1B7C13CBB0CF53 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		31C7596ACFD51D8674A5582B /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		47BD9C6322AB886FD3A0546F /* FileParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileParser.swift; sourceTree = "<group>"; };
+		497D3020B9DBF7CF4AC9173A /* WorkspaceViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceViewModel.swift; sourceTree = "<group>"; };
+		4C62EE375D61EAF9527A7A6C /* DataTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataTableView.swift; sourceTree = "<group>"; };
+		617B83335699A4ED1577F375 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
 		67733DDFDF7C6921A1F8F8D5 /* Quixote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Quixote.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6C8E07AE503BF6F881CB3CA9 /* CSVParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVParser.swift; sourceTree = "<group>"; };
 		7F748859BA653F3B9AE625C1 /* Quixote.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Quixote.entitlements; sourceTree = "<group>"; };
 		8DF623633B8639C60192AA99 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		AD22DB7736A6662220F2DA80 /* QuixoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuixoteApp.swift; sourceTree = "<group>"; };
 		C49C51218E1B7C13CBB0CF53 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		D45215DB1BA38A14B9E200FF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataPreviewViewModel.swift; sourceTree = "<group>"; };
+		E26C91657706E603C44C9555 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -42,6 +56,40 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		4230BFBCC2B71CF1CC3DD198 /* Protocols */ = {
+			isa = PBXGroup;
+			children = (
+				47BD9C6322AB886FD3A0546F /* FileParser.swift */,
+			);
+			path = Protocols;
+			sourceTree = "<group>";
+		};
+		5F7D674D713439BA5A3A0893 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				4C62EE375D61EAF9527A7A6C /* DataTableView.swift */,
+				617B83335699A4ED1577F375 /* MainWindow.swift */,
+				31C7596ACFD51D8674A5582B /* SidebarView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		6147801D0BA4466A23424AFD /* Parsers */ = {
+			isa = PBXGroup;
+			children = (
+				6C8E07AE503BF6F881CB3CA9 /* CSVParser.swift */,
+			);
+			path = Parsers;
+			sourceTree = "<group>";
+		};
+		CDC42B220E9ABB648BDA8182 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				E26C91657706E603C44C9555 /* Models.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
 		CFD22494B7FB0C39F1306AC9 = {
 			isa = PBXGroup;
 			children = (
@@ -50,14 +98,27 @@
 			);
 			sourceTree = "<group>";
 		};
+		D7A54180FB038A279DEAB209 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */,
+				497D3020B9DBF7CF4AC9173A /* WorkspaceViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
 		DD187EB418937FB38C73B878 /* Quixote */ = {
 			isa = PBXGroup;
 			children = (
 				C49C51218E1B7C13CBB0CF53 /* Assets.xcassets */,
-				D45215DB1BA38A14B9E200FF /* ContentView.swift */,
 				8DF623633B8639C60192AA99 /* Info.plist */,
 				7F748859BA653F3B9AE625C1 /* Quixote.entitlements */,
 				AD22DB7736A6662220F2DA80 /* QuixoteApp.swift */,
+				CDC42B220E9ABB648BDA8182 /* Models */,
+				6147801D0BA4466A23424AFD /* Parsers */,
+				4230BFBCC2B71CF1CC3DD198 /* Protocols */,
+				D7A54180FB038A279DEAB209 /* ViewModels */,
+				5F7D674D713439BA5A3A0893 /* Views */,
 			);
 			path = Quixote;
 			sourceTree = "<group>";
@@ -137,8 +198,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5F1922B2524AE61FDC2EE292 /* ContentView.swift in Sources */,
+				E22355DD353854B4F108DEE5 /* CSVParser.swift in Sources */,
+				62D95681EB0E26F69EF70D9C /* DataPreviewViewModel.swift in Sources */,
+				A7DBB81D4847189FBF08AC36 /* DataTableView.swift in Sources */,
+				AB871107515E0665ED2EF240 /* FileParser.swift in Sources */,
+				D6082993DFFDD2F5A355DA0F /* MainWindow.swift in Sources */,
+				72F481F830548F7D98647DA0 /* Models.swift in Sources */,
 				58C07C4A872E322BB4C74AC2 /* QuixoteApp.swift in Sources */,
+				C4606B0B2D6593AE39026FF6 /* SidebarView.swift in Sources */,
+				0238424EAB04626680B65860 /* WorkspaceViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
