@@ -1,198 +1,472 @@
 # Quixote — Functional Specification
 
-> A fast, keyboard-driven macOS desktop tool for enriching CSV data with LLMs.
+> A fast, keyboard-driven macOS desktop tool for enriching structured data files with LLMs.
 
 ---
 
 ## Table of Contents
 
 1. [Product Overview](#1-product-overview)
-2. [File Management](#2-file-management)
-3. [Data Preview](#3-data-preview)
-4. [Prompt Authoring](#4-prompt-authoring)
-5. [Model Selection](#5-model-selection)
-6. [Processing & Queue](#6-processing--queue)
-7. [Results & Output](#7-results--output)
-8. [Statistics](#8-statistics)
-9. [Export](#9-export)
-10. [Settings](#10-settings)
+2. [Architecture (MVVM)](#2-architecture-mvvm)
+3. [Data Model](#3-data-model)
+4. [Data Flow](#4-data-flow)
+5. [Critical Path](#5-critical-path)
+6. [Build Execution Order](#6-build-execution-order)
+7. [File Management & Parsing](#7-file-management--parsing)
+8. [Data Preview](#8-data-preview)
+9. [Prompt Authoring](#9-prompt-authoring)
+10. [Model Selection](#10-model-selection)
+11. [Processing & Queue](#11-processing--queue)
+12. [Results & Output](#12-results--output)
+13. [Statistics](#13-statistics)
+14. [Export](#14-export)
+15. [Settings](#15-settings)
 
 ---
 
 ## 1. Product Overview
 
-Quixote lets users take a CSV file and send each row to one or more LLMs using a prompt template, then see the results inline and export them. The core loop is:
+Quixote lets users open a structured data file, send each row to one or more LLMs using one or more prompt templates, see the results inline, and export the enriched output. The app is designed for bulk, iterative prompt exploration: running the same data through different prompts or models, inspecting results, adjusting, and re-running.
 
-1. Open a CSV file.
-2. Write a prompt that references column values.
+The core loop is:
+
+1. Open a file (CSV to start; extensible to any tabular format).
+2. Write one or more prompts that reference column values.
 3. Select one or more models.
 4. Run — the app processes every row in the background.
-5. Export the enriched CSV.
-
-The app is designed for bulk, iterative prompt exploration: running the same data through different prompts or models, inspecting results, adjusting, and re-running.
+5. Export the enriched file.
 
 ---
 
-## 2. File Management
+## 2. Architecture (MVVM)
 
-### 2.1 Opening Files
+The app follows strict MVVM. Views hold no business logic. ViewModels expose `@Published` state and mutating methods. Models are plain value types (structs).
 
-- Users open CSV files via the native file picker (`Cmd+O` or `File > Open File...`).
-- Files can also be opened by dragging and dropping one or more `.csv` files onto the app window.
-- Multiple files can be open simultaneously; each file is independently tracked.
-- Re-opening a file that is already loaded is handled gracefully — no duplicates.
+### 2.1 Models (`Quixote/Models/`)
 
-### 2.2 File List
+| Model | Key Properties |
+|---|---|
+| `WorkspaceFile` | `id: UUID`, `url: URL`, `displayName: String`, `fileType: FileType`, `addedAt: Date`, `contentHash: String` |
+| `ParsedTable` | `columns: [ColumnDef]`, `rows: [Row]` |
+| `ColumnDef` | `id: UUID`, `fileID: UUID`, `name: String`, `index: Int` |
+| `Row` | `id: UUID`, `fileID: UUID`, `index: Int`, `values: [String: String]` |
+| `Prompt` | `id: UUID`, `fileID: UUID`, `name: String`, `template: String`, `parameters: LLMParameters`, `createdAt: Date`, `updatedAt: Date` |
+| `LLMParameters` | `temperature: Double`, `maxTokens: Int?`, `topP: Double`, `frequencyPenalty: Double`, `presencePenalty: Double` |
+| `ModelConfig` | `id: String`, `displayName: String`, `provider: LLMProvider` |
+| `ProcessingRun` | `id: UUID`, `promptID: UUID`, `modelID: String`, `status: RunStatus`, `startedAt: Date`, `completedAt: Date?` |
+| `PromptResult` | `id: UUID`, `runID: UUID`, `rowID: UUID`, `promptID: UUID`, `modelID: String`, `responseText: String?`, `status: ResultStatus`, `tokenUsage: TokenUsage?`, `costUSD: Double?`, `durationMs: Int?`, `cosineSimilarity: Double?` |
+| `TokenUsage` | `input: Int`, `output: Int`, `total: Int` |
+| `AppSettings` | `concurrency: Int`, `rateLimit: Int`, `maxRetries: Int`, `requestTimeout: Int?`, `showExtrapolation: Bool`, `extrapolationScale: ExtrapolationScale` |
 
-- All open files are listed in a sidebar.
-- Clicking a file in the list switches to that file's data and prompt.
-- The file list is **persistent** — it is restored when the app is relaunched.
+### 2.2 Protocols (`Quixote/Protocols/`)
 
-### 2.3 Removing Files
+| Protocol | Definition |
+|---|---|
+| `FileParser` | `static var supportedExtensions: Set<String>` + `func parse(url: URL) throws -> ParsedTable` |
+| `LLMService` | `func complete(prompt: String, model: ModelConfig, params: LLMParameters) async throws -> LLMResponse` |
+
+Concrete implementations: `CSVParser: FileParser`, `OpenAIService: LLMService`.
+
+### 2.3 ViewModels (`Quixote/ViewModels/`)
+
+| ViewModel | Responsibilities |
+|---|---|
+| `WorkspaceViewModel` | Open/close/select files, detect type, route to parser, persist workspace |
+| `DataPreviewViewModel` | Pagination, sorting, row selection |
+| `PromptListViewModel` | CRUD on prompts for current file, prompt selection, ordering |
+| `PromptEditorViewModel` | Template editing, column interpolation preview, parameter editing |
+| `ProcessingViewModel` | Start/pause/resume/cancel runs, async queue, concurrency + rate limits |
+| `ResultsViewModel` | Aggregate results across prompts and models into display columns |
+| `StatsViewModel` | Per-model per-prompt statistics, extrapolation |
+| `SettingsViewModel` | API key management (Keychain), processing params, cache management |
+| `ExportViewModel` | Build enriched table, trigger save dialog, write file |
+
+### 2.4 Views (`Quixote/Views/`)
+
+| View | ViewModel | Description |
+|---|---|---|
+| `MainWindow` | — | Top-level `NavigationSplitView` (sidebar + detail) |
+| `SidebarView` | `WorkspaceViewModel` | File list with add/remove and drag-drop |
+| `FileDetailView` | — | Container: data table + prompt list + run controls + results |
+| `DataTableView` | `DataPreviewViewModel` | Scrollable table of rows, status indicators, result columns |
+| `PromptListView` | `PromptListViewModel` | List of prompts per file, add/delete/rename/reorder |
+| `PromptEditorView` | `PromptEditorViewModel` | Text editor, column token insertion, parameter controls |
+| `RunControlsView` | `ProcessingViewModel` | Start/pause/resume/cancel, progress bar, row count selector |
+| `StatsPanel` | `StatsViewModel` | Per-model stats, extrapolation toggle |
+| `SettingsWindow` | `SettingsViewModel` | Separate window: API keys, processing params, data management |
+| `ExportButton` | `ExportViewModel` | Toolbar button triggers enriched CSV export |
+
+---
+
+## 3. Data Model
+
+```mermaid
+erDiagram
+    WorkspaceFile {
+        UUID id PK
+        String url
+        String displayName
+        String fileType
+        Date addedAt
+        String contentHash
+    }
+
+    ColumnDef {
+        UUID id PK
+        UUID fileID FK
+        String name
+        Int index
+    }
+
+    Row {
+        UUID id PK
+        UUID fileID FK
+        Int index
+        String values
+    }
+
+    Prompt {
+        UUID id PK
+        UUID fileID FK
+        String name
+        String template
+        Double temperature
+        Int maxTokens
+        Double topP
+        Double frequencyPenalty
+        Double presencePenalty
+        Date createdAt
+        Date updatedAt
+    }
+
+    ModelConfig {
+        String id PK
+        String displayName
+        String provider
+    }
+
+    ProcessingRun {
+        UUID id PK
+        UUID promptID FK
+        String modelID FK
+        String status
+        Date startedAt
+        Date completedAt
+    }
+
+    PromptResult {
+        UUID id PK
+        UUID runID FK
+        UUID rowID FK
+        UUID promptID FK
+        String modelID FK
+        String responseText
+        String status
+        Int inputTokens
+        Int outputTokens
+        Double costUSD
+        Int durationMs
+        Double cosineSimilarity
+    }
+
+    WorkspaceFile ||--o{ ColumnDef : "has columns"
+    WorkspaceFile ||--o{ Row : "has rows"
+    WorkspaceFile ||--o{ Prompt : "has prompts"
+    Prompt ||--o{ ProcessingRun : "executed as"
+    ModelConfig ||--o{ ProcessingRun : "used in"
+    ProcessingRun ||--o{ PromptResult : "produces"
+    Row ||--o{ PromptResult : "receives"
+    Prompt ||--o{ PromptResult : "generates"
+```
+
+---
+
+## 4. Data Flow
+
+```mermaid
+flowchart TD
+    A([User opens file]) --> B[WorkspaceViewModel]
+    B --> C{Detect file type}
+    C -->|.csv| D[CSVParser]
+    C -->|.tsv / .json / ..| E[Future parsers]
+    D --> F[ParsedTable: columns + rows]
+    F --> G[DataPreviewViewModel]
+    G --> H[DataTableView displays rows]
+
+    H --> I[User creates or selects a Prompt]
+    I --> J[PromptEditorViewModel]
+    J --> K[User writes template with column interpolation]
+    K --> L[User selects model and clicks Run]
+
+    L --> M[ProcessingViewModel]
+    M --> N[Expand prompt per row via interpolation engine]
+    N --> O[Async queue with concurrency + rate limiting]
+    O --> P[LLMService.complete per row]
+    P --> Q{Response}
+    Q -->|Success| R[PromptResult stored]
+    Q -->|Failure| S[Retry up to maxRetries]
+    S -->|Exhausted| T[Mark row failed]
+    S -->|Retry| P
+
+    R --> U[ResultsViewModel aggregates]
+    U --> V[DataTableView updates inline]
+    U --> W[StatsViewModel computes]
+    W --> X[StatsPanel displays]
+
+    V --> Y([User clicks Export])
+    Y --> Z[ExportViewModel]
+    Z --> AA[Build enriched table: original + all prompt result columns]
+    AA --> AB([Write CSV via save dialog])
+```
+
+---
+
+## 5. Critical Path
+
+The minimum viable loop — everything outside this is an add-on:
+
+| Step | Description |
+|---|---|
+| **CP-1** | Open a CSV file — file picker, CSVParser, produce ParsedTable |
+| **CP-2** | Display parsed rows — DataTableView with columns and rows |
+| **CP-3** | Author one prompt — PromptEditorView with `{{column_name}}` interpolation |
+| **CP-4** | Send rows to one LLM — OpenAI API call per row, basic async |
+| **CP-5** | Display results inline — result column appended to table |
+| **CP-6** | Export enriched CSV — save dialog, write original columns + result column |
+
+No multi-model, no statistics, no cosine similarity, no queue persistence, no settings UI, no change detection, no caching — just: open, view, prompt, run, see, export.
+
+---
+
+## 6. Build Execution Order
+
+### Critical Path Phases
+
+**CP-1 — File Open + CSV Parsing + Table Display**
+- `FileParser` protocol + `CSVParser` implementation
+- `WorkspaceFile`, `ParsedTable`, `ColumnDef`, `Row` models
+- `WorkspaceViewModel` (open file, parse, store)
+- `MainWindow` with `SidebarView` and `DataTableView`
+- `DataPreviewViewModel` (display rows, basic pagination)
+- _Dependencies: none — this is the foundation_
+
+**CP-2 — Prompt Editor with Interpolation**
+- `Prompt`, `LLMParameters` models
+- `PromptEditorViewModel` (template editing, interpolation engine)
+- `PromptEditorView` (text area, column token picker)
+- _Dependencies: CP-1 (needs column list from parsed file)_
+
+**CP-3 — Single-Model LLM Processing**
+- `ModelConfig`, `ProcessingRun`, `PromptResult`, `TokenUsage` models
+- `LLMService` protocol + `OpenAIService` implementation
+- `ProcessingViewModel` (basic async queue)
+- `RunControlsView` (start button, progress indicator)
+- Hardcoded API key input (plain text field — Keychain comes in AO-5)
+- _Dependencies: CP-2 (needs interpolated prompts)_
+
+**CP-4 — Inline Results Display**
+- `ResultsViewModel` (merge results into table columns)
+- Update `DataTableView` to show result columns with status indicators
+- _Dependencies: CP-3 (needs results)_
+
+**CP-5 — CSV Export**
+- `ExportViewModel` (build enriched table, write CSV)
+- `ExportButton` in toolbar, save dialog
+- _Dependencies: CP-4 (needs results in table)_
+
+### Add-on Phases
+
+| Phase | Feature | Depends On |
+|---|---|---|
+| **AO-1** | Multiple prompts per file — `PromptListView`, full `PromptListViewModel`, per-prompt result columns, per-prompt export columns | CP-2 |
+| **AO-2** | Multi-model selection — model list from API, multi-select UI, N×M request queue, per-model result columns | CP-3 |
+| **AO-3** | Pause / resume / cancel — queue state management, state-dependent button labels | CP-3 |
+| **AO-4** | Retry logic — auto-retry with configurable max, per-row retry button, "retry all failed" | CP-3 |
+| **AO-5** | Settings window + Keychain — `SettingsViewModel`, `SettingsWindow`, API key in Keychain, processing params, validate on save | no hard dep |
+| **AO-6** | Statistics panel — `StatsViewModel`, `StatsPanel`, cost / median response time / total tokens per model per prompt | CP-4 |
+| **AO-7** | Queue persistence — serialize queue state to disk, resume on restart | AO-3 |
+| **AO-8** | Response caching — cache keyed on (template + row hash + model), skip on hit, clear in settings | CP-3 |
+| **AO-9** | Change detection — content hash on reload, invalidate results when file changes on disk | CP-1 |
+| **AO-10** | Cosine similarity — compute between input and output, display in results and stats | CP-4 |
+| **AO-11** | Extrapolated projections — scale selector (1K / 1M / 10M), projected cost and token display | AO-6 |
+| **AO-12** | Additional file parsers — `TSVParser`, `JSONParser`, `ExcelParser` each conforming to `FileParser` | CP-1 |
+
+---
+
+## 7. File Management & Parsing
+
+### 7.1 File Parser Abstraction
+
+All file formats are handled through the `FileParser` protocol:
+
+```swift
+protocol FileParser {
+    static var supportedExtensions: Set<String> { get }
+    func parse(url: URL) throws -> ParsedTable
+}
+```
+
+`WorkspaceViewModel` detects the file type by extension and routes to the appropriate parser. Adding a new format requires only one new conforming type. CSV is the first implementation; all others are add-ons (AO-12).
+
+### 7.2 Opening Files
+
+- Users open files via the native file picker (`Cmd+O` or `File > Open File...`).
+- Files can also be opened by dragging and dropping onto the app window.
+- Multiple files can be open simultaneously; each is independently tracked.
+- Re-opening an already-loaded file is handled gracefully — no duplicates.
+
+### 7.3 File List
+
+- All open files are listed in the sidebar.
+- Clicking a file switches to that file's data and prompt list.
+- The file list is persistent — restored on relaunch using security-scoped bookmarks.
+
+### 7.4 Removing Files
 
 - A file can be removed from the list.
-- Removing a file clears all associated data (records, results, prompts, history) from the app.
+- Removing clears all associated data (rows, results, prompts) from the app.
 - The original file on disk is not affected.
-- If the file being removed is currently selected, the view is cleared.
 
-### 2.4 Change Detection
+### 7.5 Change Detection (AO-9)
 
-- The app tracks the content of each CSV file.
-- If a file's content changes on disk (detected on reload), the app detects this and invalidates any cached results for that file, prompting a clean re-run.
+- The app stores a content hash per file on first open.
+- If the file changes on disk (detected on reload), cached results are invalidated and the user is prompted to re-run.
 
 ---
 
-## 3. Data Preview
+## 8. Data Preview
 
-### 3.1 Table View
+### 8.1 Table View
 
-- The selected CSV file is displayed as a table with the original columns.
-- Each row in the table represents one CSV record.
-- Large files are loaded in pages to keep the UI responsive (up to 1,000 rows displayed at a time; all rows are processed during runs).
+- The selected file is displayed as a table with the original columns.
+- Each row represents one parsed record.
+- Large files are loaded in pages (up to 1,000 rows displayed at a time; all rows are processed during runs).
 
-### 3.2 Row Status
+### 8.2 Row Status
 
 - Each row has a visual status indicator: `pending`, `in-progress`, `completed`, or `failed`.
-- Completed rows show the LLM response text inline in the table.
-- When multiple models are selected, each model's response is displayed in its own column.
+- Completed rows show LLM response text inline in the table.
+- When multiple prompts or models are selected, each produces its own column.
 
 ---
 
-## 4. Prompt Authoring
+## 9. Prompt Authoring
 
-### 4.1 Prompt Template
+### 9.1 Multiple Prompts per File
 
-- Each file has one active prompt (the "default prompt").
-- The prompt is plain text authored by the user — these are the LLM instructions.
-- Prompts support **column interpolation**: `{{column_name}}` is replaced with that column's value for each row before sending.
+- Each file has a **list of prompts** (not a single prompt).
+- Users can add, rename, reorder, and delete prompts.
+- Each prompt is independent: it can be run, paused, and exported separately, or all prompts can be batch-run.
+- A file always starts with one default prompt.
 
-### 4.2 Row Context
+### 9.2 Prompt Template
 
-- Beyond placeholder interpolation, each row's full data is automatically appended to the prompt as a structured data block, so the LLM sees all column values even if they aren't explicitly referenced in the prompt.
+- Prompts are plain text authored by the user.
+- Prompts support **column interpolation**: `{{column_name}}` is replaced with that row's value before sending.
+- Each row's full data is automatically appended as a structured block so the LLM sees all values even if not explicitly referenced.
 
-### 4.3 Prompt Persistence
+### 9.3 Prompt Persistence
 
-- The prompt is saved automatically when edited.
-- It is restored when the file is re-selected or the app is relaunched.
-- Changing the prompt does not automatically re-run completed rows — the user must explicitly start a new run.
+- Each prompt is saved automatically when edited.
+- Prompts are restored when the file is re-selected or the app is relaunched.
+- Changing a prompt does not automatically re-run completed rows.
 
-### 4.4 LLM Parameters
+### 9.4 LLM Parameters
 
-The user can configure the following parameters per prompt:
+Each prompt has its own independently configurable parameters:
 
-| Parameter | Description |
-|---|---|
-| Temperature | Controls response randomness (default: 1.0) |
-| Max tokens | Maximum output length |
-| Top-P | Nucleus sampling |
-| Frequency penalty | Penalizes repetition of tokens |
-| Presence penalty | Penalizes introducing new topics |
+| Parameter | Default | Description |
+|---|---|---|
+| Temperature | 1.0 | Response randomness |
+| Max tokens | — | Maximum output length |
+| Top-P | 1.0 | Nucleus sampling |
+| Frequency penalty | 0.0 | Penalizes repeated tokens |
+| Presence penalty | 0.0 | Penalizes new topic introduction |
 
 ---
 
-## 5. Model Selection
+## 10. Model Selection
 
-### 5.1 Available Models
+### 10.1 Available Models
 
-- The app fetches the list of available GPT models from the OpenAI API using the user's API key.
-- Models are grouped by family (GPT-4, GPT-3.5, etc.) and sorted newest-first.
-- The list is refreshed when the API key changes.
+- The app fetches available models from the OpenAI API using the user's API key.
+- Models are grouped by family and sorted newest-first.
+- The list refreshes when the API key changes.
 
-### 5.2 Multi-Model Selection
+### 10.2 Multi-Model Selection (AO-2)
 
-- The user can select **one or more models** simultaneously.
-- When multiple models are selected, every row is sent to **each selected model independently**.
+- The user can select one or more models simultaneously.
+- When multiple models are selected, every row is sent to each model independently.
 - This enables direct model comparison on the same data with the same prompt.
 - The model selection is persisted across sessions.
 
 ---
 
-## 6. Processing & Queue
+## 11. Processing & Queue
 
-### 6.1 Starting a Run
+### 11.1 Starting a Run
 
-Three processing modes are available:
+Three modes:
 
 | Mode | Description |
 |---|---|
-| **Process all rows** | Sends every row in the file to the selected model(s) |
-| **Process N rows** | Sends the first N rows only (useful for sampling/testing) |
-| **Process single row** | Sends one specific row (used for retrying a failed row) |
+| **Process all rows** | Sends every row to the selected model(s) |
+| **Process N rows** | Sends the first N rows (for sampling/testing) |
+| **Process single row** | Sends one specific row (for retry or spot-check) |
 
-Starting a new run clears any previous results and begins fresh.
+Starting a new run clears previous results for that prompt and begins fresh.
 
-### 6.2 Queue Architecture
+### 11.2 Queue Architecture
 
-- Requests are processed via an **internal async queue** — not all rows are sent at once.
-- The queue enforces **concurrency limits** (max simultaneous in-flight requests) and **rate limits** (max requests per second) to stay within API limits.
+- Requests are processed via an internal async queue — not all rows are sent simultaneously.
+- The queue enforces **concurrency limits** (max simultaneous in-flight requests) and **rate limits** (max requests per second).
 - Default: 2 concurrent requests, 5 requests per second.
 - All queue parameters are configurable in Settings.
 
-### 6.3 Asynchronous Processing
+### 11.3 Asynchronous Processing
 
-- Processing runs entirely **in the background** — the UI remains fully interactive during a run.
-- As rows complete, the table updates in real-time without requiring any user action.
-- Progress is tracked and displayed continuously.
+- Processing runs entirely in the background — the UI remains responsive during a run.
+- The table updates in real-time as rows complete.
 
-### 6.4 Pause & Resume
+### 11.4 Pause & Resume (AO-3)
 
-- A run can be **paused** at any time. Requests already in-flight complete; new requests wait.
-- A paused run can be **resumed** to continue where it left off.
-- The Start button toggles between Start / Pause / Resume depending on queue state.
+- A run can be paused at any time. In-flight requests complete; new ones wait.
+- A paused run can be resumed to continue from where it left off.
+- The Start button toggles Start / Pause / Resume based on queue state.
 
-### 6.5 Cancel
+### 11.5 Cancel (AO-3)
 
-- A run can be **canceled**. Queued requests are removed; in-flight requests are discarded when they complete.
-- Cancellation is scoped to the current file — other files' queues are unaffected.
+- Canceling removes queued requests; in-flight requests are discarded on completion.
+- Cancellation is scoped to the current prompt run.
 
-### 6.6 Retry
+### 11.6 Retry (AO-4)
 
-- Failed rows can be **retried individually** or **all at once**.
-- Each row automatically retries up to 3 times before being permanently marked as failed.
-- After max retries, the row remains failed and can be manually retried later.
+- Failed rows can be retried individually or all at once.
+- Each row auto-retries up to `maxRetries` times before being permanently marked failed.
 
-### 6.7 Queue Persistence
+### 11.7 Queue Persistence (AO-7)
 
-- The queue state is **persisted to disk** — if the app quits or crashes during processing, the queue state survives.
-- On restart, the user can see which rows completed and which did not, and resume or retry as needed.
+- Queue state is persisted to disk — if the app quits during processing, state survives.
+- On restart the user can see which rows completed and resume or retry as needed.
 
-### 6.8 Multi-Model Parallelism
+### 11.8 Multi-Prompt and Multi-Model Parallelism
 
-- When N models are selected, each row spawns N independent requests.
-- All N × rows requests are enqueued together and processed concurrently subject to queue limits.
-- Results arrive and are stored per model independently.
+- When P prompts and M models are active, each row can spawn up to P×M independent requests.
+- All requests are enqueued together and processed concurrently within queue limits.
+- Results arrive and are stored per-prompt and per-model independently.
 
 ---
 
-## 7. Results & Output
+## 12. Results & Output
 
-### 7.1 Inline Results
+### 12.1 Inline Results
 
-- Completed rows display the LLM response text directly in the table.
-- Each model's response appears in its own column (e.g., "Output (gpt-4o)", "Output (gpt-4o-mini)").
+- Completed rows display LLM response text directly in the table.
+- Each prompt's results appear in their own column group, labeled by prompt name.
+- Each model's response within a prompt group has its own column (e.g., "My Prompt — gpt-4o").
 - Failed rows display the error message.
 
-### 7.2 Result Metadata
+### 12.2 Result Metadata
 
 Each completed result stores:
 - Response text
@@ -200,81 +474,70 @@ Each completed result stores:
 - Cost in USD
 - Response duration in milliseconds
 - Model used
-- Cosine similarity score (see §8.3)
+- Cosine similarity score (AO-10)
 
-### 7.3 Response Caching
+### 12.3 Response Caching (AO-8)
 
-- Results are **cached** so identical requests (same prompt + same row data) are never sent twice.
-- If the user re-runs after changing the prompt or the file, new requests are made; unchanged rows may still hit the cache.
+- Results are cached so identical requests (same template + row data + model) are never sent twice.
 - The cache can be cleared from Settings.
 
 ---
 
-## 8. Statistics
+## 13. Statistics
 
-### 8.1 Per-Model Stats Panel
-
-The app computes live statistics per selected model based on completed rows:
+### 13.1 Per-Prompt Per-Model Stats Panel (AO-6)
 
 | Stat | Description |
 |---|---|
-| **Total cost** | Cumulative USD cost for all completed rows |
-| **Median response time** | Median API call duration in seconds |
-| **Total tokens** | Cumulative token count across all completed rows |
-| **Median cosine similarity** | Median similarity between input and output (see §8.3) |
+| Total cost | Cumulative USD for all completed rows |
+| Median response time | Median API call duration in seconds |
+| Total tokens | Cumulative token count |
+| Median cosine similarity | Median similarity score (AO-10) |
 
-### 8.2 Extrapolated Projections
+### 13.2 Extrapolated Projections (AO-11)
 
-- Stats can be **extrapolated** to project costs and token usage at scale.
-- The user selects a target scale: **1K**, **1M**, or **10M** rows.
-- Extrapolation formula: `(stat per row) × target scale`.
+- Stats are extrapolated to project costs and token usage at scale.
+- User selects a target scale: **1K**, **1M**, or **10M** rows.
+- Formula: `(stat per row) × target scale`.
 - Extrapolation can be toggled on/off.
-- The scale setting is persisted.
-
-### 8.3 Cosine Similarity
-
-- After each response, the app computes the **cosine similarity** between the full input sent to the LLM and the response text received.
-- Score range: 0 (no shared vocabulary) to 1 (identical vocabulary distribution).
-- Provides a quick signal for whether responses mirror the input language or diverge significantly — useful for detecting boilerplate, repetitive, or off-topic outputs.
-- The median cosine similarity across all completed rows is shown in the stats panel.
 
 ---
 
-## 9. Export
+## 14. Export
 
-### 9.1 Save Results
+### 14.1 Save Results
 
-- Users can export the enriched CSV via `File > Save Results` (`Cmd+S`).
-- A native save dialog appears with a suggested filename (`{original_name}_with_responses.csv`) in the same directory as the source file.
+- Users export via `File > Save Results` (`Cmd+S`).
+- A native save dialog appears with suggested filename `{original_name}_enriched.csv`.
 
-### 9.2 Export Format
+### 14.2 Export Format
 
 The exported CSV contains:
-- All original columns from the source file (unchanged, in original order).
-- For each model that was run, four appended columns:
-  - `Output (model-id)` — LLM response text
-  - `Duration (ms) (model-id)` — response time
-  - `Tokens (model-id)` — total token count
-  - `Cosine Similarity (model-id)` — similarity score (3 decimal places)
+- All original columns (unchanged, original order).
+- For each prompt that was run, and each model within that prompt, four appended columns:
+  - `{Prompt Name} — Output ({model-id})`
+  - `{Prompt Name} — Duration ms ({model-id})`
+  - `{Prompt Name} — Tokens ({model-id})`
+  - `{Prompt Name} — Cosine Similarity ({model-id})` (AO-10)
 
-### 9.3 Partial Results
+### 14.3 Partial Results
 
-- Rows that did not complete (pending, failed) are included in the export with empty values for the output columns.
-- Row order matches the original CSV exactly.
+- Rows that did not complete (pending, failed) are included with empty values in output columns.
+- Row order matches the original file exactly.
 
 ---
 
-## 10. Settings
+## 15. Settings
 
-Settings are accessible via `Cmd+,` or `Quixote > Preferences`. They open in a separate window.
+Settings are accessible via `Cmd+,` or `Quixote > Preferences` and open in a separate window.
 
-### 10.1 API Keys
+### 15.1 API Keys
 
-- **OpenAI API Key**: required for all LLM processing. Stored securely in the macOS Keychain — never saved in plain text.
+- **OpenAI API Key**: required for all LLM processing. Stored in the macOS Keychain — never in plain text.
 - **Gemini API Key**: stored (for future use).
-- After setting an API key, the app validates it by fetching the available models list.
+- After setting a key, the app validates it by fetching the available models list.
 
-### 10.2 Processing Settings
+### 15.2 Processing Settings
 
 | Setting | Default | Description |
 |---|---|---|
@@ -283,14 +546,14 @@ Settings are accessible via `Cmd+,` or `Quixote > Preferences`. They open in a s
 | Max retries | 3 | Retry attempts before permanently failing a row |
 | Request timeout | — | Per-request timeout in seconds |
 
-### 10.3 Stats Display
+### 15.3 Stats Display
 
 | Setting | Default | Description |
 |---|---|---|
 | Show extrapolated stats | On | Toggle cost/token projections |
-| Extrapolation scale | 1K | Target scale for projections (1K / 1M / 10M) |
+| Extrapolation scale | 1K | Target scale (1K / 1M / 10M) |
 
-### 10.4 Data Management
+### 15.4 Data Management
 
-- **Clear cache**: removes all stored responses, forcing a full re-run next time.
+- **Clear cache**: removes all stored responses, forcing a full re-run.
 - **Data directory**: shows where app data (results, settings) is stored.
