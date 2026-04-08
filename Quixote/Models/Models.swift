@@ -94,6 +94,86 @@ struct Prompt: Identifiable, Codable, Equatable {
     }
 }
 
+// MARK: - ModelConfig
+
+struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
+    var id: String        // e.g. "gpt-4o-mini"
+    var displayName: String
+    var provider: LLMProvider
+
+    static let builtIn: [ModelConfig] = [
+        ModelConfig(id: "gpt-4o",       displayName: "GPT-4o",        provider: .openAI),
+        ModelConfig(id: "gpt-4o-mini",  displayName: "GPT-4o mini",   provider: .openAI),
+        ModelConfig(id: "gpt-4-turbo",  displayName: "GPT-4 Turbo",   provider: .openAI),
+        ModelConfig(id: "gpt-3.5-turbo",displayName: "GPT-3.5 Turbo", provider: .openAI),
+    ]
+}
+
+enum LLMProvider: String, Codable {
+    case openAI
+}
+
+// MARK: - RunStatus / ResultStatus
+
+enum RunStatus: String, Codable {
+    case pending, running, completed, cancelled, failed
+}
+
+enum ResultStatus: String, Codable {
+    case pending, inProgress, completed, failed
+}
+
+// MARK: - TokenUsage
+
+struct TokenUsage: Codable, Equatable {
+    var input: Int
+    var output: Int
+    var total: Int
+}
+
+// MARK: - ProcessingRun
+
+struct ProcessingRun: Identifiable, Codable {
+    let id: UUID
+    var promptID: UUID
+    var modelID: String
+    var status: RunStatus
+    var startedAt: Date
+    var completedAt: Date?
+
+    init(promptID: UUID, modelID: String) {
+        self.id = UUID()
+        self.promptID = promptID
+        self.modelID = modelID
+        self.status = .pending
+        self.startedAt = Date()
+    }
+}
+
+// MARK: - PromptResult
+
+struct PromptResult: Identifiable, Codable {
+    let id: UUID
+    var runID: UUID
+    var rowID: UUID
+    var promptID: UUID
+    var modelID: String
+    var responseText: String?
+    var status: ResultStatus
+    var tokenUsage: TokenUsage?
+    var costUSD: Double?
+    var durationMs: Int?
+
+    init(runID: UUID, rowID: UUID, promptID: UUID, modelID: String) {
+        self.id = UUID()
+        self.runID = runID
+        self.rowID = rowID
+        self.promptID = promptID
+        self.modelID = modelID
+        self.status = .pending
+    }
+}
+
 // MARK: - ParsedTable
 
 struct ParsedTable: Codable, Equatable {

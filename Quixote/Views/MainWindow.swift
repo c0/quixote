@@ -4,30 +4,43 @@ struct MainWindow: View {
     @StateObject private var workspace = WorkspaceViewModel()
     @StateObject private var dataPreview = DataPreviewViewModel()
     @StateObject private var promptEditor = PromptEditorViewModel()
+    @StateObject private var processing = ProcessingViewModel()
 
     var body: some View {
         NavigationSplitView {
             SidebarView(workspace: workspace)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 320)
         } detail: {
-            VSplitView {
-                DataTableView(viewModel: dataPreview)
-                    .frame(minHeight: 200)
+            VStack(spacing: 0) {
+                VSplitView {
+                    DataTableView(viewModel: dataPreview)
+                        .frame(minHeight: 200)
 
-                PromptEditorView(
-                    viewModel: promptEditor,
+                    PromptEditorView(
+                        viewModel: promptEditor,
+                        columns: dataPreview.columns
+                    )
+                    .frame(minHeight: 120, idealHeight: 200)
+                }
+
+                Divider()
+
+                RunControlsView(
+                    processing: processing,
+                    prompt: promptEditor.prompt,
+                    rows: dataPreview.allRows,
                     columns: dataPreview.columns
                 )
-                .frame(minHeight: 120, idealHeight: 200)
             }
             .navigationTitle(workspace.selectedFile?.displayName ?? "Quixote")
             .navigationSubtitle(subtitleText)
         }
-        .frame(minWidth: 720, minHeight: 520)
+        .frame(minWidth: 720, minHeight: 560)
         .onAppear {
             loadSelectedFile()
         }
         .onChange(of: workspace.selectedFileID) {
+            processing.cancel()
             loadSelectedFile()
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in

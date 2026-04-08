@@ -12,6 +12,7 @@
 		293470BD38BC4772D572E01A /* PromptEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA90B80C515CF3D6A218CB6 /* PromptEditorViewModel.swift */; };
 		58C07C4A872E322BB4C74AC2 /* QuixoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD22DB7736A6662220F2DA80 /* QuixoteApp.swift */; };
 		62D95681EB0E26F69EF70D9C /* DataPreviewViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */; };
+		6410934B48AB739953445084 /* ProcessingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AAD0FEBB815B9058EE7894 /* ProcessingViewModel.swift */; };
 		72F481F830548F7D98647DA0 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = E26C91657706E603C44C9555 /* Models.swift */; };
 		84BD210A9BD009FB27B7CC6F /* PromptEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78C00E9148433C0EEB63FF2 /* PromptEditorView.swift */; };
 		896A90755BFE179BAC7179A6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = E99737654BBA8327C4CF245C /* Sparkle */; };
@@ -19,25 +20,32 @@
 		AB871107515E0665ED2EF240 /* FileParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47BD9C6322AB886FD3A0546F /* FileParser.swift */; };
 		C4606B0B2D6593AE39026FF6 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C7596ACFD51D8674A5582B /* SidebarView.swift */; };
 		D6082993DFFDD2F5A355DA0F /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617B83335699A4ED1577F375 /* MainWindow.swift */; };
+		E1280BF31DF342FA1274E9F6 /* RunControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7065ADAF137B64DF3144BCFC /* RunControlsView.swift */; };
 		E22355DD353854B4F108DEE5 /* CSVParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C8E07AE503BF6F881CB3CA9 /* CSVParser.swift */; };
+		EEAF0D3E97646ACF01637743 /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4826DD61DBE02CB111475C52 /* OpenAIService.swift */; };
+		F4C748C163464A8159A64BD8 /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AFAAF62A283A04EB745B022 /* LLMService.swift */; };
 		FE8BAEAF3CEB9E878FB244FD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C49C51218E1B7C13CBB0CF53 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		2411C06BA0AC1D7EEBF6247C /* InterpolationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterpolationEngine.swift; sourceTree = "<group>"; };
 		31C7596ACFD51D8674A5582B /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		3AFAAF62A283A04EB745B022 /* LLMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMService.swift; sourceTree = "<group>"; };
 		47BD9C6322AB886FD3A0546F /* FileParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileParser.swift; sourceTree = "<group>"; };
+		4826DD61DBE02CB111475C52 /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
 		497D3020B9DBF7CF4AC9173A /* WorkspaceViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceViewModel.swift; sourceTree = "<group>"; };
 		4C62EE375D61EAF9527A7A6C /* DataTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataTableView.swift; sourceTree = "<group>"; };
 		617B83335699A4ED1577F375 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
 		67733DDFDF7C6921A1F8F8D5 /* Quixote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Quixote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6C8E07AE503BF6F881CB3CA9 /* CSVParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVParser.swift; sourceTree = "<group>"; };
+		7065ADAF137B64DF3144BCFC /* RunControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunControlsView.swift; sourceTree = "<group>"; };
 		7F748859BA653F3B9AE625C1 /* Quixote.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Quixote.entitlements; sourceTree = "<group>"; };
 		8DF623633B8639C60192AA99 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		AD22DB7736A6662220F2DA80 /* QuixoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuixoteApp.swift; sourceTree = "<group>"; };
 		AEA90B80C515CF3D6A218CB6 /* PromptEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptEditorViewModel.swift; sourceTree = "<group>"; };
 		B78C00E9148433C0EEB63FF2 /* PromptEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptEditorView.swift; sourceTree = "<group>"; };
 		C49C51218E1B7C13CBB0CF53 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C7AAD0FEBB815B9058EE7894 /* ProcessingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingViewModel.swift; sourceTree = "<group>"; };
 		CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataPreviewViewModel.swift; sourceTree = "<group>"; };
 		E26C91657706E603C44C9555 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -66,6 +74,7 @@
 			isa = PBXGroup;
 			children = (
 				47BD9C6322AB886FD3A0546F /* FileParser.swift */,
+				3AFAAF62A283A04EB745B022 /* LLMService.swift */,
 			);
 			path = Protocols;
 			sourceTree = "<group>";
@@ -76,6 +85,7 @@
 				4C62EE375D61EAF9527A7A6C /* DataTableView.swift */,
 				617B83335699A4ED1577F375 /* MainWindow.swift */,
 				B78C00E9148433C0EEB63FF2 /* PromptEditorView.swift */,
+				7065ADAF137B64DF3144BCFC /* RunControlsView.swift */,
 				31C7596ACFD51D8674A5582B /* SidebarView.swift */,
 			);
 			path = Views;
@@ -110,6 +120,7 @@
 			isa = PBXGroup;
 			children = (
 				CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */,
+				C7AAD0FEBB815B9058EE7894 /* ProcessingViewModel.swift */,
 				AEA90B80C515CF3D6A218CB6 /* PromptEditorViewModel.swift */,
 				497D3020B9DBF7CF4AC9173A /* WorkspaceViewModel.swift */,
 			);
@@ -126,10 +137,19 @@
 				CDC42B220E9ABB648BDA8182 /* Models */,
 				6147801D0BA4466A23424AFD /* Parsers */,
 				4230BFBCC2B71CF1CC3DD198 /* Protocols */,
+				E5898556B4EE54090EB628EF /* Services */,
 				D7A54180FB038A279DEAB209 /* ViewModels */,
 				5F7D674D713439BA5A3A0893 /* Views */,
 			);
 			path = Quixote;
+			sourceTree = "<group>";
+		};
+		E5898556B4EE54090EB628EF /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				4826DD61DBE02CB111475C52 /* OpenAIService.swift */,
+			);
+			path = Services;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -212,11 +232,15 @@
 				A7DBB81D4847189FBF08AC36 /* DataTableView.swift in Sources */,
 				AB871107515E0665ED2EF240 /* FileParser.swift in Sources */,
 				0E552C64E53183E0C3049B48 /* InterpolationEngine.swift in Sources */,
+				F4C748C163464A8159A64BD8 /* LLMService.swift in Sources */,
 				D6082993DFFDD2F5A355DA0F /* MainWindow.swift in Sources */,
 				72F481F830548F7D98647DA0 /* Models.swift in Sources */,
+				EEAF0D3E97646ACF01637743 /* OpenAIService.swift in Sources */,
+				6410934B48AB739953445084 /* ProcessingViewModel.swift in Sources */,
 				84BD210A9BD009FB27B7CC6F /* PromptEditorView.swift in Sources */,
 				293470BD38BC4772D572E01A /* PromptEditorViewModel.swift in Sources */,
 				58C07C4A872E322BB4C74AC2 /* QuixoteApp.swift in Sources */,
+				E1280BF31DF342FA1274E9F6 /* RunControlsView.swift in Sources */,
 				C4606B0B2D6593AE39026FF6 /* SidebarView.swift in Sources */,
 				0238424EAB04626680B65860 /* WorkspaceViewModel.swift in Sources */,
 			);
