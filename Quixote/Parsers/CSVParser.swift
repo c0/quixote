@@ -6,9 +6,14 @@ struct CSVParser: FileParser {
     func parse(url: URL) throws -> ParsedTable {
         let raw: String
         do {
-            raw = try String(contentsOf: url, encoding: .utf8)
-        } catch {
-            throw FileParserError.unreadable(url)
+            // Try UTF-8 first, fall back to system encoding
+            if let s = try? String(contentsOf: url, encoding: .utf8) {
+                raw = s
+            } else if let s = try? String(contentsOf: url, encoding: .isoLatin1) {
+                raw = s
+            } else {
+                throw FileParserError.unreadable(url)
+            }
         }
 
         var lines = splitLines(raw)
@@ -45,40 +50,32 @@ struct CSVParser: FileParser {
     // MARK: - Parsing helpers
 
     private func splitLines(_ text: String) -> [String] {
-        // Split on CRLF or LF, preserving quoted newlines
-        var lines: [String] = []
-        var current = ""
-        var inQuotes = false
-        var i = text.startIndex
+        // Foundation handles \n, \r\n, \r — rejoin lines inside quoted fields
+        let raw = text.components(separatedBy: .newlines)
+        var result: [String] = []
+        var pending: String? = nil
 
-        while i < text.endIndex {
-            let ch = text[i]
-            if ch == "\"" {
-                inQuotes.toggle()
-                current.append(ch)
-            } else if ch == "\r" {
-                let next = text.index(after: i)
-                if !inQuotes {
-                    lines.append(current)
-                    current = ""
-                    if next < text.endIndex && text[next] == "\n" {
-                        i = next
-                    }
+        for line in raw {
+            if var acc = pending {
+                acc += "\n" + line
+                if quoteCount(acc) % 2 == 0 {
+                    result.append(acc)
+                    pending = nil
                 } else {
-                    current.append(ch)
+                    pending = acc
                 }
-            } else if ch == "\n" && !inQuotes {
-                lines.append(current)
-                current = ""
+            } else if quoteCount(line) % 2 == 0 {
+                result.append(line)
             } else {
-                current.append(ch)
+                pending = line
             }
-            i = text.index(after: i)
         }
-        if !current.isEmpty {
-            lines.append(current)
-        }
-        return lines
+        if let acc = pending { result.append(acc) }
+        return result
+    }
+
+    private func quoteCount(_ s: String) -> Int {
+        s.reduce(0) { $1 == "\"" ? $0 + 1 : $0 }
     }
 
     private func parseCSVLine(_ line: String) -> [String] {

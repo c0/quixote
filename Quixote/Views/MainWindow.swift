@@ -3,17 +3,27 @@ import SwiftUI
 struct MainWindow: View {
     @StateObject private var workspace = WorkspaceViewModel()
     @StateObject private var dataPreview = DataPreviewViewModel()
+    @StateObject private var promptEditor = PromptEditorViewModel()
 
     var body: some View {
         NavigationSplitView {
             SidebarView(workspace: workspace)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 320)
         } detail: {
-            DataTableView(viewModel: dataPreview)
-                .navigationTitle(workspace.selectedFile?.displayName ?? "Quixote")
-                .navigationSubtitle(subtitleText)
+            VSplitView {
+                DataTableView(viewModel: dataPreview)
+                    .frame(minHeight: 200)
+
+                PromptEditorView(
+                    viewModel: promptEditor,
+                    columns: dataPreview.columns
+                )
+                .frame(minHeight: 120, idealHeight: 200)
+            }
+            .navigationTitle(workspace.selectedFile?.displayName ?? "Quixote")
+            .navigationSubtitle(subtitleText)
         }
-        .frame(minWidth: 720, minHeight: 480)
+        .frame(minWidth: 720, minHeight: 520)
         .onAppear {
             loadSelectedFile()
         }
@@ -38,10 +48,12 @@ struct MainWindow: View {
     private func loadSelectedFile() {
         guard let file = workspace.selectedFile else {
             dataPreview.clear()
+            promptEditor.clear()
             return
         }
         let table = workspace.parsedTable(for: file)
         dataPreview.load(table: table)
+        promptEditor.load(fileID: file.id, table: table)
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {

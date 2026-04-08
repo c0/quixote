@@ -62,6 +62,38 @@ struct Row: Identifiable, Codable, Equatable {
     }
 }
 
+// MARK: - LLMParameters
+
+struct LLMParameters: Codable, Equatable {
+    var temperature: Double = 1.0
+    var maxTokens: Int? = nil
+    var topP: Double = 1.0
+    var frequencyPenalty: Double = 0.0
+    var presencePenalty: Double = 0.0
+}
+
+// MARK: - Prompt
+
+struct Prompt: Identifiable, Codable, Equatable {
+    let id: UUID
+    var fileID: UUID
+    var name: String
+    var template: String
+    var parameters: LLMParameters
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(fileID: UUID, name: String = "Prompt") {
+        self.id = UUID()
+        self.fileID = fileID
+        self.name = name
+        self.template = ""
+        self.parameters = LLMParameters()
+        self.createdAt = Date()
+        self.updatedAt = Date()
+    }
+}
+
 // MARK: - ParsedTable
 
 struct ParsedTable: Codable, Equatable {
