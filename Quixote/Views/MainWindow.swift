@@ -6,8 +6,8 @@ struct MainWindow: View {
     @StateObject private var promptEditor = PromptEditorViewModel()
     @StateObject private var processing = ProcessingViewModel()
     @StateObject private var resultsVM = ResultsViewModel()
+    @StateObject private var exportVM = ExportViewModel()
 
-    // Tracks which model was active when the run started, for result column header
     @State private var activeModelID: String = ModelConfig.builtIn[1].id
 
     var body: some View {
@@ -39,6 +39,17 @@ struct MainWindow: View {
             }
             .navigationTitle(workspace.selectedFile?.displayName ?? "Quixote")
             .navigationSubtitle(subtitleText)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        triggerExport()
+                    } label: {
+                        Label("Export", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(!canExport)
+                    .help("Save Results… (⌘S)")
+                }
+            }
         }
         .frame(minWidth: 720, minHeight: 560)
         .onAppear { loadSelectedFile() }
@@ -61,7 +72,32 @@ struct MainWindow: View {
         .onReceive(NotificationCenter.default.publisher(for: .openFilePicker)) { _ in
             workspace.openFilePicker()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .exportResults)) { _ in
+            triggerExport()
+        }
     }
+
+    // MARK: - Export
+
+    private var canExport: Bool {
+        workspace.selectedFile != nil && !dataPreview.columns.isEmpty
+    }
+
+    private func triggerExport() {
+        guard let file = workspace.selectedFile else { return }
+        let table = workspace.parsedTable(for: file)
+        let model = ModelConfig.builtIn.first { $0.id == activeModelID }
+        exportVM.export(
+            table: table,
+            results: processing.results,
+            resultColumns: resultsVM.columns,
+            prompt: promptEditor.prompt,
+            model: model,
+            suggestedName: file.displayName
+        )
+    }
+
+    // MARK: - Helpers
 
     private var subtitleText: String {
         guard let file = workspace.selectedFile else { return "" }

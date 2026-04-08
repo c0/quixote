@@ -23,12 +23,16 @@ struct QuixoteApp: App {
         }
         .commands {
             CommandGroup(replacing: .newItem) {
-                // Handled by WorkspaceViewModel via toolbar button;
-                // expose Cmd+O here by posting to the active window
                 Button("Open File…") {
                     NotificationCenter.default.post(name: .openFilePicker, object: nil)
                 }
                 .keyboardShortcut("o", modifiers: .command)
+            }
+            CommandGroup(replacing: .saveItem) {
+                Button("Save Results…") {
+                    NotificationCenter.default.post(name: .exportResults, object: nil)
+                }
+                .keyboardShortcut("s", modifiers: .command)
             }
         }
 
@@ -42,4 +46,5 @@ struct QuixoteApp: App {
 
 extension Notification.Name {
     static let openFilePicker = Notification.Name("QuixoteOpenFilePicker")
+    static let exportResults  = Notification.Name("QuixoteExportResults")
 }
