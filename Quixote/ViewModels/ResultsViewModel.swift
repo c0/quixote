@@ -4,37 +4,37 @@ import Foundation
 final class ResultsViewModel: ObservableObject {
 
     /// One result column in the table (one per prompt × model combination).
-    /// CP-4: always exactly 0 or 1 column. AO-1/AO-2 will add more.
+    /// AO-2: multiple columns — one per selected model.
     struct ResultColumn: Identifiable, Equatable {
         let id: String           // "\(promptID)-\(modelID)"
-        let header: String       // e.g. "Output · gpt-4o-mini"
+        let header: String       // e.g. "Output — gpt-4o"
         let promptID: UUID
         let modelID: String
     }
 
     @Published private(set) var columns: [ResultColumn] = []
-    private var rawResults: [UUID: PromptResult] = [:]
+    private var rawResults: [String: PromptResult] = [:]  // composite key: "\(rowID)-\(modelID)"
 
     // MARK: - Update
 
     func update(
-        results: [UUID: PromptResult],
+        results: [String: PromptResult],
         prompt: Prompt?,
-        model: ModelConfig?
+        models: [ModelConfig]
     ) {
         rawResults = results
-        guard let p = prompt, let m = model else {
+        guard let p = prompt, !models.isEmpty else {
             columns = []
             return
         }
-        let col = ResultColumn(
-            id: "\(p.id)-\(m.id)",
-            header: "Output · \(m.displayName)",
-            promptID: p.id,
-            modelID: m.id
-        )
-        // Only show the column once results have started arriving
-        columns = results.isEmpty ? [] : [col]
+        columns = models.map { m in
+            ResultColumn(
+                id: "\(p.id)-\(m.id)",
+                header: "\(p.name) — \(m.displayName)",
+                promptID: p.id,
+                modelID: m.id
+            )
+        }
     }
 
     func clear() {
@@ -45,7 +45,10 @@ final class ResultsViewModel: ObservableObject {
     // MARK: - Lookup
 
     func result(for rowID: UUID, column: ResultColumn) -> PromptResult? {
-        guard let r = rawResults[rowID], r.promptID == column.promptID else { return nil }
+        let key = "\(rowID.uuidString)-\(column.modelID)"
+        guard let r = rawResults[key],
+              r.promptID == column.promptID,
+              r.modelID == column.modelID else { return nil }
         return r
     }
 }

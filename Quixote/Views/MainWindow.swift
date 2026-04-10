@@ -9,7 +9,7 @@ struct MainWindow: View {
     @StateObject private var exportVM = ExportViewModel()
     @StateObject private var settings = SettingsViewModel()
 
-    @State private var activeModelID: String = ModelConfig.builtIn[1].id
+    @State private var selectedModels: [ModelConfig] = []
 
     var body: some View {
         NavigationSplitView {
@@ -36,7 +36,7 @@ struct MainWindow: View {
                     prompt: promptEditor.prompt,
                     rows: dataPreview.allRows,
                     columns: dataPreview.columns,
-                    onModelChanged: { activeModelID = $0 }
+                    onModelChanged: { selectedModels = $0 }
                 )
             }
             .navigationTitle(workspace.selectedFile?.displayName ?? "Quixote")
@@ -66,11 +66,10 @@ struct MainWindow: View {
             loadSelectedFile()
         }
         .onChange(of: processing.results) {
-            let model = ModelConfig.builtIn.first { $0.id == activeModelID }
             resultsVM.update(
                 results: processing.results,
                 prompt: promptEditor.prompt,
-                model: model
+                models: selectedModels
             )
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
@@ -93,13 +92,12 @@ struct MainWindow: View {
     private func triggerExport() {
         guard let file = workspace.selectedFile else { return }
         let table = workspace.parsedTable(for: file)
-        let model = ModelConfig.builtIn.first { $0.id == activeModelID }
         exportVM.export(
             table: table,
             results: processing.results,
             resultColumns: resultsVM.columns,
             prompt: promptEditor.prompt,
-            model: model,
+            models: selectedModels,
             suggestedName: file.displayName
         )
     }
