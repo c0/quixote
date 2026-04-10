@@ -1,5 +1,4 @@
 import Foundation
-import Combine
 
 @MainActor
 final class PromptEditorViewModel: ObservableObject {
@@ -41,6 +40,11 @@ final class PromptEditorViewModel: ObservableObject {
         prompt = nil
         previewText = ""
         table = .empty
+    }
+
+    func removePrompt(for fileID: UUID) {
+        allPrompts.removeValue(forKey: fileID)
+        saveAll()
     }
 
     // MARK: - Editing

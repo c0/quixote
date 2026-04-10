@@ -33,8 +33,6 @@ struct OpenAIService: LLMService {
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await session.data(for: request)
-        } catch is CancellationError {
-            throw LLMServiceError.cancelled
         } catch {
             throw error
         }

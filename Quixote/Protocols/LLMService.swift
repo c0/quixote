@@ -11,7 +11,6 @@ enum LLMServiceError: LocalizedError {
     case rateLimited
     case serverError(Int, String)
     case decodingFailed(String)
-    case cancelled
 
     var errorDescription: String? {
         switch self {
@@ -19,7 +18,6 @@ enum LLMServiceError: LocalizedError {
         case .rateLimited:            return "Rate limited — too many requests"
         case .serverError(let c, let m): return "Server error \(c): \(m)"
         case .decodingFailed(let d):  return "Unexpected response: \(d)"
-        case .cancelled:              return "Cancelled"
         }
     }
 }

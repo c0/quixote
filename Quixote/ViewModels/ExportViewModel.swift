@@ -3,13 +3,6 @@ import AppKit
 
 @MainActor
 final class ExportViewModel: ObservableObject {
-    @Published private(set) var isExporting = false
-
-    struct ExportError: LocalizedError {
-        let message: String
-        var errorDescription: String? { message }
-    }
-
     // MARK: - Export
 
     func export(
@@ -20,10 +13,6 @@ final class ExportViewModel: ObservableObject {
         model: ModelConfig?,
         suggestedName: String
     ) {
-        guard !isExporting else { return }
-        isExporting = true
-        defer { isExporting = false }
-
         let csv = buildCSV(
             table: table,
             results: results,
@@ -60,15 +49,15 @@ final class ExportViewModel: ObservableObject {
         prompt: Prompt?,
         model: ModelConfig?
     ) -> String {
-        let modelID = model?.id ?? ""
+        let promptName = prompt?.name ?? "Prompt"
 
-        // Header
+        // Header — spec §14.2: "{Prompt Name} — Output ({model-id})"
         var headerFields = table.columns.map { $0.name }
         for col in resultColumns {
             headerFields += [
-                "Output (\(col.modelID))",
-                "Duration ms (\(col.modelID))",
-                "Tokens (\(col.modelID))",
+                "\(promptName) — Output (\(col.modelID))",
+                "\(promptName) — Duration ms (\(col.modelID))",
+                "\(promptName) — Tokens (\(col.modelID))",
             ]
         }
         var lines = [headerFields.map(escape).joined(separator: ",")]
@@ -78,8 +67,8 @@ final class ExportViewModel: ObservableObject {
             var fields = table.columns.map { row.values[$0.name] ?? "" }
 
             for col in resultColumns {
-                let result = results[row.id]
-                if let r = result, r.modelID == modelID, r.status == .completed {
+                // Match on col.modelID, not an outer variable
+                if let r = results[row.id], r.modelID == col.modelID, r.status == .completed {
                     fields.append(r.responseText ?? "")
                     fields.append(r.durationMs.map(String.init) ?? "")
                     fields.append(r.tokenUsage.map { String($0.total) } ?? "")

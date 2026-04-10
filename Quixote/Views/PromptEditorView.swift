@@ -114,8 +114,31 @@ struct ParametersPanel: View {
     var parameters: LLMParameters
     var onChange: (LLMParameters) -> Void
 
+    // Local string state for max tokens — Int? doesn't bind natively to TextField
+    @State private var maxTokensText: String = ""
+
     var body: some View {
         Form {
+            Section("Max Tokens") {
+                HStack(spacing: 6) {
+                    TextField("Unlimited", text: $maxTokensText)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                        .font(.caption)
+                        .onChange(of: maxTokensText) {
+                            var updated = parameters
+                            updated.maxTokens = maxTokensText.isEmpty ? nil : Int(maxTokensText)
+                            onChange(updated)
+                        }
+                    Text("tokens")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .onAppear {
+                maxTokensText = parameters.maxTokens.map(String.init) ?? ""
+            }
+
             Section("Temperature") {
                 VStack(alignment: .leading, spacing: 2) {
                     Slider(value: binding(\.temperature), in: 0...2, step: 0.1)

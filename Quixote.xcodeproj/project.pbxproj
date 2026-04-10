@@ -14,6 +14,7 @@
 		62D95681EB0E26F69EF70D9C /* DataPreviewViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */; };
 		6410934B48AB739953445084 /* ProcessingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AAD0FEBB815B9058EE7894 /* ProcessingViewModel.swift */; };
 		72F481F830548F7D98647DA0 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = E26C91657706E603C44C9555 /* Models.swift */; };
+		74D66B40D9C800419C59B347 /* RateLimiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F213D6DDE9EAB9A63FDC212D /* RateLimiter.swift */; };
 		84BD210A9BD009FB27B7CC6F /* PromptEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78C00E9148433C0EEB63FF2 /* PromptEditorView.swift */; };
 		896A90755BFE179BAC7179A6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = E99737654BBA8327C4CF245C /* Sparkle */; };
 		9BADE2016E4040B718879DE6 /* ExportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53C4E16F7618A22E8DA2799 /* ExportViewModel.swift */; };
@@ -52,6 +53,7 @@
 		CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataPreviewViewModel.swift; sourceTree = "<group>"; };
 		D53C4E16F7618A22E8DA2799 /* ExportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportViewModel.swift; sourceTree = "<group>"; };
 		E26C91657706E603C44C9555 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		F213D6DDE9EAB9A63FDC212D /* RateLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RateLimiter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -154,6 +156,7 @@
 			isa = PBXGroup;
 			children = (
 				4826DD61DBE02CB111475C52 /* OpenAIService.swift */,
+				F213D6DDE9EAB9A63FDC212D /* RateLimiter.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -247,6 +250,7 @@
 				84BD210A9BD009FB27B7CC6F /* PromptEditorView.swift in Sources */,
 				293470BD38BC4772D572E01A /* PromptEditorViewModel.swift in Sources */,
 				58C07C4A872E322BB4C74AC2 /* QuixoteApp.swift in Sources */,
+				74D66B40D9C800419C59B347 /* RateLimiter.swift in Sources */,
 				DDEEB18542EC80F49CDE0EE4 /* ResultsViewModel.swift in Sources */,
 				E1280BF31DF342FA1274E9F6 /* RunControlsView.swift in Sources */,
 				C4606B0B2D6593AE39026FF6 /* SidebarView.swift in Sources */,
