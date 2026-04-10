@@ -37,9 +37,7 @@ struct QuixoteApp: App {
         }
 
         Settings {
-            Text("Settings coming in AO-5")
-                .padding()
-                .frame(width: 300, height: 200)
+            SettingsView(viewModel: SettingsViewModel())
         }
     }
 }

@@ -7,6 +7,7 @@ struct MainWindow: View {
     @StateObject private var processing = ProcessingViewModel()
     @StateObject private var resultsVM = ResultsViewModel()
     @StateObject private var exportVM = ExportViewModel()
+    @StateObject private var settings = SettingsViewModel()
 
     @State private var activeModelID: String = ModelConfig.builtIn[1].id
 
@@ -31,6 +32,7 @@ struct MainWindow: View {
 
                 RunControlsView(
                     processing: processing,
+                    settings: settings,
                     prompt: promptEditor.prompt,
                     rows: dataPreview.allRows,
                     columns: dataPreview.columns,
