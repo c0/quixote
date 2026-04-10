@@ -15,8 +15,8 @@ final class ProcessingViewModel: ObservableObject {
     @Published var results: [UUID: PromptResult] = [:]
 
     private var runTask: Task<Void, Never>?
-    private let maxConcurrency = 2
-    private let rateLimiter = RateLimiter(requestsPerSecond: 5)
+    private var maxConcurrency = 2
+    private var rateLimiter = RateLimiter(requestsPerSecond: 5)
 
     var isRunning: Bool {
         if case .running = runState { return true }
@@ -37,9 +37,13 @@ final class ProcessingViewModel: ObservableObject {
         rows: [Row],
         columns: [ColumnDef],
         model: ModelConfig,
-        apiKey: String
+        apiKey: String,
+        concurrency: Int = 2,
+        rateLimit: Double = 5
     ) {
         guard !isRunning else { return }
+        maxConcurrency = max(1, concurrency)
+        rateLimiter = RateLimiter(requestsPerSecond: max(1, rateLimit))
         results = [:]
         runState = .running(completed: 0, total: rows.count)
 

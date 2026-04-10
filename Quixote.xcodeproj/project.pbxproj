@@ -10,6 +10,8 @@
 		0238424EAB04626680B65860 /* WorkspaceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 497D3020B9DBF7CF4AC9173A /* WorkspaceViewModel.swift */; };
 		0E552C64E53183E0C3049B48 /* InterpolationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2411C06BA0AC1D7EEBF6247C /* InterpolationEngine.swift */; };
 		293470BD38BC4772D572E01A /* PromptEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA90B80C515CF3D6A218CB6 /* PromptEditorViewModel.swift */; };
+		4B23ED2E96C86541FFA90A22 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 501B32910B80E6677CE0173B /* SettingsViewModel.swift */; };
+		4F0B247D9D411A9B478F6C96 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 485554E4EB34E40F1B7531C3 /* KeychainHelper.swift */; };
 		58C07C4A872E322BB4C74AC2 /* QuixoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD22DB7736A6662220F2DA80 /* QuixoteApp.swift */; };
 		62D95681EB0E26F69EF70D9C /* DataPreviewViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */; };
 		6410934B48AB739953445084 /* ProcessingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AAD0FEBB815B9058EE7894 /* ProcessingViewModel.swift */; };
@@ -18,6 +20,7 @@
 		84BD210A9BD009FB27B7CC6F /* PromptEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78C00E9148433C0EEB63FF2 /* PromptEditorView.swift */; };
 		896A90755BFE179BAC7179A6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = E99737654BBA8327C4CF245C /* Sparkle */; };
 		9BADE2016E4040B718879DE6 /* ExportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53C4E16F7618A22E8DA2799 /* ExportViewModel.swift */; };
+		9EF4501301E225F4A9BDB9C6 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4645A84A5F60BF30E1F23E8 /* SettingsView.swift */; };
 		A7DBB81D4847189FBF08AC36 /* DataTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C62EE375D61EAF9527A7A6C /* DataTableView.swift */; };
 		AB871107515E0665ED2EF240 /* FileParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47BD9C6322AB886FD3A0546F /* FileParser.swift */; };
 		C4606B0B2D6593AE39026FF6 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C7596ACFD51D8674A5582B /* SidebarView.swift */; };
@@ -37,8 +40,10 @@
 		3AFAAF62A283A04EB745B022 /* LLMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMService.swift; sourceTree = "<group>"; };
 		47BD9C6322AB886FD3A0546F /* FileParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileParser.swift; sourceTree = "<group>"; };
 		4826DD61DBE02CB111475C52 /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
+		485554E4EB34E40F1B7531C3 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		497D3020B9DBF7CF4AC9173A /* WorkspaceViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceViewModel.swift; sourceTree = "<group>"; };
 		4C62EE375D61EAF9527A7A6C /* DataTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataTableView.swift; sourceTree = "<group>"; };
+		501B32910B80E6677CE0173B /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
 		617B83335699A4ED1577F375 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
 		67733DDFDF7C6921A1F8F8D5 /* Quixote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Quixote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6C8E07AE503BF6F881CB3CA9 /* CSVParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVParser.swift; sourceTree = "<group>"; };
@@ -48,6 +53,7 @@
 		AD22DB7736A6662220F2DA80 /* QuixoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuixoteApp.swift; sourceTree = "<group>"; };
 		AEA90B80C515CF3D6A218CB6 /* PromptEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptEditorViewModel.swift; sourceTree = "<group>"; };
 		B78C00E9148433C0EEB63FF2 /* PromptEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptEditorView.swift; sourceTree = "<group>"; };
+		C4645A84A5F60BF30E1F23E8 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C49C51218E1B7C13CBB0CF53 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C7AAD0FEBB815B9058EE7894 /* ProcessingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingViewModel.swift; sourceTree = "<group>"; };
 		CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataPreviewViewModel.swift; sourceTree = "<group>"; };
@@ -92,6 +98,7 @@
 				617B83335699A4ED1577F375 /* MainWindow.swift */,
 				B78C00E9148433C0EEB63FF2 /* PromptEditorView.swift */,
 				7065ADAF137B64DF3144BCFC /* RunControlsView.swift */,
+				C4645A84A5F60BF30E1F23E8 /* SettingsView.swift */,
 				31C7596ACFD51D8674A5582B /* SidebarView.swift */,
 			);
 			path = Views;
@@ -130,6 +137,7 @@
 				C7AAD0FEBB815B9058EE7894 /* ProcessingViewModel.swift */,
 				AEA90B80C515CF3D6A218CB6 /* PromptEditorViewModel.swift */,
 				38DF6825342EF1993AE33C0B /* ResultsViewModel.swift */,
+				501B32910B80E6677CE0173B /* SettingsViewModel.swift */,
 				497D3020B9DBF7CF4AC9173A /* WorkspaceViewModel.swift */,
 			);
 			path = ViewModels;
@@ -155,6 +163,7 @@
 		E5898556B4EE54090EB628EF /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				485554E4EB34E40F1B7531C3 /* KeychainHelper.swift */,
 				4826DD61DBE02CB111475C52 /* OpenAIService.swift */,
 				F213D6DDE9EAB9A63FDC212D /* RateLimiter.swift */,
 			);
@@ -242,6 +251,7 @@
 				9BADE2016E4040B718879DE6 /* ExportViewModel.swift in Sources */,
 				AB871107515E0665ED2EF240 /* FileParser.swift in Sources */,
 				0E552C64E53183E0C3049B48 /* InterpolationEngine.swift in Sources */,
+				4F0B247D9D411A9B478F6C96 /* KeychainHelper.swift in Sources */,
 				F4C748C163464A8159A64BD8 /* LLMService.swift in Sources */,
 				D6082993DFFDD2F5A355DA0F /* MainWindow.swift in Sources */,
 				72F481F830548F7D98647DA0 /* Models.swift in Sources */,
@@ -253,6 +263,8 @@
 				74D66B40D9C800419C59B347 /* RateLimiter.swift in Sources */,
 				DDEEB18542EC80F49CDE0EE4 /* ResultsViewModel.swift in Sources */,
 				E1280BF31DF342FA1274E9F6 /* RunControlsView.swift in Sources */,
+				9EF4501301E225F4A9BDB9C6 /* SettingsView.swift in Sources */,
+				4B23ED2E96C86541FFA90A22 /* SettingsViewModel.swift in Sources */,
 				C4606B0B2D6593AE39026FF6 /* SidebarView.swift in Sources */,
 				0238424EAB04626680B65860 /* WorkspaceViewModel.swift in Sources */,
 			);

@@ -1,21 +1,18 @@
 import SwiftUI
 
-// Persists API key to UserDefaults for CP-3. TODO AO-5: move to Keychain.
-private let kAPIKey = "quixote.openai.apiKey"
 private let kSelectedModel = "quixote.selectedModel"
 
 struct RunControlsView: View {
     @ObservedObject var processing: ProcessingViewModel
+    @ObservedObject var settings: SettingsViewModel
     let prompt: Prompt?
     let rows: [Row]
     let columns: [ColumnDef]
     var onModelChanged: ((String) -> Void)? = nil
 
-    @AppStorage(kAPIKey) private var apiKey: String = ""
     @AppStorage(kSelectedModel) private var selectedModelID: String = "gpt-4o-mini"
 
     @State private var rowLimit: RowLimit = .all
-    @State private var showAPIKey = false
 
     private var selectedModel: ModelConfig {
         ModelConfig.builtIn.first { $0.id == selectedModelID } ?? ModelConfig.builtIn[1]
@@ -23,13 +20,17 @@ struct RunControlsView: View {
 
     private var rowsToProcess: [Row] {
         switch rowLimit {
-        case .all:      return rows
+        case .all:          return rows
         case .first(let n): return Array(rows.prefix(n))
         }
     }
 
+    private var apiKey: String {
+        settings.openAIKey.trimmingCharacters(in: .whitespaces)
+    }
+
     private var canRun: Bool {
-        !apiKey.trimmingCharacters(in: .whitespaces).isEmpty
+        !apiKey.isEmpty
             && !(prompt?.template.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
             && !rows.isEmpty
             && !processing.isRunning
@@ -37,29 +38,6 @@ struct RunControlsView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            // API Key
-            Group {
-                if showAPIKey {
-                    TextField("OpenAI API key", text: $apiKey)
-                } else {
-                    SecureField("OpenAI API key", text: $apiKey)
-                }
-            }
-            .textFieldStyle(.roundedBorder)
-            .frame(maxWidth: 200)
-            .font(.caption)
-
-            Button {
-                showAPIKey.toggle()
-            } label: {
-                Image(systemName: showAPIKey ? "eye.slash" : "eye")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help(showAPIKey ? "Hide key" : "Show key")
-
-            Divider().frame(height: 16)
-
             // Model picker
             Picker("", selection: $selectedModelID) {
                 ForEach(ModelConfig.builtIn) { model in
@@ -89,6 +67,18 @@ struct RunControlsView: View {
 
             Spacer()
 
+            // API key hint when missing
+            if apiKey.isEmpty {
+                Button {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                } label: {
+                    Label("Set API key in Settings", systemImage: "key.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                .buttonStyle(.plain)
+            }
+
             // Run / Cancel
             if processing.isRunning {
                 Button("Cancel", role: .destructive) {
@@ -103,7 +93,9 @@ struct RunControlsView: View {
                         rows: rowsToProcess,
                         columns: columns,
                         model: selectedModel,
-                        apiKey: apiKey.trimmingCharacters(in: .whitespaces)
+                        apiKey: apiKey,
+                        concurrency: settings.concurrency,
+                        rateLimit: Double(settings.rateLimit)
                     )
                 }
                 .buttonStyle(.borderedProminent)
