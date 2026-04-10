@@ -1,21 +1,31 @@
 import SwiftUI
 
-private let kSelectedModel = "quixote.selectedModel"
-
 struct RunControlsView: View {
     @ObservedObject var processing: ProcessingViewModel
     @ObservedObject var settings: SettingsViewModel
     let prompt: Prompt?
     let rows: [Row]
     let columns: [ColumnDef]
-    var onModelChanged: ((String) -> Void)? = nil
+    var onModelChanged: (([ModelConfig]) -> Void)? = nil
 
-    @AppStorage(kSelectedModel) private var selectedModelID: String = "gpt-4o-mini"
-
+    @AppStorage("quixote.selectedModels") private var selectedModelIDsData: Data = Data()
+    @State private var showModelPicker = false
     @State private var rowLimit: RowLimit = .all
 
-    private var selectedModel: ModelConfig {
-        ModelConfig.builtIn.first { $0.id == selectedModelID } ?? ModelConfig.builtIn[1]
+    // MARK: - Selected models
+
+    private var selectedModelIDs: Set<String> {
+        get {
+            (try? JSONDecoder().decode(Set<String>.self, from: selectedModelIDsData)) ?? ["gpt-4o-mini"]
+        }
+        nonmutating set {
+            selectedModelIDsData = (try? JSONEncoder().encode(newValue)) ?? Data()
+        }
+    }
+
+    private var selectedModels: [ModelConfig] {
+        let ids = selectedModelIDs
+        return settings.availableModels.filter { ids.contains($0.id) }
     }
 
     private var rowsToProcess: [Row] {
@@ -33,20 +43,16 @@ struct RunControlsView: View {
         !apiKey.isEmpty
             && !(prompt?.template.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
             && !rows.isEmpty
+            && !selectedModels.isEmpty
             && !processing.isRunning
     }
 
+    // MARK: - Body
+
     var body: some View {
         HStack(spacing: 10) {
-            // Model picker
-            Picker("", selection: $selectedModelID) {
-                ForEach(ModelConfig.builtIn) { model in
-                    Text(model.displayName).tag(model.id)
-                }
-            }
-            .frame(width: 130)
-            .font(.caption)
-            .onChange(of: selectedModelID) { onModelChanged?(selectedModelID) }
+            // Model picker button
+            modelPickerButton
 
             Divider().frame(height: 16)
 
@@ -92,7 +98,7 @@ struct RunControlsView: View {
                         prompt: p,
                         rows: rowsToProcess,
                         columns: columns,
-                        model: selectedModel,
+                        models: selectedModels,
                         apiKey: apiKey,
                         concurrency: settings.concurrency,
                         rateLimit: Double(settings.rateLimit)
@@ -106,7 +112,65 @@ struct RunControlsView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .background(.bar)
+        .onChange(of: selectedModelIDs) {
+            onModelChanged?(selectedModels)
+        }
+        .onAppear {
+            onModelChanged?(selectedModels)
+        }
     }
+
+    // MARK: - Model picker button
+
+    @ViewBuilder
+    private var modelPickerButton: some View {
+        let models = selectedModels
+        Button {
+            showModelPicker = true
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "cpu")
+                if models.isEmpty {
+                    Text("No model")
+                        .foregroundStyle(.orange)
+                } else if models.count == 1 {
+                    Text(models[0].displayName)
+                } else {
+                    Text("\(models.count) models")
+                }
+            }
+            .font(.caption)
+        }
+        .buttonStyle(.plain)
+        .frame(width: 130)
+        .popover(isPresented: $showModelPicker) {
+            ModelPickerPopover(
+                groupedModels: settings.groupedModels,
+                selectedIDs: selectedModelIDs,
+                onToggle: { id in
+                    var ids = selectedModelIDs
+                    if ids.contains(id) {
+                        ids.remove(id)
+                    } else {
+                        ids.insert(id)
+                    }
+                    selectedModelIDs = ids
+                },
+                onSelectAll: { familyModels in
+                    var ids = selectedModelIDs
+                    for m in familyModels { ids.insert(m.id) }
+                    selectedModelIDs = ids
+                },
+                onDeselectAll: { familyModels in
+                    var ids = selectedModelIDs
+                    for m in familyModels { ids.remove(m.id) }
+                    selectedModelIDs = ids
+                }
+            )
+        }
+    }
+
+    // MARK: - Progress
 
     @ViewBuilder
     private var progressSection: some View {
@@ -131,6 +195,55 @@ struct RunControlsView: View {
                 .foregroundStyle(.red)
                 .lineLimit(1)
         }
+    }
+}
+
+// MARK: - Model Picker Popover
+
+private struct ModelPickerPopover: View {
+    let groupedModels: [(family: String, models: [ModelConfig])]
+    let selectedIDs: Set<String>
+    let onToggle: (String) -> Void
+    let onSelectAll: ([ModelConfig]) -> Void
+    let onDeselectAll: ([ModelConfig]) -> Void
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 8) {
+                ForEach(groupedModels, id: \.family) { group in
+                    VStack(alignment: .leading, spacing: 4) {
+                        // Family header with select/deselect all
+                        HStack {
+                            Text(group.family)
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("All") { onSelectAll(group.models) }
+                                .buttonStyle(.plain)
+                                .font(.caption2)
+                            Button("None") { onDeselectAll(group.models) }
+                                .buttonStyle(.plain)
+                                .font(.caption2)
+                        }
+
+                        ForEach(group.models) { model in
+                            Toggle(model.displayName, isOn: toggleBinding(for: model.id))
+                                .font(.caption)
+                                .toggleStyle(.checkbox)
+                        }
+                    }
+                }
+            }
+            .padding(12)
+        }
+        .frame(width: 240, height: 300)
+    }
+
+    private func toggleBinding(for id: String) -> Binding<Bool> {
+        Binding(
+            get: { selectedIDs.contains(id) },
+            set: { _ in onToggle(id) }
+        )
     }
 }
 

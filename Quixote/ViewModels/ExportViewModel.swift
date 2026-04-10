@@ -7,18 +7,17 @@ final class ExportViewModel: ObservableObject {
 
     func export(
         table: ParsedTable,
-        results: [UUID: PromptResult],
+        results: [String: PromptResult],
         resultColumns: [ResultsViewModel.ResultColumn],
         prompt: Prompt?,
-        model: ModelConfig?,
+        models: [ModelConfig],
         suggestedName: String
     ) {
         let csv = buildCSV(
             table: table,
             results: results,
             resultColumns: resultColumns,
-            prompt: prompt,
-            model: model
+            prompt: prompt
         )
 
         let panel = NSSavePanel()
@@ -44,10 +43,9 @@ final class ExportViewModel: ObservableObject {
 
     private func buildCSV(
         table: ParsedTable,
-        results: [UUID: PromptResult],
+        results: [String: PromptResult],
         resultColumns: [ResultsViewModel.ResultColumn],
-        prompt: Prompt?,
-        model: ModelConfig?
+        prompt: Prompt?
     ) -> String {
         let promptName = prompt?.name ?? "Prompt"
 
@@ -67,8 +65,8 @@ final class ExportViewModel: ObservableObject {
             var fields = table.columns.map { row.values[$0.name] ?? "" }
 
             for col in resultColumns {
-                // Match on col.modelID, not an outer variable
-                if let r = results[row.id], r.modelID == col.modelID, r.status == .completed {
+                let key = "\(row.id.uuidString)-\(col.modelID)"
+                if let r = results[key], r.modelID == col.modelID, r.status == .completed {
                     fields.append(r.responseText ?? "")
                     fields.append(r.durationMs.map(String.init) ?? "")
                     fields.append(r.tokenUsage.map { String($0.total) } ?? "")

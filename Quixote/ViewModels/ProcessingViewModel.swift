@@ -11,8 +11,8 @@ final class ProcessingViewModel: ObservableObject {
     }
 
     @Published var runState: RunState = .idle
-    // Results keyed by rowID — consumed by DataTableView in CP-4
-    @Published var results: [UUID: PromptResult] = [:]
+    // Results keyed by composite "\(rowID)-\(modelID)" — supports multi-model
+    @Published var results: [String: PromptResult] = [:]
 
     private var runTask: Task<Void, Never>?
     private var maxConcurrency = 2
@@ -30,29 +30,35 @@ final class ProcessingViewModel: ObservableObject {
         return 0
     }
 
+    // MARK: - Composite key
+
+    private func resultKey(rowID: UUID, modelID: String) -> String {
+        "\(rowID.uuidString)-\(modelID)"
+    }
+
     // MARK: - Start
 
     func startRun(
         prompt: Prompt,
         rows: [Row],
         columns: [ColumnDef],
-        model: ModelConfig,
+        models: [ModelConfig],
         apiKey: String,
         concurrency: Int = 2,
         rateLimit: Double = 5
     ) {
-        guard !isRunning else { return }
+        guard !isRunning, !models.isEmpty else { return }
         maxConcurrency = max(1, concurrency)
         rateLimiter = RateLimiter(requestsPerSecond: max(1, rateLimit))
         results = [:]
-        runState = .running(completed: 0, total: rows.count)
+        let total = rows.count * models.count
+        runState = .running(completed: 0, total: total)
 
-        let run = ProcessingRun(promptID: prompt.id, modelID: model.id)
         let service = OpenAIService(apiKey: apiKey)
 
         runTask = Task {
-            await processRows(run: run, prompt: prompt, rows: rows,
-                              columns: columns, model: model, service: service)
+            await processRows(prompt: prompt, rows: rows,
+                               columns: columns, models: models, service: service)
         }
     }
 
@@ -60,33 +66,36 @@ final class ProcessingViewModel: ObservableObject {
         runTask?.cancel()
         runTask = nil
         runState = .idle
-        // Keep completed results — only queued/in-flight requests are discarded
     }
 
     // MARK: - Processing
 
     private func processRows(
-        run: ProcessingRun,
         prompt: Prompt,
         rows: [Row],
         columns: [ColumnDef],
-        model: ModelConfig,
+        models: [ModelConfig],
         service: OpenAIService
     ) async {
+        // Cartesian product: each row × each model
+        let workItems = rows.flatMap { row in
+            models.map { model in (row, model) }
+        }
+
         await withTaskGroup(of: PromptResult.self) { group in
-            var iterator = rows.makeIterator()
+            var iterator = workItems.makeIterator()
             var active = 0
 
             // Seed up to maxConcurrency
-            while active < maxConcurrency, let row = iterator.next() {
+            while active < maxConcurrency, let (row, model) = iterator.next() {
                 let expandedPrompt = InterpolationEngine.expand(
                     template: prompt.template, row: row, columns: columns)
-                group.addTask { [run, model, prompt, rateLimiter] in
+                group.addTask { [model, prompt, rateLimiter] in
                     try? await rateLimiter.waitForSlot()
                     return await Self.callService(
                         service: service, prompt: expandedPrompt,
                         params: prompt.parameters,
-                        run: run, row: row, promptID: prompt.id, model: model)
+                        row: row, promptID: prompt.id, model: model)
                 }
                 active += 1
             }
@@ -94,15 +103,15 @@ final class ProcessingViewModel: ObservableObject {
             // Drain and refill
             for await result in group {
                 updateResult(result)
-                if let row = iterator.next() {
+                if let (row, model) = iterator.next() {
                     let expandedPrompt = InterpolationEngine.expand(
                         template: prompt.template, row: row, columns: columns)
-                    group.addTask { [run, model, prompt, rateLimiter] in
+                    group.addTask { [model, prompt, rateLimiter] in
                         try? await rateLimiter.waitForSlot()
                         return await Self.callService(
                             service: service, prompt: expandedPrompt,
                             params: prompt.parameters,
-                            run: run, row: row, promptID: prompt.id, model: model)
+                            row: row, promptID: prompt.id, model: model)
                     }
                 }
             }
@@ -117,13 +126,14 @@ final class ProcessingViewModel: ObservableObject {
         service: OpenAIService,
         prompt: String,
         params: LLMParameters,
-        run: ProcessingRun,
         row: Row,
         promptID: UUID,
         model: ModelConfig
     ) async -> PromptResult {
+        let runID = UUID()
         var result = PromptResult(
-            runID: run.id, rowID: row.id,
+            runID: runID,
+            rowID: row.id,
             promptID: promptID, modelID: model.id)
         result.status = .inProgress
 
@@ -144,7 +154,7 @@ final class ProcessingViewModel: ObservableObject {
     }
 
     private func updateResult(_ result: PromptResult) {
-        results[result.rowID] = result
+        results[resultKey(rowID: result.rowID, modelID: result.modelID)] = result
         if case .running(let done, let total) = runState {
             runState = .running(completed: done + 1, total: total)
         }

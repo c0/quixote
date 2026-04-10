@@ -7,6 +7,10 @@ private let kRateLimitKey       = "quixote.rateLimit"
 // Legacy key written by CP-3 RunControlsView — migrated to Keychain on first launch
 private let kLegacyAPIKey       = "quixote.openai.apiKey"
 
+extension Notification.Name {
+    static let quixoteAPIKeyDidChange = Notification.Name("quixoteAPIKeyDidChange")
+}
+
 enum KeyValidationResult {
     case valid
     case invalid(String)
@@ -23,9 +27,16 @@ final class SettingsViewModel: ObservableObject {
     @Published var isValidatingKey = false
     @Published var keyValidationResult: KeyValidationResult? = nil
 
+    @Published var availableModels: [ModelConfig] = ModelConfig.builtIn
+    @Published var groupedModels: [(family: String, models: [ModelConfig])] = ModelConfig.grouped(ModelConfig.builtIn)
+
     init() {
         migrateLegacyKeyIfNeeded()
         openAIKey = KeychainHelper.read(for: kKeychainOpenAIKey) ?? ""
+        observeKeyChanges()
+        if !openAIKey.isEmpty {
+            refreshModels()
+        }
     }
 
     // MARK: - Key management
@@ -38,6 +49,7 @@ final class SettingsViewModel: ObservableObject {
             KeychainHelper.save(trimmed, for: kKeychainOpenAIKey)
         }
         keyValidationResult = nil
+        NotificationCenter.default.post(name: .quixoteAPIKeyDidChange, object: nil)
     }
 
     func validateKey() {
@@ -58,6 +70,10 @@ final class SettingsViewModel: ObservableObject {
                 if let http = response as? HTTPURLResponse, http.statusCode == 200 {
                     saveKey()
                     keyValidationResult = .valid
+                    // Parse model list from the validation response
+                    if let models = try? await OpenAIService.fetchModels(apiKey: trimmed) {
+                        updateAvailableModels(models)
+                    }
                 } else if let http = response as? HTTPURLResponse, http.statusCode == 401 {
                     keyValidationResult = .invalid("Invalid API key")
                 } else {
@@ -70,6 +86,24 @@ final class SettingsViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Model list
+
+    func refreshModels() {
+        let trimmed = openAIKey.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+
+        Task {
+            if let models = try? await OpenAIService.fetchModels(apiKey: trimmed) {
+                updateAvailableModels(models)
+            }
+        }
+    }
+
+    private func updateAvailableModels(_ models: [ModelConfig]) {
+        availableModels = models.isEmpty ? ModelConfig.builtIn : models
+        groupedModels = ModelConfig.grouped(availableModels)
+    }
+
     // MARK: - Processing params
 
     func saveConcurrency(_ value: Int) {
@@ -80,6 +114,23 @@ final class SettingsViewModel: ObservableObject {
     func saveRateLimit(_ value: Int) {
         rateLimit = value
         UserDefaults.standard.set(value, forKey: kRateLimitKey)
+    }
+
+    // MARK: - Key change sync
+
+    private func observeKeyChanges() {
+        NotificationCenter.default.addObserver(
+            forName: .quixoteAPIKeyDidChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                let newKey = KeychainHelper.read(for: kKeychainOpenAIKey) ?? ""
+                self.openAIKey = newKey
+                if !newKey.isEmpty {
+                    self.refreshModels()
+                }
+            }
+        }
     }
 
     // MARK: - Migration

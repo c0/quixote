@@ -100,6 +100,7 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
     var id: String        // e.g. "gpt-4o-mini"
     var displayName: String
     var provider: LLMProvider
+    var created: Int?     // Unix timestamp from API; nil for builtIn
 
     static let builtIn: [ModelConfig] = [
         ModelConfig(id: "gpt-4o",       displayName: "GPT-4o",        provider: .openAI),
@@ -107,6 +108,33 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
         ModelConfig(id: "gpt-4-turbo",  displayName: "GPT-4 Turbo",   provider: .openAI),
         ModelConfig(id: "gpt-3.5-turbo",displayName: "GPT-3.5 Turbo", provider: .openAI),
     ]
+
+    // MARK: - Family grouping
+
+    /// Extract the model family from the ID (e.g. "gpt-4o" from "gpt-4o-2024-05-13")
+    var family: String {
+        var base = id
+        // Strip date suffixes like "-2024-05-13", "-0125", "-1106"
+        if let range = base.range(of: #"-?\d{4}(-\d{2}-\d{2})?$"#, options: .regularExpression) {
+            base = String(base[base.startIndex..<range.lowerBound])
+        }
+        // Strip qualifiers
+        let qualifiers = ["-mini", "-turbo", "-preview"]
+        for q in qualifiers {
+            if base.hasSuffix(q) {
+                base = String(base.dropLast(q.count))
+            }
+        }
+        return base
+    }
+
+    /// Group models by family, sort families alphabetically, within each family sort by created desc
+    static func grouped(_ models: [ModelConfig]) -> [(family: String, models: [ModelConfig])] {
+        let groups = Dictionary(grouping: models, by: { $0.family })
+        return groups
+            .map { (family: $0.key, models: $0.value.sorted { ($0.created ?? 0) > ($1.created ?? 0) }) }
+            .sorted { $0.family.localizedStandardCompare($1.family) == .orderedAscending }
+    }
 }
 
 enum LLMProvider: String, Codable {
