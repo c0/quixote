@@ -35,7 +35,7 @@ final class WorkspaceViewModel: ObservableObject {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.commaSeparatedText, .data]
+        panel.allowedContentTypes = [.commaSeparatedText, .tabSeparatedText, .data]
         panel.message = "Open a data file"
         panel.prompt = "Open"
 
@@ -68,6 +68,8 @@ final class WorkspaceViewModel: ObservableObject {
         saveWorkspace()
     }
 
+    var onFileRemoved: ((WorkspaceFile) -> Void)?
+
     func removeFile(_ file: WorkspaceFile) {
         parsedTables.removeValue(forKey: file.id)
         files.removeAll { $0.id == file.id }
@@ -75,6 +77,7 @@ final class WorkspaceViewModel: ObservableObject {
             selectedFileID = files.first?.id
         }
         saveWorkspace()
+        onFileRemoved?(file)
     }
 
     func parsedTable(for file: WorkspaceFile) -> ParsedTable {

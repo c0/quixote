@@ -16,6 +16,7 @@ final class ProcessingViewModel: ObservableObject {
 
     private var runTask: Task<Void, Never>?
     private let maxConcurrency = 2
+    private let rateLimiter = RateLimiter(requestsPerSecond: 5)
 
     var isRunning: Bool {
         if case .running = runState { return true }
@@ -55,7 +56,7 @@ final class ProcessingViewModel: ObservableObject {
         runTask?.cancel()
         runTask = nil
         runState = .idle
-        results = [:]
+        // Keep completed results — only queued/in-flight requests are discarded
     }
 
     // MARK: - Processing
@@ -76,9 +77,11 @@ final class ProcessingViewModel: ObservableObject {
             while active < maxConcurrency, let row = iterator.next() {
                 let expandedPrompt = InterpolationEngine.expand(
                     template: prompt.template, row: row, columns: columns)
-                group.addTask { [run, model, prompt] in
-                    await Self.callService(
+                group.addTask { [run, model, prompt, rateLimiter] in
+                    try? await rateLimiter.waitForSlot()
+                    return await Self.callService(
                         service: service, prompt: expandedPrompt,
+                        params: prompt.parameters,
                         run: run, row: row, promptID: prompt.id, model: model)
                 }
                 active += 1
@@ -90,9 +93,11 @@ final class ProcessingViewModel: ObservableObject {
                 if let row = iterator.next() {
                     let expandedPrompt = InterpolationEngine.expand(
                         template: prompt.template, row: row, columns: columns)
-                    group.addTask { [run, model, prompt] in
-                        await Self.callService(
+                    group.addTask { [run, model, prompt, rateLimiter] in
+                        try? await rateLimiter.waitForSlot()
+                        return await Self.callService(
                             service: service, prompt: expandedPrompt,
+                            params: prompt.parameters,
                             run: run, row: row, promptID: prompt.id, model: model)
                     }
                 }
@@ -107,6 +112,7 @@ final class ProcessingViewModel: ObservableObject {
     private static func callService(
         service: OpenAIService,
         prompt: String,
+        params: LLMParameters,
         run: ProcessingRun,
         row: Row,
         promptID: UUID,
@@ -119,7 +125,7 @@ final class ProcessingViewModel: ObservableObject {
 
         do {
             let response = try await service.complete(
-                prompt: prompt, model: model, params: LLMParameters())
+                prompt: prompt, model: model, params: params)
             result.responseText = response.text
             result.tokenUsage = response.tokenUsage
             result.durationMs = response.durationMs

@@ -52,7 +52,12 @@ struct MainWindow: View {
             }
         }
         .frame(minWidth: 720, minHeight: 560)
-        .onAppear { loadSelectedFile() }
+        .onAppear {
+            workspace.onFileRemoved = { [weak promptEditor] file in
+                promptEditor?.removePrompt(for: file.id)
+            }
+            loadSelectedFile()
+        }
         .onChange(of: workspace.selectedFileID) {
             processing.cancel()
             resultsVM.clear()
