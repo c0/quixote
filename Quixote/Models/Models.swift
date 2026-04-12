@@ -215,6 +215,24 @@ struct TokenUsage: Codable, Equatable {
     var total: Int
 }
 
+// MARK: - ExtrapolationScale
+
+enum ExtrapolationScale: String, Codable, CaseIterable {
+    case oneK = "1K"
+    case oneMillion = "1M"
+    case tenMillion = "10M"
+
+    var multiplier: Int {
+        switch self {
+        case .oneK:         return 1_000
+        case .oneMillion:   return 1_000_000
+        case .tenMillion:   return 10_000_000
+        }
+    }
+
+    var displayName: String { rawValue }
+}
+
 // MARK: - ProcessingRun
 
 struct ProcessingRun: Identifiable, Codable {
@@ -248,6 +266,7 @@ struct PromptResult: Identifiable, Codable, Equatable {
     var costUSD: Double?
     var durationMs: Int?
     var retryCount: Int = 0
+    var cosineSimilarity: Double?
 
     init(runID: UUID, rowID: UUID, promptID: UUID, modelID: String) {
         self.id = UUID()
