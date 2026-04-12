@@ -56,6 +56,7 @@ final class ExportViewModel: ObservableObject {
                 "\(promptName) — Output (\(col.modelID))",
                 "\(promptName) — Duration ms (\(col.modelID))",
                 "\(promptName) — Tokens (\(col.modelID))",
+                "\(promptName) — Cosine Similarity (\(col.modelID))",
             ]
         }
         var lines = [headerFields.map(escape).joined(separator: ",")]
@@ -70,8 +71,9 @@ final class ExportViewModel: ObservableObject {
                     fields.append(r.responseText ?? "")
                     fields.append(r.durationMs.map(String.init) ?? "")
                     fields.append(r.tokenUsage.map { String($0.total) } ?? "")
+                    fields.append(r.cosineSimilarity.map { String(format: "%.6f", $0) } ?? "")
                 } else {
-                    fields += ["", "", ""]
+                    fields += ["", "", "", ""]
                 }
             }
 
