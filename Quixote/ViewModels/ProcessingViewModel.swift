@@ -1,4 +1,7 @@
 import Foundation
+import AppKit
+
+private let kKeychainOpenAIKey = "openai-api-key"
 
 @MainActor
 final class ProcessingViewModel: ObservableObject {
@@ -20,6 +23,18 @@ final class ProcessingViewModel: ObservableObject {
         let maxRetries: Int
     }
 
+    /// Codable snapshot of queue state for disk persistence.
+    struct QueueSnapshot: Codable {
+        let prompt: Prompt
+        let rows: [Row]
+        let columns: [ColumnDef]
+        let models: [ModelConfig]
+        let maxRetries: Int
+        let results: [String: PromptResult]
+        let completedCount: Int
+        let totalCount: Int
+    }
+
     @Published var runState: RunState = .idle
     // Results keyed by composite "\(rowID)-\(modelID)" — supports multi-model
     @Published var results: [String: PromptResult] = [:]
@@ -29,6 +44,7 @@ final class ProcessingViewModel: ObservableObject {
     private var runContext: RunContext?
     private var maxConcurrency = 2
     private var rateLimiter = RateLimiter(requestsPerSecond: 5)
+    private var saveTask: Task<Void, Never>?
 
     var isRunning: Bool {
         if case .running = runState { return true }
@@ -51,11 +67,28 @@ final class ProcessingViewModel: ObservableObject {
         results.values.contains { $0.status == .failed }
     }
 
+    /// True when state was restored from disk and hasn't been resumed yet.
+    private(set) var isRestoredFromDisk = false
+
     var progress: Double {
         if case .running(let done, let total) = runState, total > 0 {
             return Double(done) / Double(total)
         }
         return 0
+    }
+
+    // MARK: - Init
+
+    init() {
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.saveQueueStateNow()
+            }
+        }
     }
 
     // MARK: - Composite key
@@ -83,7 +116,9 @@ final class ProcessingViewModel: ObservableObject {
             prompt: prompt, rows: rows, columns: columns,
             models: models, apiKey: apiKey, maxRetries: maxRetries
         )
+        isRestoredFromDisk = false
         results = [:]
+        clearSavedState()
         let total = rows.count * models.count
         runState = .running(completed: 0, total: total)
 
@@ -99,13 +134,22 @@ final class ProcessingViewModel: ObservableObject {
     func pause() {
         guard case .running(let done, let total) = runState else { return }
         runState = .paused(completed: done, total: total)
+        saveQueueStateNow()
     }
 
     func resume() {
         guard case .paused(let done, let total) = runState else { return }
-        runState = .running(completed: done, total: total)
-        pauseContinuation?.resume()
-        pauseContinuation = nil
+
+        if let continuation = pauseContinuation {
+            // In-memory pause: resume the suspended task group
+            runState = .running(completed: done, total: total)
+            continuation.resume()
+            pauseContinuation = nil
+        } else if let ctx = runContext {
+            // Disk restore: start a new task for remaining work items
+            isRestoredFromDisk = false
+            resumeRemaining(ctx: ctx, completedSoFar: done, total: total)
+        }
     }
 
     func cancel() {
@@ -113,6 +157,7 @@ final class ProcessingViewModel: ObservableObject {
         pauseContinuation = nil
         runTask?.cancel()
         runTask = nil
+        isRestoredFromDisk = false
         for (key, var result) in results {
             if result.status == .pending || result.status == .inProgress {
                 result.status = .cancelled
@@ -120,6 +165,7 @@ final class ProcessingViewModel: ObservableObject {
             }
         }
         runState = .idle
+        clearSavedState()
     }
 
     func retryFailed(concurrency: Int, rateLimit: Double) {
@@ -151,6 +197,7 @@ final class ProcessingViewModel: ObservableObject {
             if Task.isCancelled { return }
             if case .running(_, let total) = runState {
                 runState = .completed(total)
+                clearSavedState()
             }
         }
     }
@@ -182,6 +229,122 @@ final class ProcessingViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Disk resume
+
+    private func resumeRemaining(ctx: RunContext, completedSoFar: Int, total: Int) {
+        let completedKeys = Set(results.filter { $0.value.status == .completed }.keys)
+        let remainingItems: [(Row, ModelConfig)] = ctx.rows.flatMap { row in
+            ctx.models.compactMap { model in
+                let key = resultKey(rowID: row.id, modelID: model.id)
+                return completedKeys.contains(key) ? nil : (row, model)
+            }
+        }
+
+        guard !remainingItems.isEmpty else {
+            runState = .completed(total)
+            clearSavedState()
+            return
+        }
+
+        // Re-read settings from UserDefaults for concurrency/rate
+        let concurrency = UserDefaults.standard.integer(forKey: "quixote.concurrency")
+        let rateLimit = UserDefaults.standard.integer(forKey: "quixote.rateLimit")
+        maxConcurrency = max(1, concurrency == 0 ? 2 : concurrency)
+        rateLimiter = RateLimiter(requestsPerSecond: max(1, Double(rateLimit == 0 ? 5 : rateLimit)))
+
+        let apiKey = KeychainHelper.read(for: kKeychainOpenAIKey) ?? ""
+        guard !apiKey.isEmpty else {
+            runState = .failed("No API key — set one in Settings to resume")
+            return
+        }
+
+        // Update runContext with fresh apiKey
+        runContext = RunContext(
+            prompt: ctx.prompt, rows: ctx.rows, columns: ctx.columns,
+            models: ctx.models, apiKey: apiKey, maxRetries: ctx.maxRetries
+        )
+
+        runState = .running(completed: completedSoFar, total: total)
+        let service = OpenAIService(apiKey: apiKey)
+        let prompt = ctx.prompt
+        let columns = ctx.columns
+        let maxRetries = ctx.maxRetries
+
+        runTask = Task {
+            await processWorkItems(remainingItems, prompt: prompt, columns: columns,
+                                   service: service, maxRetries: maxRetries)
+            if Task.isCancelled { return }
+            switch runState {
+            case .running(_, let t), .paused(_, let t):
+                runState = .completed(t)
+                clearSavedState()
+            default:
+                break
+            }
+        }
+    }
+
+    // MARK: - Queue persistence
+
+    private static let persistenceURL: URL = {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = support.appendingPathComponent("Quixote")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("queue-state.json")
+    }()
+
+    func restoreIfNeeded() {
+        guard runState == .idle, runContext == nil else { return }
+        guard let data = try? Data(contentsOf: Self.persistenceURL),
+              let snapshot = try? JSONDecoder().decode(QueueSnapshot.self, from: data) else { return }
+
+        let apiKey = KeychainHelper.read(for: kKeychainOpenAIKey) ?? ""
+        runContext = RunContext(
+            prompt: snapshot.prompt, rows: snapshot.rows, columns: snapshot.columns,
+            models: snapshot.models, apiKey: apiKey, maxRetries: snapshot.maxRetries
+        )
+        results = snapshot.results
+        isRestoredFromDisk = true
+        runState = .paused(completed: snapshot.completedCount, total: snapshot.totalCount)
+    }
+
+    private func scheduleSave() {
+        saveTask?.cancel()
+        saveTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            saveQueueStateNow()
+        }
+    }
+
+    private func saveQueueStateNow() {
+        guard let ctx = runContext else { return }
+        let completedCount: Int
+        let totalCount: Int
+        switch runState {
+        case .running(let c, let t), .paused(let c, let t):
+            completedCount = c; totalCount = t
+        default:
+            return  // Only save while active
+        }
+
+        let snapshot = QueueSnapshot(
+            prompt: ctx.prompt, rows: ctx.rows, columns: ctx.columns,
+            models: ctx.models, maxRetries: ctx.maxRetries,
+            results: results,
+            completedCount: completedCount, totalCount: totalCount
+        )
+
+        let data = try? JSONEncoder().encode(snapshot)
+        try? data?.write(to: Self.persistenceURL, options: .atomic)
+    }
+
+    private func clearSavedState() {
+        saveTask?.cancel()
+        saveTask = nil
+        try? FileManager.default.removeItem(at: Self.persistenceURL)
+    }
+
     // MARK: - Processing
 
     private func processRows(
@@ -199,6 +362,7 @@ final class ProcessingViewModel: ObservableObject {
         switch runState {
         case .running(_, let total), .paused(_, let total):
             runState = .completed(total)
+            clearSavedState()
         default:
             break
         }
@@ -307,6 +471,7 @@ final class ProcessingViewModel: ObservableObject {
         default:
             break
         }
+        scheduleSave()
     }
 
     private func waitIfPaused() async {
