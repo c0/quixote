@@ -247,6 +247,7 @@ struct PromptResult: Identifiable, Codable, Equatable {
     var tokenUsage: TokenUsage?
     var costUSD: Double?
     var durationMs: Int?
+    var retryCount: Int = 0
 
     init(runID: UUID, rowID: UUID, promptID: UUID, modelID: String) {
         self.id = UUID()
