@@ -3,6 +3,7 @@ import SwiftUI
 struct DataTableView: View {
     @ObservedObject var viewModel: DataPreviewViewModel
     @ObservedObject var results: ResultsViewModel
+    var onRetry: ((UUID, String) -> Void)? = nil
 
     var body: some View {
         if viewModel.columns.isEmpty {
@@ -21,7 +22,8 @@ struct DataTableView: View {
                                     row: row,
                                     columns: viewModel.columns,
                                     resultColumns: results.columns,
-                                    getResult: { results.result(for: row.id, column: $0) }
+                                    getResult: { results.result(for: row.id, column: $0) },
+                                    onRetry: { col in onRetry?(row.id, col.modelID) }
                                 )
                                 .background(row.index % 2 == 0 ? Color.clear : Color.secondary.opacity(0.05))
                             }
@@ -95,6 +97,7 @@ struct DataRowView: View {
     let columns: [ColumnDef]
     let resultColumns: [ResultsViewModel.ResultColumn]
     let getResult: (ResultsViewModel.ResultColumn) -> PromptResult?
+    var onRetry: ((ResultsViewModel.ResultColumn) -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 0) {
@@ -120,10 +123,13 @@ struct DataRowView: View {
 
             // Result columns
             ForEach(resultColumns) { col in
-                ResultCell(result: getResult(col))
-                    .frame(minWidth: 240, maxWidth: 400, alignment: .leading)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
+                ResultCell(
+                    result: getResult(col),
+                    onRetry: onRetry.map { fn in { fn(col) } }
+                )
+                .frame(minWidth: 240, maxWidth: 400, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
                 Divider()
             }
         }
@@ -134,6 +140,7 @@ struct DataRowView: View {
 
 struct ResultCell: View {
     let result: PromptResult?
+    var onRetry: (() -> Void)? = nil
 
     var body: some View {
         switch result?.status {
@@ -155,10 +162,18 @@ struct ResultCell: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
         case .failed:
-            Label(result?.responseText ?? "Error", systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundStyle(.red)
-                .lineLimit(2)
+            VStack(alignment: .leading, spacing: 4) {
+                Label(result?.responseText ?? "Error", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+                if let retry = onRetry {
+                    Button("Retry", action: retry)
+                        .font(.caption2)
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                }
+            }
 
         case .cancelled:
             Label("Cancelled", systemImage: "slash.circle")
