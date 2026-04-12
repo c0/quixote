@@ -39,7 +39,11 @@ struct MainWindow: View {
                 Divider()
 
                 // Stats panel (visible when results exist)
-                StatsPanelView(statsVM: statsVM)
+                StatsPanelView(
+                    statsVM: statsVM,
+                    showExtrapolation: settings.showExtrapolation,
+                    extrapolationScale: settings.extrapolationScale
+                )
 
                 Divider()
 

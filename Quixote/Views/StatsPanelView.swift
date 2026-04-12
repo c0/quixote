@@ -2,6 +2,8 @@ import SwiftUI
 
 struct StatsPanelView: View {
     @ObservedObject var statsVM: StatsViewModel
+    let showExtrapolation: Bool
+    let extrapolationScale: ExtrapolationScale
 
     var body: some View {
         if statsVM.modelStats.isEmpty {
@@ -16,7 +18,11 @@ struct StatsPanelView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         ForEach(statsVM.modelStats) { stat in
-                            StatCard(stats: stat)
+                            StatCard(
+                                stats: stat,
+                                showExtrapolation: showExtrapolation,
+                                extrapolationScale: extrapolationScale
+                            )
                         }
                     }
                     .padding(.horizontal, 12)
@@ -31,6 +37,8 @@ struct StatsPanelView: View {
 
 private struct StatCard: View {
     let stats: StatsViewModel.ModelStats
+    let showExtrapolation: Bool
+    let extrapolationScale: ExtrapolationScale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -40,8 +48,28 @@ private struct StatCard: View {
             Divider()
 
             StatRow(label: "Cost", value: formatCost(stats.totalCostUSD))
+            if showExtrapolation, stats.completedRows > 0 {
+                let projCost = (stats.totalCostUSD / Double(stats.completedRows))
+                    * Double(extrapolationScale.multiplier)
+                StatRow(
+                    label: "  ↳ \(extrapolationScale.displayName) rows",
+                    value: formatCost(projCost)
+                )
+            }
+
             StatRow(label: "Median time", value: String(format: "%.2fs", stats.medianDurationSec))
             StatRow(label: "Total tokens", value: formatNumber(stats.totalTokens))
+            if showExtrapolation, stats.completedRows > 0 {
+                let projTokens = Int(
+                    (Double(stats.totalTokens) / Double(stats.completedRows))
+                    * Double(extrapolationScale.multiplier)
+                )
+                StatRow(
+                    label: "  ↳ \(extrapolationScale.displayName) rows",
+                    value: formatNumber(projTokens)
+                )
+            }
+
             StatRow(label: "Similarity", value: formatSimilarity(stats.medianCosineSimilarity))
             StatRow(label: "Progress", value: "\(stats.completedRows)/\(stats.totalRows) rows")
         }
