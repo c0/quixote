@@ -44,7 +44,7 @@ struct RunControlsView: View {
             && !(prompt?.template.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
             && !rows.isEmpty
             && !selectedModels.isEmpty
-            && !processing.isRunning
+            && !processing.isActive
     }
 
     // MARK: - Body
@@ -85,13 +85,35 @@ struct RunControlsView: View {
                 .buttonStyle(.plain)
             }
 
-            // Run / Cancel
-            if processing.isRunning {
-                Button("Cancel", role: .destructive) {
-                    processing.cancel()
+            // Run / Pause / Resume / Cancel
+            switch processing.runState {
+            case .running:
+                HStack(spacing: 6) {
+                    Button("Pause") {
+                        processing.pause()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button("Cancel", role: .destructive) {
+                        processing.cancel()
+                    }
+                    .font(.caption)
                 }
-                .font(.caption)
-            } else {
+            case .paused:
+                HStack(spacing: 6) {
+                    Button("Resume") {
+                        processing.resume()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+
+                    Button("Cancel", role: .destructive) {
+                        processing.cancel()
+                    }
+                    .font(.caption)
+                }
+            default:
                 Button("Run") {
                     guard let p = prompt else { return }
                     processing.startRun(
@@ -181,6 +203,17 @@ struct RunControlsView: View {
             HStack(spacing: 6) {
                 ProgressView(value: Double(done), total: Double(total))
                     .frame(width: 80)
+                Text("\(done)/\(total)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        case .paused(let done, let total):
+            HStack(spacing: 6) {
+                ProgressView(value: Double(done), total: Double(total))
+                    .frame(width: 80)
+                Image(systemName: "pause.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
                 Text("\(done)/\(total)")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
