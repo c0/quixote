@@ -4,7 +4,9 @@ import SwiftUI
 private let kKeychainOpenAIKey  = "openai-api-key"
 private let kConcurrencyKey     = "quixote.concurrency"
 private let kRateLimitKey       = "quixote.rateLimit"
-private let kMaxRetriesKey      = "quixote.maxRetries"
+private let kMaxRetriesKey          = "quixote.maxRetries"
+private let kShowExtrapolationKey   = "quixote.showExtrapolation"
+private let kExtrapolationScaleKey  = "quixote.extrapolationScale"
 // Legacy key written by CP-3 RunControlsView — migrated to Keychain on first launch
 private let kLegacyAPIKey       = "quixote.openai.apiKey"
 
@@ -27,6 +29,17 @@ final class SettingsViewModel: ObservableObject {
     @Published var maxRetries: Int = {
         if UserDefaults.standard.object(forKey: "quixote.maxRetries") == nil { return 3 }
         return UserDefaults.standard.integer(forKey: "quixote.maxRetries")
+    }()
+
+    @Published var showExtrapolation: Bool = {
+        if UserDefaults.standard.object(forKey: "quixote.showExtrapolation") == nil { return true }
+        return UserDefaults.standard.bool(forKey: "quixote.showExtrapolation")
+    }()
+
+    @Published var extrapolationScale: ExtrapolationScale = {
+        guard let raw = UserDefaults.standard.string(forKey: "quixote.extrapolationScale"),
+              let scale = ExtrapolationScale(rawValue: raw) else { return .oneK }
+        return scale
     }()
 
     @Published var isValidatingKey = false
@@ -124,6 +137,16 @@ final class SettingsViewModel: ObservableObject {
     func saveMaxRetries(_ value: Int) {
         maxRetries = value
         UserDefaults.standard.set(value, forKey: kMaxRetriesKey)
+    }
+
+    func saveShowExtrapolation(_ value: Bool) {
+        showExtrapolation = value
+        UserDefaults.standard.set(value, forKey: kShowExtrapolationKey)
+    }
+
+    func saveExtrapolationScale(_ value: ExtrapolationScale) {
+        extrapolationScale = value
+        UserDefaults.standard.set(value.rawValue, forKey: kExtrapolationScaleKey)
     }
 
     // MARK: - Cache

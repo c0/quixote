@@ -11,7 +11,7 @@ struct SettingsView: View {
             generalTab
                 .tabItem { Label("General", systemImage: "gearshape") }
         }
-        .frame(width: 420, height: 380)
+        .frame(width: 420, height: 460)
     }
 
     // MARK: - General tab
@@ -100,6 +100,31 @@ struct SettingsView: View {
                         viewModel.clearCache()
                     }
                     .disabled(cache.entryCount == 0)
+                }
+            }
+
+            Section("Stats") {
+                Toggle(
+                    "Show extrapolated projections",
+                    isOn: Binding(
+                        get: { viewModel.showExtrapolation },
+                        set: { viewModel.saveShowExtrapolation($0) }
+                    )
+                )
+
+                if viewModel.showExtrapolation {
+                    Picker(
+                        "Scale",
+                        selection: Binding(
+                            get: { viewModel.extrapolationScale },
+                            set: { viewModel.saveExtrapolationScale($0) }
+                        )
+                    ) {
+                        ForEach(ExtrapolationScale.allCases, id: \.self) { scale in
+                            Text(scale.displayName).tag(scale)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
             }
         }
