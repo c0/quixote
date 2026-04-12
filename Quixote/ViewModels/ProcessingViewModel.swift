@@ -168,6 +168,12 @@ final class ProcessingViewModel: ObservableObject {
         clearSavedState()
     }
 
+    func clearResults() {
+        results = [:]
+        runState = .idle
+        clearSavedState()
+    }
+
     func retryFailed(concurrency: Int, rateLimit: Double) {
         guard let ctx = runContext, !isActive else { return }
 
@@ -225,6 +231,22 @@ final class ProcessingViewModel: ObservableObject {
                 row: row, promptID: ctx.prompt.id, model: model,
                 maxRetries: maxRetries
             )
+            if result.status == .completed,
+               let text = result.responseText,
+               let usage = result.tokenUsage {
+                let key = ResponseCache.cacheKey(
+                    expandedPrompt: expandedPrompt,
+                    modelID: result.modelID,
+                    params: ctx.prompt.parameters)
+                ResponseCache.shared.store(
+                    entry: CachedEntry(
+                        responseText: text,
+                        tokenUsage: usage,
+                        durationMs: result.durationMs ?? 0,
+                        costUSD: result.costUSD ?? 0,
+                        cachedAt: Date()),
+                    for: key)
+            }
             results[resultKey(rowID: result.rowID, modelID: result.modelID)] = result
         }
     }
@@ -375,18 +397,49 @@ final class ProcessingViewModel: ObservableObject {
         service: OpenAIService,
         maxRetries: Int
     ) async {
+        let cache = ResponseCache.shared
+
+        // --- Partition: apply cache hits immediately, collect misses ---
+        var misses: [(Row, ModelConfig)] = []
+        // Map composite key → expandedPrompt for storing results after API calls
+        var expandedPrompts: [String: String] = [:]
+
+        for (row, model) in workItems {
+            let expanded = InterpolationEngine.expand(
+                template: prompt.template, row: row, columns: columns)
+            let key = ResponseCache.cacheKey(
+                expandedPrompt: expanded, modelID: model.id, params: prompt.parameters)
+
+            if let entry = cache.entry(for: key) {
+                var result = PromptResult(
+                    runID: UUID(), rowID: row.id, promptID: prompt.id, modelID: model.id)
+                result.responseText = entry.responseText
+                result.tokenUsage = entry.tokenUsage
+                result.durationMs = entry.durationMs
+                result.costUSD = entry.costUSD
+                result.status = .completed
+                updateResult(result)
+            } else {
+                let compositeKey = resultKey(rowID: row.id, modelID: model.id)
+                expandedPrompts[compositeKey] = expanded
+                misses.append((row, model))
+            }
+        }
+
+        guard !misses.isEmpty else { return }
+
+        // --- Dispatch API calls for cache misses ---
         await withTaskGroup(of: PromptResult.self) { group in
-            var iterator = workItems.makeIterator()
+            var iterator = misses.makeIterator()
             var active = 0
 
-            // Seed up to maxConcurrency
             while active < maxConcurrency, let (row, model) = iterator.next() {
-                let expandedPrompt = InterpolationEngine.expand(
-                    template: prompt.template, row: row, columns: columns)
+                let compositeKey = resultKey(rowID: row.id, modelID: model.id)
+                let expanded = expandedPrompts[compositeKey]!
                 group.addTask { [model, prompt, rateLimiter] in
                     try? await rateLimiter.waitForSlot()
                     return await Self.callService(
-                        service: service, prompt: expandedPrompt,
+                        service: service, prompt: expanded,
                         params: prompt.parameters,
                         row: row, promptID: prompt.id, model: model,
                         maxRetries: maxRetries)
@@ -394,18 +447,39 @@ final class ProcessingViewModel: ObservableObject {
                 active += 1
             }
 
-            // Drain and refill
             for await result in group {
+                // Store completed results in cache
+                if result.status == .completed,
+                   let text = result.responseText,
+                   let usage = result.tokenUsage {
+                    let compositeKey = resultKey(rowID: result.rowID, modelID: result.modelID)
+                    if let expanded = expandedPrompts[compositeKey] {
+                        let key = ResponseCache.cacheKey(
+                            expandedPrompt: expanded,
+                            modelID: result.modelID,
+                            params: prompt.parameters)
+                        cache.store(
+                            entry: CachedEntry(
+                                responseText: text,
+                                tokenUsage: usage,
+                                durationMs: result.durationMs ?? 0,
+                                costUSD: result.costUSD ?? 0,
+                                cachedAt: Date()),
+                            for: key)
+                    }
+                }
+
                 updateResult(result)
+
                 if let (row, model) = iterator.next() {
                     await waitIfPaused()
                     guard !Task.isCancelled else { break }
-                    let expandedPrompt = InterpolationEngine.expand(
-                        template: prompt.template, row: row, columns: columns)
+                    let compositeKey = resultKey(rowID: row.id, modelID: model.id)
+                    let expanded = expandedPrompts[compositeKey]!
                     group.addTask { [model, prompt, rateLimiter] in
                         try? await rateLimiter.waitForSlot()
                         return await Self.callService(
-                            service: service, prompt: expandedPrompt,
+                            service: service, prompt: expanded,
                             params: prompt.parameters,
                             row: row, promptID: prompt.id, model: model,
                             maxRetries: maxRetries)
