@@ -119,6 +119,23 @@ struct ParametersPanel: View {
 
     var body: some View {
         Form {
+            Section("Reasoning Effort") {
+                HStack(spacing: 4) {
+                    ForEach(ReasoningEffort.allCases, id: \.self) { level in
+                        Button(level.rawValue.capitalized) {
+                            toggleReasoningEffort(level)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .font(.caption)
+                        .tint(isReasoningEffortSelected(level) ? .accentColor : .secondary)
+                    }
+                }
+                Text("Applies to o-series and GPT-5 models")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
             Section("Max Tokens") {
                 HStack(spacing: 6) {
                     TextField("Unlimited", text: $maxTokensText)
@@ -189,5 +206,15 @@ struct ParametersPanel: View {
                 onChange(updated)
             }
         )
+    }
+
+    private func isReasoningEffortSelected(_ level: ReasoningEffort) -> Bool {
+        parameters.reasoningEffort == level
+    }
+
+    private func toggleReasoningEffort(_ level: ReasoningEffort) {
+        var updated = parameters
+        updated.reasoningEffort = parameters.reasoningEffort == level ? nil : level
+        onChange(updated)
     }
 }

@@ -64,12 +64,20 @@ struct Row: Identifiable, Codable, Equatable {
 
 // MARK: - LLMParameters
 
+/// Reasoning effort level for o-series and GPT-5 models
+enum ReasoningEffort: String, Codable, CaseIterable {
+    case low
+    case medium
+    case high
+}
+
 struct LLMParameters: Codable, Equatable {
     var temperature: Double = 1.0
     var maxTokens: Int? = nil
     var topP: Double = 1.0
     var frequencyPenalty: Double = 0.0
     var presencePenalty: Double = 0.0
+    var reasoningEffort: ReasoningEffort? = nil
 }
 
 // MARK: - Prompt
@@ -110,6 +118,54 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
     ]
 
     // MARK: - Family grouping
+
+    /// Whether this model supports the reasoning_effort parameter
+    var supportsReasoningEffort: Bool {
+        let prefixes = ["o1", "o3", "o4", "gpt-5"]
+        return prefixes.contains { id.hasPrefix($0) }
+    }
+
+    // MARK: - Pricing (USD per 1M tokens)
+
+    /// Input cost per 1M tokens in USD
+    var costPerMillionInput: Double {
+        Self.pricing[id]?.input ?? 0
+    }
+
+    /// Output cost per 1M tokens in USD
+    var costPerMillionOutput: Double {
+        Self.pricing[id]?.output ?? 0
+    }
+
+    private struct ModelPricing {
+        let input: Double   // per 1M tokens
+        let output: Double  // per 1M tokens
+    }
+
+    /// Known per-model pricing (USD per 1M tokens). Falls back to 0 for unknown models.
+    private static let pricing: [String: ModelPricing] = [
+        "gpt-4o":        ModelPricing(input: 2.50,  output: 10.00),
+        "gpt-4o-mini":   ModelPricing(input: 0.15,  output: 0.60),
+        "gpt-4-turbo":   ModelPricing(input: 10.00, output: 30.00),
+        "gpt-4":         ModelPricing(input: 30.00, output: 60.00),
+        "gpt-3.5-turbo": ModelPricing(input: 0.50,  output: 1.50),
+        "gpt-5":         ModelPricing(input: 10.00, output: 30.00),
+        "gpt-5.4":       ModelPricing(input: 5.00,  output: 15.00),
+        "gpt-5-mini":    ModelPricing(input: 1.50,  output: 6.00),
+        "o1":            ModelPricing(input: 15.00, output: 60.00),
+        "o1-mini":       ModelPricing(input: 3.00,  output: 12.00),
+        "o1-pro":        ModelPricing(input: 150.00, output: 600.00),
+        "o3":            ModelPricing(input: 10.00, output: 40.00),
+        "o3-mini":       ModelPricing(input: 1.10,  output: 4.40),
+        "o4-mini":       ModelPricing(input: 1.10,  output: 4.40),
+    ]
+
+    /// Compute cost in USD for the given token usage
+    func costFor(inputTokens: Int, outputTokens: Int) -> Double {
+        let inputCost = Double(inputTokens) / 1_000_000 * costPerMillionInput
+        let outputCost = Double(outputTokens) / 1_000_000 * costPerMillionOutput
+        return inputCost + outputCost
+    }
 
     /// Extract the model family from the ID (e.g. "gpt-4o" from "gpt-4o-2024-05-13")
     var family: String {

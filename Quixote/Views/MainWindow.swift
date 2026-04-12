@@ -6,6 +6,7 @@ struct MainWindow: View {
     @StateObject private var promptEditor = PromptEditorViewModel()
     @StateObject private var processing = ProcessingViewModel()
     @StateObject private var resultsVM = ResultsViewModel()
+    @StateObject private var statsVM = StatsViewModel()
     @StateObject private var exportVM = ExportViewModel()
     @StateObject private var settings = SettingsViewModel()
 
@@ -27,6 +28,11 @@ struct MainWindow: View {
                     )
                     .frame(minHeight: 120, idealHeight: 200)
                 }
+
+                Divider()
+
+                // Stats panel (visible when results exist)
+                StatsPanelView(statsVM: statsVM)
 
                 Divider()
 
@@ -63,6 +69,7 @@ struct MainWindow: View {
         .onChange(of: workspace.selectedFileID) {
             processing.cancel()
             resultsVM.clear()
+            statsVM.clear()
             loadSelectedFile()
         }
         .onChange(of: processing.results) {
@@ -70,6 +77,12 @@ struct MainWindow: View {
                 results: processing.results,
                 prompt: promptEditor.prompt,
                 models: selectedModels
+            )
+            statsVM.update(
+                results: processing.results,
+                prompt: promptEditor.prompt,
+                models: selectedModels,
+                totalRows: dataPreview.allRows.count
             )
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
