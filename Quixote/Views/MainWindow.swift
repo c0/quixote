@@ -19,7 +19,13 @@ struct MainWindow: View {
         } detail: {
             VStack(spacing: 0) {
                 VSplitView {
-                    DataTableView(viewModel: dataPreview, results: resultsVM)
+                    DataTableView(
+                        viewModel: dataPreview,
+                        results: resultsVM,
+                        onRetry: { rowID, modelID in
+                            processing.retryResult(rowID: rowID, modelID: modelID)
+                        }
+                    )
                         .frame(minHeight: 200)
 
                     PromptEditorView(
