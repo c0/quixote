@@ -71,6 +71,7 @@ struct MainWindow: View {
                 promptEditor?.removePrompt(for: file.id)
             }
             loadSelectedFile()
+            processing.restoreIfNeeded()
         }
         .onChange(of: workspace.selectedFileID) {
             processing.cancel()
