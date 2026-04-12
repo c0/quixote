@@ -11,6 +11,7 @@ final class StatsViewModel: ObservableObject {
         let totalCostUSD: Double
         let medianDurationSec: Double
         let totalTokens: Int
+        let medianCosineSimilarity: Double
         let completedRows: Int
         let totalRows: Int
 
@@ -44,6 +45,9 @@ final class StatsViewModel: ObservableObject {
 
             let tokens = completed.compactMap { $0.tokenUsage?.total }.reduce(0, +)
 
+            let similarities = completed.compactMap { $0.cosineSimilarity }
+            let medianSimilarity = Self.median(similarities)
+
             return ModelStats(
                 promptID: p.id,
                 modelID: model.id,
@@ -51,6 +55,7 @@ final class StatsViewModel: ObservableObject {
                 totalCostUSD: totalCost,
                 medianDurationSec: medianDuration,
                 totalTokens: tokens,
+                medianCosineSimilarity: medianSimilarity,
                 completedRows: completed.count,
                 totalRows: totalRows
             )

@@ -42,6 +42,7 @@ private struct StatCard: View {
             StatRow(label: "Cost", value: formatCost(stats.totalCostUSD))
             StatRow(label: "Median time", value: String(format: "%.2fs", stats.medianDurationSec))
             StatRow(label: "Total tokens", value: formatNumber(stats.totalTokens))
+            StatRow(label: "Similarity", value: formatSimilarity(stats.medianCosineSimilarity))
             StatRow(label: "Progress", value: "\(stats.completedRows)/\(stats.totalRows) rows")
         }
         .padding(10)
@@ -59,6 +60,11 @@ private struct StatCard: View {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
+    private func formatSimilarity(_ value: Double) -> String {
+        guard value > 0 else { return "—" }
+        return String(format: "%.3f", value)
     }
 }
 
