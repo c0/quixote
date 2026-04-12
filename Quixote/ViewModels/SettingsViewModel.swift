@@ -126,6 +126,12 @@ final class SettingsViewModel: ObservableObject {
         UserDefaults.standard.set(value, forKey: kMaxRetriesKey)
     }
 
+    // MARK: - Cache
+
+    func clearCache() {
+        ResponseCache.shared.clearAll()
+    }
+
     // MARK: - Key change sync
 
     private func observeKeyChanges() {
