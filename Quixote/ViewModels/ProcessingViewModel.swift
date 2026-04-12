@@ -6,6 +6,7 @@ final class ProcessingViewModel: ObservableObject {
     enum RunState: Equatable {
         case idle
         case running(completed: Int, total: Int)
+        case paused(completed: Int, total: Int)
         case completed(Int)   // total processed
         case failed(String)
     }
@@ -15,12 +16,25 @@ final class ProcessingViewModel: ObservableObject {
     @Published var results: [String: PromptResult] = [:]
 
     private var runTask: Task<Void, Never>?
+    private var pauseContinuation: CheckedContinuation<Void, Never>?
     private var maxConcurrency = 2
     private var rateLimiter = RateLimiter(requestsPerSecond: 5)
 
     var isRunning: Bool {
         if case .running = runState { return true }
         return false
+    }
+
+    var isPaused: Bool {
+        if case .paused = runState { return true }
+        return false
+    }
+
+    var isActive: Bool {
+        switch runState {
+        case .running, .paused: return true
+        default: return false
+        }
     }
 
     var progress: Double {
@@ -47,7 +61,7 @@ final class ProcessingViewModel: ObservableObject {
         concurrency: Int = 2,
         rateLimit: Double = 5
     ) {
-        guard !isRunning, !models.isEmpty else { return }
+        guard !isActive, !models.isEmpty else { return }
         maxConcurrency = max(1, concurrency)
         rateLimiter = RateLimiter(requestsPerSecond: max(1, rateLimit))
         results = [:]
@@ -62,9 +76,29 @@ final class ProcessingViewModel: ObservableObject {
         }
     }
 
+    func pause() {
+        guard case .running(let done, let total) = runState else { return }
+        runState = .paused(completed: done, total: total)
+    }
+
+    func resume() {
+        guard case .paused(let done, let total) = runState else { return }
+        runState = .running(completed: done, total: total)
+        pauseContinuation?.resume()
+        pauseContinuation = nil
+    }
+
     func cancel() {
+        pauseContinuation?.resume()
+        pauseContinuation = nil
         runTask?.cancel()
         runTask = nil
+        for (key, var result) in results {
+            if result.status == .pending || result.status == .inProgress {
+                result.status = .cancelled
+                results[key] = result
+            }
+        }
         runState = .idle
     }
 
@@ -104,6 +138,8 @@ final class ProcessingViewModel: ObservableObject {
             for await result in group {
                 updateResult(result)
                 if let (row, model) = iterator.next() {
+                    await waitIfPaused()
+                    guard !Task.isCancelled else { break }
                     let expandedPrompt = InterpolationEngine.expand(
                         template: prompt.template, row: row, columns: columns)
                     group.addTask { [model, prompt, rateLimiter] in
@@ -117,8 +153,12 @@ final class ProcessingViewModel: ObservableObject {
             }
         }
 
-        if case .running(_, let total) = runState {
+        if Task.isCancelled { return }
+        switch runState {
+        case .running(_, let total), .paused(_, let total):
             runState = .completed(total)
+        default:
+            break
         }
     }
 
@@ -149,7 +189,7 @@ final class ProcessingViewModel: ObservableObject {
             )
             result.status = .completed
         } catch is CancellationError {
-            result.status = .failed
+            result.status = .cancelled
         } catch {
             result.responseText = error.localizedDescription
             result.status = .failed
@@ -159,8 +199,20 @@ final class ProcessingViewModel: ObservableObject {
 
     private func updateResult(_ result: PromptResult) {
         results[resultKey(rowID: result.rowID, modelID: result.modelID)] = result
-        if case .running(let done, let total) = runState {
+        switch runState {
+        case .running(let done, let total):
             runState = .running(completed: done + 1, total: total)
+        case .paused(let done, let total):
+            runState = .paused(completed: done + 1, total: total)
+        default:
+            break
+        }
+    }
+
+    private func waitIfPaused() async {
+        guard isPaused else { return }
+        await withCheckedContinuation { continuation in
+            pauseContinuation = continuation
         }
     }
 }

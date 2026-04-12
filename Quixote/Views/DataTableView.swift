@@ -159,6 +159,11 @@ struct ResultCell: View {
                 .font(.caption)
                 .foregroundStyle(.red)
                 .lineLimit(2)
+
+        case .cancelled:
+            Label("Cancelled", systemImage: "slash.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }

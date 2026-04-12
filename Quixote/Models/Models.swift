@@ -204,7 +204,7 @@ enum RunStatus: String, Codable {
 }
 
 enum ResultStatus: String, Codable {
-    case pending, inProgress, completed, failed
+    case pending, inProgress, completed, failed, cancelled
 }
 
 // MARK: - TokenUsage
