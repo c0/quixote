@@ -143,6 +143,10 @@ final class ProcessingViewModel: ObservableObject {
             result.responseText = response.text
             result.tokenUsage = response.tokenUsage
             result.durationMs = response.durationMs
+            result.costUSD = model.costFor(
+                inputTokens: response.tokenUsage.input,
+                outputTokens: response.tokenUsage.output
+            )
             result.status = .completed
         } catch is CancellationError {
             result.status = .failed

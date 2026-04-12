@@ -46,6 +46,13 @@ struct OpenAIService: LLMService {
             body["max_tokens"] = max
         }
 
+        // Reasoning models (o-series, GPT-5) support reasoning_effort instead of temperature
+        if model.supportsReasoningEffort, let effort = params.reasoningEffort {
+            body["reasoning_effort"] = effort.rawValue
+            // Remove temperature for reasoning models — not supported
+            body.removeValue(forKey: "temperature")
+        }
+
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let start = Date()
@@ -138,7 +145,7 @@ struct OpenAIService: LLMService {
 
     /// Filter to chat-capable models (GPT family, o-series reasoning models)
     private static func isChatModel(_ id: String) -> Bool {
-        let chatPrefixes = ["gpt-4", "gpt-3.5", "chatgpt", "o1", "o3", "o4"]
+        let chatPrefixes = ["gpt-4", "gpt-3.5", "gpt-5", "chatgpt", "o1", "o3", "o4"]
         return chatPrefixes.contains { id.hasPrefix($0) }
             && !id.contains("instruct")
             && !id.contains("base")
@@ -163,6 +170,9 @@ struct OpenAIService: LLMService {
         case "gpt-4-turbo":  baseName = "GPT-4 Turbo"
         case "gpt-4":        baseName = "GPT-4"
         case "gpt-3.5-turbo":baseName = "GPT-3.5 Turbo"
+        case "gpt-5":        baseName = "GPT-5"
+        case "gpt-5.4":      baseName = "GPT-5.4"
+        case "gpt-5-mini":   baseName = "GPT-5 mini"
         case "o1":           baseName = "o1"
         case "o1-mini":      baseName = "o1 mini"
         case "o1-pro":       baseName = "o1 pro"
