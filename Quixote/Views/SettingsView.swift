@@ -4,13 +4,14 @@ struct SettingsView: View {
     @ObservedObject var viewModel: SettingsViewModel
 
     @State private var showKey = false
+    @ObservedObject private var cache = ResponseCache.shared
 
     var body: some View {
         TabView {
             generalTab
                 .tabItem { Label("General", systemImage: "gearshape") }
         }
-        .frame(width: 420, height: 320)
+        .frame(width: 420, height: 380)
     }
 
     // MARK: - General tab
@@ -87,6 +88,19 @@ struct SettingsView: View {
                     ),
                     in: 0...10
                 )
+            }
+
+            Section("Data") {
+                HStack {
+                    Text("Response cache")
+                    Spacer()
+                    Text(cache.entryCount == 1 ? "1 entry" : "\(cache.entryCount) entries")
+                        .foregroundStyle(.secondary)
+                    Button("Clear") {
+                        viewModel.clearCache()
+                    }
+                    .disabled(cache.entryCount == 0)
+                }
             }
         }
         .formStyle(.grouped)
