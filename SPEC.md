@@ -281,7 +281,7 @@ No multi-model, no statistics, no cosine similarity, no queue persistence, no se
 | **AO-1** | [DONE] Multiple prompts per file — `PromptListView`, full `PromptListViewModel`, per-prompt result columns, per-prompt export columns | CP-2 |
 | **AO-2** | [DONE] Multi-model selection — model list from API, multi-select UI, N×M request queue, per-model result columns | CP-3 |
 | **AO-3** | [DONE] Pause / resume / cancel — queue state management, state-dependent button labels | CP-3 |
-| **AO-4** | Retry logic — auto-retry with configurable max, per-row retry button, "retry all failed" | CP-3 |
+| **AO-4** | [DONE] Retry logic — auto-retry with configurable max, per-row retry button, "retry all failed" | CP-3 |
 | **AO-5** | [DONE] Settings window + Keychain — `SettingsViewModel`, `SettingsWindow`, API key in Keychain, processing params, validate on save | no hard dep |
 | **AO-6** | [DONE] Statistics panel — `StatsViewModel`, `StatsPanel`, cost / median response time / total tokens per model per prompt | CP-4 |
 | **AO-7** | Queue persistence — serialize queue state to disk, resume on restart | AO-3 |
