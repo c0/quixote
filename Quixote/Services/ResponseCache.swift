@@ -1,0 +1,100 @@
+import Foundation
+import CryptoKit
+
+// MARK: - CachedEntry
+
+struct CachedEntry: Codable {
+    var responseText: String
+    var tokenUsage: TokenUsage
+    var durationMs: Int
+    var costUSD: Double
+    var cachedAt: Date
+}
+
+// MARK: - ResponseCache
+
+@MainActor
+final class ResponseCache: ObservableObject {
+
+    static let shared = ResponseCache()
+
+    @Published private(set) var entryCount: Int = 0
+
+    private var store: [String: CachedEntry] = [:]
+
+    private static let persistenceURL: URL = {
+        let support = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = support.appendingPathComponent("Quixote")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("response-cache.json")
+    }()
+
+    private init() { load() }
+
+    // MARK: - Key generation
+
+    static func cacheKey(
+        expandedPrompt: String,
+        modelID: String,
+        params: LLMParameters
+    ) -> String {
+        let paramsString = [
+            "\(params.temperature)",
+            "\(params.maxTokens ?? -1)",
+            "\(params.topP)",
+            "\(params.frequencyPenalty)",
+            "\(params.presencePenalty)",
+            params.reasoningEffort?.rawValue ?? "none"
+        ].joined(separator: "|")
+        let raw = expandedPrompt + "\0" + modelID + "\0" + paramsString
+        let digest = SHA256.hash(data: Data(raw.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    // MARK: - Lookup / store
+
+    func entry(for key: String) -> CachedEntry? {
+        store[key]
+    }
+
+    func store(entry: CachedEntry, for key: String) {
+        store[key] = entry
+        entryCount = store.count
+        scheduleSave()
+    }
+
+    // MARK: - Clear
+
+    func clearAll() {
+        store.removeAll()
+        entryCount = 0
+        try? FileManager.default.removeItem(at: Self.persistenceURL)
+    }
+
+    // MARK: - Persistence
+
+    private var saveTask: Task<Void, Never>?
+
+    private func scheduleSave() {
+        saveTask?.cancel()
+        saveTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            persist()
+        }
+    }
+
+    private func persist() {
+        guard let data = try? JSONEncoder().encode(store) else { return }
+        try? data.write(to: Self.persistenceURL, options: .atomic)
+    }
+
+    private func load() {
+        guard let data = try? Data(contentsOf: Self.persistenceURL),
+              let decoded = try? JSONDecoder().decode([String: CachedEntry].self, from: data)
+        else { return }
+        store = decoded
+        entryCount = store.count
+    }
+}
