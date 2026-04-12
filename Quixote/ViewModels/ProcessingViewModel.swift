@@ -244,6 +244,7 @@ final class ProcessingViewModel: ObservableObject {
                         tokenUsage: usage,
                         durationMs: result.durationMs ?? 0,
                         costUSD: result.costUSD ?? 0,
+                        cosineSimilarity: result.cosineSimilarity ?? 0,
                         cachedAt: Date()),
                     for: key)
             }
@@ -417,6 +418,7 @@ final class ProcessingViewModel: ObservableObject {
                 result.tokenUsage = entry.tokenUsage
                 result.durationMs = entry.durationMs
                 result.costUSD = entry.costUSD
+                result.cosineSimilarity = entry.cosineSimilarity
                 result.status = .completed
                 updateResult(result)
             } else {
@@ -464,6 +466,7 @@ final class ProcessingViewModel: ObservableObject {
                                 tokenUsage: usage,
                                 durationMs: result.durationMs ?? 0,
                                 costUSD: result.costUSD ?? 0,
+                                cosineSimilarity: result.cosineSimilarity ?? 0,
                                 cachedAt: Date()),
                             for: key)
                     }
@@ -487,6 +490,28 @@ final class ProcessingViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Bag-of-words cosine similarity between two strings. Returns 0–1.
+    private static func cosineSimilarity(_ a: String, _ b: String) -> Double {
+        func tokenize(_ s: String) -> [String: Int] {
+            var freq: [String: Int] = [:]
+            let words = s.lowercased()
+                .components(separatedBy: .alphanumerics.inverted)
+                .filter { !$0.isEmpty }
+            for w in words { freq[w, default: 0] += 1 }
+            return freq
+        }
+        let va = tokenize(a)
+        let vb = tokenize(b)
+        guard !va.isEmpty, !vb.isEmpty else { return 0 }
+        let dot = va.reduce(0.0) { acc, pair in
+            acc + Double(pair.value) * Double(vb[pair.key] ?? 0)
+        }
+        let magA = sqrt(va.values.reduce(0.0) { $0 + Double($1 * $1) })
+        let magB = sqrt(vb.values.reduce(0.0) { $0 + Double($1 * $1) })
+        guard magA > 0, magB > 0 else { return 0 }
+        return dot / (magA * magB)
     }
 
     private static func callService(
@@ -517,6 +542,7 @@ final class ProcessingViewModel: ObservableObject {
                     inputTokens: response.tokenUsage.input,
                     outputTokens: response.tokenUsage.output
                 )
+                result.cosineSimilarity = cosineSimilarity(prompt, response.text)
                 result.status = .completed
                 return result
             } catch is CancellationError {
