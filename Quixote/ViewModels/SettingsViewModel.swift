@@ -4,6 +4,7 @@ import SwiftUI
 private let kKeychainOpenAIKey  = "openai-api-key"
 private let kConcurrencyKey     = "quixote.concurrency"
 private let kRateLimitKey       = "quixote.rateLimit"
+private let kMaxRetriesKey      = "quixote.maxRetries"
 // Legacy key written by CP-3 RunControlsView — migrated to Keychain on first launch
 private let kLegacyAPIKey       = "quixote.openai.apiKey"
 
@@ -23,6 +24,10 @@ final class SettingsViewModel: ObservableObject {
         ? 2 : UserDefaults.standard.integer(forKey: kConcurrencyKey)
     @Published var rateLimit: Int = UserDefaults.standard.integer(forKey: kRateLimitKey) == 0
         ? 5 : UserDefaults.standard.integer(forKey: kRateLimitKey)
+    @Published var maxRetries: Int = {
+        if UserDefaults.standard.object(forKey: "quixote.maxRetries") == nil { return 3 }
+        return UserDefaults.standard.integer(forKey: "quixote.maxRetries")
+    }()
 
     @Published var isValidatingKey = false
     @Published var keyValidationResult: KeyValidationResult? = nil
@@ -114,6 +119,11 @@ final class SettingsViewModel: ObservableObject {
     func saveRateLimit(_ value: Int) {
         rateLimit = value
         UserDefaults.standard.set(value, forKey: kRateLimitKey)
+    }
+
+    func saveMaxRetries(_ value: Int) {
+        maxRetries = value
+        UserDefaults.standard.set(value, forKey: kMaxRetriesKey)
     }
 
     // MARK: - Key change sync

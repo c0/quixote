@@ -78,6 +78,15 @@ struct SettingsView: View {
                     ),
                     in: 1...20
                 )
+
+                Stepper(
+                    "Max retries: \(viewModel.maxRetries)",
+                    value: Binding(
+                        get: { viewModel.maxRetries },
+                        set: { viewModel.saveMaxRetries($0) }
+                    ),
+                    in: 0...10
+                )
             }
         }
         .formStyle(.grouped)
