@@ -1,11 +1,13 @@
 import Foundation
 import AppKit
 import Combine
+import CryptoKit
 
 @MainActor
 final class WorkspaceViewModel: ObservableObject {
     @Published private(set) var files: [WorkspaceFile] = []
     @Published var selectedFileID: UUID? = nil
+    @Published private(set) var changedFiles: [WorkspaceFile] = []
 
     var selectedFile: WorkspaceFile? {
         files.first { $0.id == selectedFileID }
@@ -93,7 +95,8 @@ final class WorkspaceViewModel: ObservableObject {
 
     private func contentHash(of url: URL) -> String {
         guard let data = try? Data(contentsOf: url) else { return "" }
-        return String(data.hashValue)
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: - Persistence (simple JSON)
@@ -105,20 +108,51 @@ final class WorkspaceViewModel: ObservableObject {
 
     private func loadWorkspace() {
         guard let data = try? Data(contentsOf: persistenceURL),
-              let saved = try? JSONDecoder().decode([WorkspaceFile].self, from: data) else { return }
+              let saved = try? JSONDecoder().decode([WorkspaceFile].self, from: data)
+        else { return }
 
-        // Re-parse files that still exist on disk
         var live: [WorkspaceFile] = []
+        var detected: [WorkspaceFile] = []
+
         for var file in saved {
             guard FileManager.default.fileExists(atPath: file.url.path) else { continue }
-            if let parser = parser(for: file.url),
-               let table = try? parser.parse(url: file.url) {
-                file.contentHash = contentHash(of: file.url)
-                parsedTables[file.id] = table
-                live.append(file)
+            guard let parser = parser(for: file.url),
+                  let table = try? parser.parse(url: file.url)
+            else { continue }
+
+            let currentHash = contentHash(of: file.url)
+
+            if !file.contentHash.isEmpty && file.contentHash != currentHash {
+                // File changed since last save — keep old hash, record as changed
+                detected.append(file)
+            } else {
+                // First open (empty hash) or unchanged — update to current hash
+                file.contentHash = currentHash
+            }
+
+            parsedTables[file.id] = table
+            live.append(file)
+        }
+
+        files = live
+        changedFiles = detected
+        selectedFileID = live.first?.id
+    }
+
+    /// Clears the changed-files list after the user has been notified.
+    func acknowledgeChanges() {
+        changedFiles = []
+    }
+
+    /// Advances stored content hashes to the current on-disk values.
+    /// Call this after the user confirms they want to re-run on changed data.
+    func refreshContentHashes() {
+        for i in files.indices {
+            let current = contentHash(of: files[i].url)
+            if !current.isEmpty {
+                files[i].contentHash = current
             }
         }
-        files = live
-        selectedFileID = live.first?.id
+        saveWorkspace()
     }
 }
