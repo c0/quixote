@@ -11,6 +11,7 @@ struct MainWindow: View {
     @StateObject private var settings = SettingsViewModel()
 
     @State private var selectedModels: [ModelConfig] = []
+    @State private var showFileChangedAlert = false
 
     var body: some View {
         NavigationSplitView {
@@ -72,6 +73,9 @@ struct MainWindow: View {
             }
             loadSelectedFile()
             processing.restoreIfNeeded()
+            if !workspace.changedFiles.isEmpty {
+                showFileChangedAlert = true
+            }
         }
         .onChange(of: workspace.selectedFileID) {
             processing.cancel()
@@ -100,6 +104,19 @@ struct MainWindow: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .exportResults)) { _ in
             triggerExport()
+        }
+        .alert("Files Changed", isPresented: $showFileChangedAlert) {
+            Button("Re-run") {
+                processing.clearResults()
+                workspace.refreshContentHashes()
+                workspace.acknowledgeChanges()
+            }
+            Button("Dismiss", role: .cancel) {
+                workspace.acknowledgeChanges()
+            }
+        } message: {
+            let names = workspace.changedFiles.map(\.displayName).joined(separator: ", ")
+            Text("\(names) changed since last run. Previous results have been cleared.")
         }
     }
 
