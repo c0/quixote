@@ -11,12 +11,22 @@ final class ProcessingViewModel: ObservableObject {
         case failed(String)
     }
 
+    private struct RunContext {
+        let prompt: Prompt
+        let rows: [Row]
+        let columns: [ColumnDef]
+        let models: [ModelConfig]
+        let apiKey: String
+        let maxRetries: Int
+    }
+
     @Published var runState: RunState = .idle
     // Results keyed by composite "\(rowID)-\(modelID)" — supports multi-model
     @Published var results: [String: PromptResult] = [:]
 
     private var runTask: Task<Void, Never>?
     private var pauseContinuation: CheckedContinuation<Void, Never>?
+    private var runContext: RunContext?
     private var maxConcurrency = 2
     private var rateLimiter = RateLimiter(requestsPerSecond: 5)
 
@@ -35,6 +45,10 @@ final class ProcessingViewModel: ObservableObject {
         case .running, .paused: return true
         default: return false
         }
+    }
+
+    var hasFailedResults: Bool {
+        results.values.contains { $0.status == .failed }
     }
 
     var progress: Double {
@@ -59,11 +73,16 @@ final class ProcessingViewModel: ObservableObject {
         models: [ModelConfig],
         apiKey: String,
         concurrency: Int = 2,
-        rateLimit: Double = 5
+        rateLimit: Double = 5,
+        maxRetries: Int = 3
     ) {
         guard !isActive, !models.isEmpty else { return }
         maxConcurrency = max(1, concurrency)
         rateLimiter = RateLimiter(requestsPerSecond: max(1, rateLimit))
+        runContext = RunContext(
+            prompt: prompt, rows: rows, columns: columns,
+            models: models, apiKey: apiKey, maxRetries: maxRetries
+        )
         results = [:]
         let total = rows.count * models.count
         runState = .running(completed: 0, total: total)
@@ -72,7 +91,8 @@ final class ProcessingViewModel: ObservableObject {
 
         runTask = Task {
             await processRows(prompt: prompt, rows: rows,
-                               columns: columns, models: models, service: service)
+                              columns: columns, models: models,
+                              service: service, maxRetries: maxRetries)
         }
     }
 
@@ -102,6 +122,66 @@ final class ProcessingViewModel: ObservableObject {
         runState = .idle
     }
 
+    func retryFailed(concurrency: Int, rateLimit: Double) {
+        guard let ctx = runContext, !isActive else { return }
+
+        let failedWorkItems: [(Row, ModelConfig)] = results.values
+            .filter { $0.status == .failed }
+            .compactMap { result in
+                guard let row = ctx.rows.first(where: { $0.id == result.rowID }),
+                      let model = ctx.models.first(where: { $0.id == result.modelID })
+                else { return nil }
+                return (row, model)
+            }
+
+        guard !failedWorkItems.isEmpty else { return }
+
+        maxConcurrency = max(1, concurrency)
+        rateLimiter = RateLimiter(requestsPerSecond: max(1, rateLimit))
+        runState = .running(completed: 0, total: failedWorkItems.count)
+
+        let service = OpenAIService(apiKey: ctx.apiKey)
+        let prompt = ctx.prompt
+        let columns = ctx.columns
+        let maxRetries = ctx.maxRetries
+
+        runTask = Task {
+            await processWorkItems(failedWorkItems, prompt: prompt, columns: columns,
+                                   service: service, maxRetries: maxRetries)
+            if Task.isCancelled { return }
+            if case .running(_, let total) = runState {
+                runState = .completed(total)
+            }
+        }
+    }
+
+    func retryResult(rowID: UUID, modelID: String) {
+        guard let ctx = runContext,
+              let row = ctx.rows.first(where: { $0.id == rowID }),
+              let model = ctx.models.first(where: { $0.id == modelID }) else { return }
+
+        let key = resultKey(rowID: rowID, modelID: modelID)
+        if var current = results[key] {
+            current.status = .inProgress
+            results[key] = current
+        }
+
+        let expandedPrompt = InterpolationEngine.expand(
+            template: ctx.prompt.template, row: row, columns: ctx.columns)
+        let service = OpenAIService(apiKey: ctx.apiKey)
+        let maxRetries = ctx.maxRetries
+
+        Task {
+            let result = await Self.callService(
+                service: service, prompt: expandedPrompt,
+                params: ctx.prompt.parameters,
+                row: row, promptID: ctx.prompt.id, model: model,
+                maxRetries: maxRetries
+            )
+            results[resultKey(rowID: result.rowID, modelID: result.modelID)] = result
+        }
+    }
+
     // MARK: - Processing
 
     private func processRows(
@@ -109,13 +189,28 @@ final class ProcessingViewModel: ObservableObject {
         rows: [Row],
         columns: [ColumnDef],
         models: [ModelConfig],
-        service: OpenAIService
+        service: OpenAIService,
+        maxRetries: Int
     ) async {
-        // Cartesian product: each row × each model
-        let workItems = rows.flatMap { row in
-            models.map { model in (row, model) }
-        }
+        let workItems = rows.flatMap { row in models.map { model in (row, model) } }
+        await processWorkItems(workItems, prompt: prompt, columns: columns, service: service, maxRetries: maxRetries)
 
+        if Task.isCancelled { return }
+        switch runState {
+        case .running(_, let total), .paused(_, let total):
+            runState = .completed(total)
+        default:
+            break
+        }
+    }
+
+    private func processWorkItems(
+        _ workItems: [(Row, ModelConfig)],
+        prompt: Prompt,
+        columns: [ColumnDef],
+        service: OpenAIService,
+        maxRetries: Int
+    ) async {
         await withTaskGroup(of: PromptResult.self) { group in
             var iterator = workItems.makeIterator()
             var active = 0
@@ -129,7 +224,8 @@ final class ProcessingViewModel: ObservableObject {
                     return await Self.callService(
                         service: service, prompt: expandedPrompt,
                         params: prompt.parameters,
-                        row: row, promptID: prompt.id, model: model)
+                        row: row, promptID: prompt.id, model: model,
+                        maxRetries: maxRetries)
                 }
                 active += 1
             }
@@ -147,18 +243,11 @@ final class ProcessingViewModel: ObservableObject {
                         return await Self.callService(
                             service: service, prompt: expandedPrompt,
                             params: prompt.parameters,
-                            row: row, promptID: prompt.id, model: model)
+                            row: row, promptID: prompt.id, model: model,
+                            maxRetries: maxRetries)
                     }
                 }
             }
-        }
-
-        if Task.isCancelled { return }
-        switch runState {
-        case .running(_, let total), .paused(_, let total):
-            runState = .completed(total)
-        default:
-            break
         }
     }
 
@@ -168,7 +257,8 @@ final class ProcessingViewModel: ObservableObject {
         params: LLMParameters,
         row: Row,
         promptID: UUID,
-        model: ModelConfig
+        model: ModelConfig,
+        maxRetries: Int
     ) async -> PromptResult {
         let runID = UUID()
         var result = PromptResult(
@@ -177,24 +267,34 @@ final class ProcessingViewModel: ObservableObject {
             promptID: promptID, modelID: model.id)
         result.status = .inProgress
 
-        do {
-            let response = try await service.complete(
-                prompt: prompt, model: model, params: params)
-            result.responseText = response.text
-            result.tokenUsage = response.tokenUsage
-            result.durationMs = response.durationMs
-            result.costUSD = model.costFor(
-                inputTokens: response.tokenUsage.input,
-                outputTokens: response.tokenUsage.output
-            )
-            result.status = .completed
-        } catch is CancellationError {
-            result.status = .cancelled
-        } catch {
-            result.responseText = error.localizedDescription
-            result.status = .failed
+        var attempt = 0
+        while true {
+            do {
+                let response = try await service.complete(
+                    prompt: prompt, model: model, params: params)
+                result.responseText = response.text
+                result.tokenUsage = response.tokenUsage
+                result.durationMs = response.durationMs
+                result.costUSD = model.costFor(
+                    inputTokens: response.tokenUsage.input,
+                    outputTokens: response.tokenUsage.output
+                )
+                result.status = .completed
+                return result
+            } catch is CancellationError {
+                result.status = .cancelled
+                return result
+            } catch {
+                if attempt < maxRetries, !Task.isCancelled {
+                    attempt += 1
+                    result.retryCount = attempt
+                    continue
+                }
+                result.responseText = error.localizedDescription
+                result.status = .failed
+                return result
+            }
         }
-        return result
     }
 
     private func updateResult(_ result: PromptResult) {
