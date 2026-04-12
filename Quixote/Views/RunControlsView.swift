@@ -114,21 +114,35 @@ struct RunControlsView: View {
                     .font(.caption)
                 }
             default:
-                Button("Run") {
-                    guard let p = prompt else { return }
-                    processing.startRun(
-                        prompt: p,
-                        rows: rowsToProcess,
-                        columns: columns,
-                        models: selectedModels,
-                        apiKey: apiKey,
-                        concurrency: settings.concurrency,
-                        rateLimit: Double(settings.rateLimit)
-                    )
+                HStack(spacing: 6) {
+                    if !processing.isActive && processing.hasFailedResults {
+                        Button("Retry Failed") {
+                            processing.retryFailed(
+                                concurrency: settings.concurrency,
+                                rateLimit: Double(settings.rateLimit)
+                            )
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+
+                    Button("Run") {
+                        guard let p = prompt else { return }
+                        processing.startRun(
+                            prompt: p,
+                            rows: rowsToProcess,
+                            columns: columns,
+                            models: selectedModels,
+                            apiKey: apiKey,
+                            concurrency: settings.concurrency,
+                            rateLimit: Double(settings.rateLimit),
+                            maxRetries: settings.maxRetries
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(!canRun)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled(!canRun)
             }
         }
         .padding(.horizontal, 12)
