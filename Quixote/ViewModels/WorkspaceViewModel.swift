@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import Combine
 import CryptoKit
+import UniformTypeIdentifiers
 
 @MainActor
 final class WorkspaceViewModel: ObservableObject {
@@ -14,7 +15,7 @@ final class WorkspaceViewModel: ObservableObject {
     }
 
     // Parser registry — add new parsers here as they are implemented
-    private let parsers: [any FileParser] = [CSVParser()]
+    private let parsers: [any FileParser] = [CSVParser(), JSONParser(), ExcelParser()]
 
     // MARK: - Persistence
 
@@ -37,7 +38,7 @@ final class WorkspaceViewModel: ObservableObject {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.commaSeparatedText, .tabSeparatedText, .data]
+        panel.allowedContentTypes = [.commaSeparatedText, .tabSeparatedText, .json, UTType(filenameExtension: "xlsx")!]
         panel.message = "Open a data file"
         panel.prompt = "Open"
 

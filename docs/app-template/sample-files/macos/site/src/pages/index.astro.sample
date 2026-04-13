@@ -1,0 +1,22 @@
+---
+const APP_VERSION = "0.1.0"; // release script updates this line
+const DMG_URL = `https://github.com/GITHUB_OWNER/GITHUB_REPO/releases/download/v${APP_VERSION}/APP_NAME-${APP_VERSION}.dmg`;
+const GITHUB_URL = "https://github.com/GITHUB_OWNER/GITHUB_REPO";
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>APP_NAME</title>
+  </head>
+  <body>
+    <main>
+      <h1>APP_NAME</h1>
+      <p>Your tagline here.</p>
+      <p><a href={DMG_URL}>Download for macOS</a></p>
+      <p><a href={GITHUB_URL}>GitHub</a></p>
+      <p>{APP_VERSION} · macOS Sonoma or later</p>
+    </main>
+  </body>
+</html>

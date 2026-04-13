@@ -4,11 +4,15 @@ import Foundation
 
 enum FileType: String, Codable, CaseIterable {
     case csv
+    case json
+    case xlsx
     case unknown
 
     static func detect(from url: URL) -> FileType {
         switch url.pathExtension.lowercased() {
-        case "csv": return .csv
+        case "csv", "tsv", "tab": return .csv
+        case "json": return .json
+        case "xlsx": return .xlsx
         default: return .unknown
         }
     }

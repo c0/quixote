@@ -29,6 +29,8 @@ struct SidebarView: View {
     private func iconName(for type: FileType) -> String {
         switch type {
         case .csv: return "tablecells"
+        case .json: return "curlybraces"
+        case .xlsx: return "tablecells.badge.ellipsis"
         case .unknown: return "doc"
         }
     }
