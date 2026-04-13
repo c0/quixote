@@ -3,7 +3,7 @@ import SwiftUI
 struct DataTableView: View {
     @ObservedObject var viewModel: DataPreviewViewModel
     @ObservedObject var results: ResultsViewModel
-    var onRetry: ((UUID, String) -> Void)? = nil
+    var onRetry: ((UUID, UUID, String) -> Void)? = nil
 
     var body: some View {
         if viewModel.columns.isEmpty {
@@ -23,7 +23,7 @@ struct DataTableView: View {
                                     columns: viewModel.columns,
                                     resultColumns: results.columns,
                                     getResult: { results.result(for: row.id, column: $0) },
-                                    onRetry: { col in onRetry?(row.id, col.modelID) }
+                                    onRetry: { col in onRetry?(row.id, col.promptID, col.modelID) }
                                 )
                                 .background(row.index % 2 == 0 ? Color.clear : Color.secondary.opacity(0.05))
                             }
@@ -156,10 +156,18 @@ struct ResultCell: View {
             }
 
         case .completed:
-            Text(result?.responseText ?? "")
-                .font(.caption)
-                .lineLimit(4)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(result?.responseText ?? "")
+                    .font(.caption)
+                    .lineLimit(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let similarity = result?.cosineSimilarity {
+                    Text(String(format: "Similarity %.3f", similarity))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
 
         case .failed:
             VStack(alignment: .leading, spacing: 4) {

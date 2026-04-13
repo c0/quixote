@@ -21,6 +21,7 @@
 		72F481F830548F7D98647DA0 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = E26C91657706E603C44C9555 /* Models.swift */; };
 		74D66B40D9C800419C59B347 /* RateLimiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F213D6DDE9EAB9A63FDC212D /* RateLimiter.swift */; };
 		84BD210A9BD009FB27B7CC6F /* PromptEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78C00E9148433C0EEB63FF2 /* PromptEditorView.swift */; };
+		85A7D29F3C9A52E76C0EDA97 /* PromptListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 169E1550FA67FCA81B5BFB08 /* PromptListViewModel.swift */; };
 		896A90755BFE179BAC7179A6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = E99737654BBA8327C4CF245C /* Sparkle */; };
 		896E29DFBD1D118D572A7E33 /* CoreXLSX in Frameworks */ = {isa = PBXBuildFile; productRef = 6DFCB88181DE04CD3F681E04 /* CoreXLSX */; };
 		9BADE2016E4040B718879DE6 /* ExportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53C4E16F7618A22E8DA2799 /* ExportViewModel.swift */; };
@@ -30,6 +31,7 @@
 		C4606B0B2D6593AE39026FF6 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C7596ACFD51D8674A5582B /* SidebarView.swift */; };
 		CDB9B94FA5BAD9551CDF2671 /* ResponseCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E19C64B63ED04BD6AABBA6 /* ResponseCache.swift */; };
 		D6082993DFFDD2F5A355DA0F /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617B83335699A4ED1577F375 /* MainWindow.swift */; };
+		D651C07D66C73247892F376E /* PromptListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F378F4855AF53A346E540AE /* PromptListView.swift */; };
 		DDEEB18542EC80F49CDE0EE4 /* ResultsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38DF6825342EF1993AE33C0B /* ResultsViewModel.swift */; };
 		E1280BF31DF342FA1274E9F6 /* RunControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7065ADAF137B64DF3144BCFC /* RunControlsView.swift */; };
 		E22355DD353854B4F108DEE5 /* CSVParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C8E07AE503BF6F881CB3CA9 /* CSVParser.swift */; };
@@ -41,6 +43,7 @@
 
 /* Begin PBXFileReference section */
 		14E19C64B63ED04BD6AABBA6 /* ResponseCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponseCache.swift; sourceTree = "<group>"; };
+		169E1550FA67FCA81B5BFB08 /* PromptListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptListViewModel.swift; sourceTree = "<group>"; };
 		2411C06BA0AC1D7EEBF6247C /* InterpolationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterpolationEngine.swift; sourceTree = "<group>"; };
 		2F7B4A0DFB6423912B48F43E /* JSONParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONParser.swift; sourceTree = "<group>"; };
 		31C7596ACFD51D8674A5582B /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
@@ -59,6 +62,7 @@
 		7F748859BA653F3B9AE625C1 /* Quixote.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Quixote.entitlements; sourceTree = "<group>"; };
 		8DF623633B8639C60192AA99 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8F86A36479B9A939C88796D9 /* StatsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsViewModel.swift; sourceTree = "<group>"; };
+		9F378F4855AF53A346E540AE /* PromptListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptListView.swift; sourceTree = "<group>"; };
 		AD22DB7736A6662220F2DA80 /* QuixoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuixoteApp.swift; sourceTree = "<group>"; };
 		AEA90B80C515CF3D6A218CB6 /* PromptEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptEditorViewModel.swift; sourceTree = "<group>"; };
 		B78C00E9148433C0EEB63FF2 /* PromptEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptEditorView.swift; sourceTree = "<group>"; };
@@ -109,6 +113,7 @@
 				4C62EE375D61EAF9527A7A6C /* DataTableView.swift */,
 				617B83335699A4ED1577F375 /* MainWindow.swift */,
 				B78C00E9148433C0EEB63FF2 /* PromptEditorView.swift */,
+				9F378F4855AF53A346E540AE /* PromptListView.swift */,
 				7065ADAF137B64DF3144BCFC /* RunControlsView.swift */,
 				C4645A84A5F60BF30E1F23E8 /* SettingsView.swift */,
 				31C7596ACFD51D8674A5582B /* SidebarView.swift */,
@@ -151,6 +156,7 @@
 				D53C4E16F7618A22E8DA2799 /* ExportViewModel.swift */,
 				C7AAD0FEBB815B9058EE7894 /* ProcessingViewModel.swift */,
 				AEA90B80C515CF3D6A218CB6 /* PromptEditorViewModel.swift */,
+				169E1550FA67FCA81B5BFB08 /* PromptListViewModel.swift */,
 				38DF6825342EF1993AE33C0B /* ResultsViewModel.swift */,
 				501B32910B80E6677CE0173B /* SettingsViewModel.swift */,
 				8F86A36479B9A939C88796D9 /* StatsViewModel.swift */,
@@ -280,6 +286,8 @@
 				6410934B48AB739953445084 /* ProcessingViewModel.swift in Sources */,
 				84BD210A9BD009FB27B7CC6F /* PromptEditorView.swift in Sources */,
 				293470BD38BC4772D572E01A /* PromptEditorViewModel.swift in Sources */,
+				D651C07D66C73247892F376E /* PromptListView.swift in Sources */,
+				85A7D29F3C9A52E76C0EDA97 /* PromptListViewModel.swift in Sources */,
 				58C07C4A872E322BB4C74AC2 /* QuixoteApp.swift in Sources */,
 				74D66B40D9C800419C59B347 /* RateLimiter.swift in Sources */,
 				CDB9B94FA5BAD9551CDF2671 /* ResponseCache.swift in Sources */,

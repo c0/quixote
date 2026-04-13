@@ -9,15 +9,12 @@ final class ExportViewModel: ObservableObject {
         table: ParsedTable,
         results: [String: PromptResult],
         resultColumns: [ResultsViewModel.ResultColumn],
-        prompt: Prompt?,
-        models: [ModelConfig],
         suggestedName: String
     ) {
         let csv = buildCSV(
             table: table,
             results: results,
-            resultColumns: resultColumns,
-            prompt: prompt
+            resultColumns: resultColumns
         )
 
         let panel = NSSavePanel()
@@ -44,19 +41,15 @@ final class ExportViewModel: ObservableObject {
     private func buildCSV(
         table: ParsedTable,
         results: [String: PromptResult],
-        resultColumns: [ResultsViewModel.ResultColumn],
-        prompt: Prompt?
+        resultColumns: [ResultsViewModel.ResultColumn]
     ) -> String {
-        let promptName = prompt?.name ?? "Prompt"
-
-        // Header — spec §14.2: "{Prompt Name} — Output ({model-id})"
         var headerFields = table.columns.map { $0.name }
         for col in resultColumns {
             headerFields += [
-                "\(promptName) — Output (\(col.modelID))",
-                "\(promptName) — Duration ms (\(col.modelID))",
-                "\(promptName) — Tokens (\(col.modelID))",
-                "\(promptName) — Cosine Similarity (\(col.modelID))",
+                "\(col.header) — Output",
+                "\(col.header) — Duration ms",
+                "\(col.header) — Tokens",
+                "\(col.header) — Cosine Similarity",
             ]
         }
         var lines = [headerFields.map(escape).joined(separator: ",")]
@@ -66,7 +59,7 @@ final class ExportViewModel: ObservableObject {
             var fields = table.columns.map { row.values[$0.name] ?? "" }
 
             for col in resultColumns {
-                let key = "\(row.id.uuidString)-\(col.modelID)"
+                let key = "\(col.promptID.uuidString)-\(row.id.uuidString)-\(col.modelID)"
                 if let r = results[key], r.modelID == col.modelID, r.status == .completed {
                     fields.append(r.responseText ?? "")
                     fields.append(r.durationMs.map(String.init) ?? "")

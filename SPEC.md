@@ -285,11 +285,11 @@ No multi-model, no statistics, no cosine similarity, no queue persistence, no se
 | **AO-5** | [DONE] Settings window + Keychain — `SettingsViewModel`, `SettingsWindow`, API key in Keychain, processing params, validate on save | no hard dep |
 | **AO-6** | [DONE] Statistics panel — `StatsViewModel`, `StatsPanel`, cost / median response time / total tokens per model per prompt | CP-4 |
 | **AO-7** | [DONE] Queue persistence — serialize queue state to disk, resume on restart | AO-3 |
-| **AO-8** | Response caching — cache keyed on (template + row hash + model), skip on hit, clear in settings | CP-3 |
-| **AO-9** | Change detection — content hash on reload, invalidate results when file changes on disk | CP-1 |
-| **AO-10** | Cosine similarity — compute between input and output, display in results and stats | CP-4 |
-| **AO-11** | Extrapolated projections — scale selector (1K / 1M / 10M), projected cost and token display | AO-6 |
-| **AO-12** | Additional file parsers — `JSONParser`, `ExcelParser` conforming to `FileParser`; TSV is already handled by `CSVParser` via delimiter detection | CP-1 |
+| **AO-8** | [DONE] Response caching — cache keyed on (template + row hash + model), skip on hit, clear in settings | CP-3 |
+| **AO-9** | [DONE] Change detection — content hash on reload, invalidate results when file changes on disk | CP-1 |
+| **AO-10** | [DONE] Cosine similarity — compute between input and output, display in results and stats | CP-4 |
+| **AO-11** | [DONE] Extrapolated projections — scale selector (1K / 1M / 10M), projected cost and token display | AO-6 |
+| **AO-12** | [DONE] Additional file parsers — `JSONParser`, `ExcelParser` conforming to `FileParser`; TSV is already handled by `CSVParser` via delimiter detection | CP-1 |
 
 ---
 
@@ -367,7 +367,8 @@ Detection happens once per file open and is not user-configurable (no override U
 
 - Each file has a **list of prompts** (not a single prompt).
 - Users can add, rename, reorder, and delete prompts.
-- Each prompt is independent: it can be run, paused, and exported separately, or all prompts can be batch-run.
+- One prompt is selected at a time for editing in `PromptEditorView`.
+- Runs can target either the selected prompt or all prompts for the current file.
 - A file always starts with one default prompt.
 
 ### 9.2 Prompt Template
@@ -417,7 +418,16 @@ Each prompt has its own independently configurable parameters:
 
 ### 11.1 Starting a Run
 
-Three modes:
+Prompt execution supports prompt scope plus row scope:
+
+Prompt scopes:
+
+| Scope | Description |
+|---|---|
+| **Selected prompt** | Sends rows to the currently selected prompt across the selected model(s) |
+| **All prompts** | Sends rows to every prompt for the current file across the selected model(s) |
+
+Row modes:
 
 | Mode | Description |
 |---|---|
@@ -425,7 +435,7 @@ Three modes:
 | **Process N rows** | Sends the first N rows (for sampling/testing) |
 | **Process single row** | Sends one specific row (for retry or spot-check) |
 
-Starting a new run clears previous results for that prompt and begins fresh.
+Starting a new run clears previous results and begins fresh for the current file.
 
 ### 11.2 Queue Architecture
 
@@ -473,8 +483,7 @@ Starting a new run clears previous results for that prompt and begins fresh.
 ### 12.1 Inline Results
 
 - Completed rows display LLM response text directly in the table.
-- Each prompt's results appear in their own column group, labeled by prompt name.
-- Each model's response within a prompt group has its own column (e.g., "My Prompt — gpt-4o").
+- Each prompt/model combination appears as its own result column, labeled by prompt name and model display name.
 - Failed rows display the error message.
 
 ### 12.2 Result Metadata
@@ -525,11 +534,11 @@ Each completed result stores:
 
 The exported CSV contains:
 - All original columns (unchanged, original order).
-- For each prompt that was run, and each model within that prompt, four appended columns:
-  - `{Prompt Name} — Output ({model-id})`
-  - `{Prompt Name} — Duration ms ({model-id})`
-  - `{Prompt Name} — Tokens ({model-id})`
-  - `{Prompt Name} — Cosine Similarity ({model-id})` (AO-10)
+- For each visible prompt/model result column, four appended columns:
+  - `{Prompt Name} — {Model Display Name} — Output`
+  - `{Prompt Name} — {Model Display Name} — Duration ms`
+  - `{Prompt Name} — {Model Display Name} — Tokens`
+  - `{Prompt Name} — {Model Display Name} — Cosine Similarity` (AO-10)
 
 ### 14.3 Partial Results
 

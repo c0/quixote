@@ -13,27 +13,30 @@ final class ResultsViewModel: ObservableObject {
     }
 
     @Published private(set) var columns: [ResultColumn] = []
-    private var rawResults: [String: PromptResult] = [:]  // composite key: "\(rowID)-\(modelID)"
+    private var rawResults: [String: PromptResult] = [:]  // composite key: "\(promptID)-\(rowID)-\(modelID)"
 
     // MARK: - Update
 
     func update(
         results: [String: PromptResult],
-        prompt: Prompt?,
+        prompts: [Prompt],
         models: [ModelConfig]
     ) {
         rawResults = results
-        guard let p = prompt, !models.isEmpty else {
+        guard !prompts.isEmpty, !models.isEmpty else {
             columns = []
             return
         }
-        columns = models.map { m in
-            ResultColumn(
-                id: "\(p.id)-\(m.id)",
-                header: "\(p.name) — \(m.displayName)",
-                promptID: p.id,
-                modelID: m.id
-            )
+
+        columns = prompts.flatMap { prompt in
+            models.map { model in
+                ResultColumn(
+                    id: "\(prompt.id)-\(model.id)",
+                    header: "\(prompt.name) — \(model.displayName)",
+                    promptID: prompt.id,
+                    modelID: model.id
+                )
+            }
         }
     }
 
@@ -45,7 +48,7 @@ final class ResultsViewModel: ObservableObject {
     // MARK: - Lookup
 
     func result(for rowID: UUID, column: ResultColumn) -> PromptResult? {
-        let key = "\(rowID.uuidString)-\(column.modelID)"
+        let key = "\(column.promptID.uuidString)-\(rowID.uuidString)-\(column.modelID)"
         guard let r = rawResults[key],
               r.promptID == column.promptID,
               r.modelID == column.modelID else { return nil }

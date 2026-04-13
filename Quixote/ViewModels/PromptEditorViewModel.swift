@@ -5,34 +5,13 @@ final class PromptEditorViewModel: ObservableObject {
     @Published var prompt: Prompt?
     @Published var previewText: String = ""
 
+    var onPromptUpdated: ((Prompt) -> Void)?
+
     private var table: ParsedTable = .empty
-    private var saveTask: Task<Void, Never>? = nil
 
-    private let promptsURL: URL = {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = support.appendingPathComponent("Quixote")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("prompts.json")
-    }()
-
-    private var allPrompts: [UUID: Prompt] = [:]
-
-    init() {
-        loadAll()
-    }
-
-    // MARK: - Load / switch file
-
-    func load(fileID: UUID, table: ParsedTable) {
+    func load(prompt: Prompt?, table: ParsedTable) {
+        self.prompt = prompt
         self.table = table
-        if let existing = allPrompts[fileID] {
-            prompt = existing
-        } else {
-            let p = Prompt(fileID: fileID)
-            allPrompts[fileID] = p
-            prompt = p
-            saveAll()
-        }
         refreshPreview()
     }
 
@@ -42,67 +21,39 @@ final class PromptEditorViewModel: ObservableObject {
         table = .empty
     }
 
-    func removePrompt(for fileID: UUID) {
-        allPrompts.removeValue(forKey: fileID)
-        saveAll()
-    }
-
-    // MARK: - Editing
-
     func updateTemplate(_ text: String) {
-        guard prompt != nil else { return }
-        prompt!.template = text
-        prompt!.updatedAt = Date()
-        allPrompts[prompt!.fileID] = prompt
+        guard var prompt else { return }
+        prompt.template = text
+        prompt.updatedAt = Date()
+        self.prompt = prompt
         refreshPreview()
-        scheduleSave()
+        onPromptUpdated?(prompt)
     }
 
     func updateParameters(_ params: LLMParameters) {
-        guard prompt != nil else { return }
-        prompt!.parameters = params
-        prompt!.updatedAt = Date()
-        allPrompts[prompt!.fileID] = prompt
-        scheduleSave()
+        guard var prompt else { return }
+        prompt.parameters = params
+        prompt.updatedAt = Date()
+        self.prompt = prompt
+        onPromptUpdated?(prompt)
     }
 
     func insertToken(_ columnName: String) {
-        guard prompt != nil else { return }
-        prompt!.template += "{{\(columnName)}}"
-        prompt!.updatedAt = Date()
-        allPrompts[prompt!.fileID] = prompt
+        guard var prompt else { return }
+        prompt.template += "{{\(columnName)}}"
+        prompt.updatedAt = Date()
+        self.prompt = prompt
         refreshPreview()
-        scheduleSave()
+        onPromptUpdated?(prompt)
     }
-
-    // MARK: - Preview
 
     var previewRow: Row? { table.rows.first }
 
     private func refreshPreview() {
-        guard let p = prompt else { previewText = ""; return }
-        previewText = InterpolationEngine.preview(template: p.template, table: table)
-    }
-
-    // MARK: - Persistence
-
-    private func scheduleSave() {
-        saveTask?.cancel()
-        saveTask = Task {
-            try? await Task.sleep(for: .milliseconds(500))
-            guard !Task.isCancelled else { return }
-            saveAll()
+        guard let prompt else {
+            previewText = ""
+            return
         }
-    }
-
-    private func saveAll() {
-        let data = try? JSONEncoder().encode(allPrompts)
-        try? data?.write(to: promptsURL, options: .atomic)
-    }
-
-    private func loadAll() {
-        guard let data = try? Data(contentsOf: promptsURL),
-              let saved = try? JSONDecoder().decode([UUID: Prompt].self, from: data) else { return }
-        allPrompts = saved
+        previewText = InterpolationEngine.preview(template: prompt.template, table: table)
     }
 }
