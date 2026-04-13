@@ -6,6 +6,7 @@ final class StatsViewModel: ObservableObject {
     /// Stats for a single (prompt, model) combination
     struct ModelStats: Identifiable, Equatable {
         let promptID: UUID
+        let promptName: String
         let modelID: String
         let modelDisplayName: String
         let totalCostUSD: Double
@@ -24,41 +25,41 @@ final class StatsViewModel: ObservableObject {
 
     func update(
         results: [String: PromptResult],
-        prompt: Prompt?,
+        prompts: [Prompt],
         models: [ModelConfig],
         totalRows: Int
     ) {
-        guard let p = prompt, !models.isEmpty else {
+        guard !prompts.isEmpty, !models.isEmpty else {
             modelStats = []
             return
         }
 
-        modelStats = models.map { model in
-            let completed = results.values.filter {
-                $0.promptID == p.id && $0.modelID == model.id && $0.status == .completed
+        modelStats = prompts.flatMap { prompt in
+            models.map { model in
+                let completed = results.values.filter {
+                    $0.promptID == prompt.id && $0.modelID == model.id && $0.status == .completed
+                }
+
+                let totalCost = completed.compactMap { $0.costUSD }.reduce(0, +)
+                let durations = completed.compactMap { $0.durationMs }.map { Double($0) / 1000.0 }
+                let medianDuration = Self.median(durations)
+                let tokens = completed.compactMap { $0.tokenUsage?.total }.reduce(0, +)
+                let similarities = completed.compactMap { $0.cosineSimilarity }
+                let medianSimilarity = Self.median(similarities)
+
+                return ModelStats(
+                    promptID: prompt.id,
+                    promptName: prompt.name,
+                    modelID: model.id,
+                    modelDisplayName: model.displayName,
+                    totalCostUSD: totalCost,
+                    medianDurationSec: medianDuration,
+                    totalTokens: tokens,
+                    medianCosineSimilarity: medianSimilarity,
+                    completedRows: completed.count,
+                    totalRows: totalRows
+                )
             }
-
-            let totalCost = completed.compactMap { $0.costUSD }.reduce(0, +)
-
-            let durations = completed.compactMap { $0.durationMs }.map { Double($0) / 1000.0 }
-            let medianDuration = Self.median(durations)
-
-            let tokens = completed.compactMap { $0.tokenUsage?.total }.reduce(0, +)
-
-            let similarities = completed.compactMap { $0.cosineSimilarity }
-            let medianSimilarity = Self.median(similarities)
-
-            return ModelStats(
-                promptID: p.id,
-                modelID: model.id,
-                modelDisplayName: model.displayName,
-                totalCostUSD: totalCost,
-                medianDurationSec: medianDuration,
-                totalTokens: tokens,
-                medianCosineSimilarity: medianSimilarity,
-                completedRows: completed.count,
-                totalRows: totalRows
-            )
         }
     }
 

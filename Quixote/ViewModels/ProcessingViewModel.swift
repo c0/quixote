@@ -15,7 +15,7 @@ final class ProcessingViewModel: ObservableObject {
     }
 
     private struct RunContext {
-        let prompt: Prompt
+        let prompts: [Prompt]
         let rows: [Row]
         let columns: [ColumnDef]
         let models: [ModelConfig]
@@ -25,7 +25,7 @@ final class ProcessingViewModel: ObservableObject {
 
     /// Codable snapshot of queue state for disk persistence.
     struct QueueSnapshot: Codable {
-        let prompt: Prompt
+        let prompts: [Prompt]
         let rows: [Row]
         let columns: [ColumnDef]
         let models: [ModelConfig]
@@ -36,7 +36,7 @@ final class ProcessingViewModel: ObservableObject {
     }
 
     @Published var runState: RunState = .idle
-    // Results keyed by composite "\(rowID)-\(modelID)" — supports multi-model
+    // Results keyed by composite "\(promptID)-\(rowID)-\(modelID)"
     @Published var results: [String: PromptResult] = [:]
 
     private var runTask: Task<Void, Never>?
@@ -93,14 +93,14 @@ final class ProcessingViewModel: ObservableObject {
 
     // MARK: - Composite key
 
-    private func resultKey(rowID: UUID, modelID: String) -> String {
-        "\(rowID.uuidString)-\(modelID)"
+    private func resultKey(promptID: UUID, rowID: UUID, modelID: String) -> String {
+        "\(promptID.uuidString)-\(rowID.uuidString)-\(modelID)"
     }
 
     // MARK: - Start
 
     func startRun(
-        prompt: Prompt,
+        prompts: [Prompt],
         rows: [Row],
         columns: [ColumnDef],
         models: [ModelConfig],
@@ -109,23 +109,23 @@ final class ProcessingViewModel: ObservableObject {
         rateLimit: Double = 5,
         maxRetries: Int = 3
     ) {
-        guard !isActive, !models.isEmpty else { return }
+        guard !isActive, !models.isEmpty, !prompts.isEmpty else { return }
         maxConcurrency = max(1, concurrency)
         rateLimiter = RateLimiter(requestsPerSecond: max(1, rateLimit))
         runContext = RunContext(
-            prompt: prompt, rows: rows, columns: columns,
+            prompts: prompts, rows: rows, columns: columns,
             models: models, apiKey: apiKey, maxRetries: maxRetries
         )
         isRestoredFromDisk = false
         results = [:]
         clearSavedState()
-        let total = rows.count * models.count
+        let total = prompts.count * rows.count * models.count
         runState = .running(completed: 0, total: total)
 
         let service = OpenAIService(apiKey: apiKey)
 
         runTask = Task {
-            await processRows(prompt: prompt, rows: rows,
+            await processRows(prompts: prompts, rows: rows,
                               columns: columns, models: models,
                               service: service, maxRetries: maxRetries)
         }
@@ -177,28 +177,29 @@ final class ProcessingViewModel: ObservableObject {
     func retryFailed(concurrency: Int, rateLimit: Double) {
         guard let ctx = runContext, !isActive else { return }
 
-        let failedWorkItems: [(Row, ModelConfig)] = results.values
-            .filter { $0.status == .failed }
-            .compactMap { result in
-                guard let row = ctx.rows.first(where: { $0.id == result.rowID }),
-                      let model = ctx.models.first(where: { $0.id == result.modelID })
-                else { return nil }
-                return (row, model)
-            }
-
-        guard !failedWorkItems.isEmpty else { return }
-
         maxConcurrency = max(1, concurrency)
         rateLimiter = RateLimiter(requestsPerSecond: max(1, rateLimit))
-        runState = .running(completed: 0, total: failedWorkItems.count)
 
         let service = OpenAIService(apiKey: ctx.apiKey)
-        let prompt = ctx.prompt
         let columns = ctx.columns
         let maxRetries = ctx.maxRetries
 
+        let promptsByID = Dictionary(uniqueKeysWithValues: ctx.prompts.map { ($0.id, $0) })
+        let promptScopedWorkItems = results.values
+            .filter { $0.status == .failed }
+            .compactMap { result -> (Prompt, Row, ModelConfig)? in
+                guard let prompt = promptsByID[result.promptID],
+                      let row = ctx.rows.first(where: { $0.id == result.rowID }),
+                      let model = ctx.models.first(where: { $0.id == result.modelID }) else { return nil }
+                return (prompt, row, model)
+            }
+
+        guard !promptScopedWorkItems.isEmpty else { return }
+
+        runState = .running(completed: 0, total: promptScopedWorkItems.count)
+
         runTask = Task {
-            await processWorkItems(failedWorkItems, prompt: prompt, columns: columns,
+            await processWorkItems(promptScopedWorkItems, columns: columns,
                                    service: service, maxRetries: maxRetries)
             if Task.isCancelled { return }
             if case .running(_, let total) = runState {
@@ -208,27 +209,28 @@ final class ProcessingViewModel: ObservableObject {
         }
     }
 
-    func retryResult(rowID: UUID, modelID: String) {
+    func retryResult(rowID: UUID, promptID: UUID, modelID: String) {
         guard let ctx = runContext,
+              let prompt = ctx.prompts.first(where: { $0.id == promptID }),
               let row = ctx.rows.first(where: { $0.id == rowID }),
               let model = ctx.models.first(where: { $0.id == modelID }) else { return }
 
-        let key = resultKey(rowID: rowID, modelID: modelID)
+        let key = resultKey(promptID: promptID, rowID: rowID, modelID: modelID)
         if var current = results[key] {
             current.status = .inProgress
             results[key] = current
         }
 
         let expandedPrompt = InterpolationEngine.expand(
-            template: ctx.prompt.template, row: row, columns: ctx.columns)
+            template: prompt.template, row: row, columns: ctx.columns)
         let service = OpenAIService(apiKey: ctx.apiKey)
         let maxRetries = ctx.maxRetries
 
         Task {
             let result = await Self.callService(
                 service: service, prompt: expandedPrompt,
-                params: ctx.prompt.parameters,
-                row: row, promptID: ctx.prompt.id, model: model,
+                params: prompt.parameters,
+                row: row, promptID: prompt.id, model: model,
                 maxRetries: maxRetries
             )
             if result.status == .completed,
@@ -237,7 +239,7 @@ final class ProcessingViewModel: ObservableObject {
                 let key = ResponseCache.cacheKey(
                     expandedPrompt: expandedPrompt,
                     modelID: result.modelID,
-                    params: ctx.prompt.parameters)
+                    params: prompt.parameters)
                 ResponseCache.shared.store(
                     entry: CachedEntry(
                         responseText: text,
@@ -245,10 +247,11 @@ final class ProcessingViewModel: ObservableObject {
                         durationMs: result.durationMs ?? 0,
                         costUSD: result.costUSD ?? 0,
                         cosineSimilarity: result.cosineSimilarity ?? 0,
-                        cachedAt: Date()),
+                        cachedAt: Date()
+                    ),
                     for: key)
             }
-            results[resultKey(rowID: result.rowID, modelID: result.modelID)] = result
+            results[resultKey(promptID: result.promptID, rowID: result.rowID, modelID: result.modelID)] = result
         }
     }
 
@@ -256,10 +259,12 @@ final class ProcessingViewModel: ObservableObject {
 
     private func resumeRemaining(ctx: RunContext, completedSoFar: Int, total: Int) {
         let completedKeys = Set(results.filter { $0.value.status == .completed }.keys)
-        let remainingItems: [(Row, ModelConfig)] = ctx.rows.flatMap { row in
-            ctx.models.compactMap { model in
-                let key = resultKey(rowID: row.id, modelID: model.id)
-                return completedKeys.contains(key) ? nil : (row, model)
+        let remainingItems: [(Prompt, Row, ModelConfig)] = ctx.prompts.flatMap { prompt in
+            ctx.rows.flatMap { row in
+                ctx.models.compactMap { model in
+                    let key = resultKey(promptID: prompt.id, rowID: row.id, modelID: model.id)
+                    return completedKeys.contains(key) ? nil : (prompt, row, model)
+                }
             }
         }
 
@@ -283,18 +288,17 @@ final class ProcessingViewModel: ObservableObject {
 
         // Update runContext with fresh apiKey
         runContext = RunContext(
-            prompt: ctx.prompt, rows: ctx.rows, columns: ctx.columns,
+            prompts: ctx.prompts, rows: ctx.rows, columns: ctx.columns,
             models: ctx.models, apiKey: apiKey, maxRetries: ctx.maxRetries
         )
 
         runState = .running(completed: completedSoFar, total: total)
         let service = OpenAIService(apiKey: apiKey)
-        let prompt = ctx.prompt
         let columns = ctx.columns
         let maxRetries = ctx.maxRetries
 
         runTask = Task {
-            await processWorkItems(remainingItems, prompt: prompt, columns: columns,
+            await processWorkItems(remainingItems, columns: columns,
                                    service: service, maxRetries: maxRetries)
             if Task.isCancelled { return }
             switch runState {
@@ -323,7 +327,7 @@ final class ProcessingViewModel: ObservableObject {
 
         let apiKey = KeychainHelper.read(for: kKeychainOpenAIKey) ?? ""
         runContext = RunContext(
-            prompt: snapshot.prompt, rows: snapshot.rows, columns: snapshot.columns,
+            prompts: snapshot.prompts, rows: snapshot.rows, columns: snapshot.columns,
             models: snapshot.models, apiKey: apiKey, maxRetries: snapshot.maxRetries
         )
         results = snapshot.results
@@ -352,7 +356,7 @@ final class ProcessingViewModel: ObservableObject {
         }
 
         let snapshot = QueueSnapshot(
-            prompt: ctx.prompt, rows: ctx.rows, columns: ctx.columns,
+            prompts: ctx.prompts, rows: ctx.rows, columns: ctx.columns,
             models: ctx.models, maxRetries: ctx.maxRetries,
             results: results,
             completedCount: completedCount, totalCount: totalCount
@@ -371,15 +375,19 @@ final class ProcessingViewModel: ObservableObject {
     // MARK: - Processing
 
     private func processRows(
-        prompt: Prompt,
+        prompts: [Prompt],
         rows: [Row],
         columns: [ColumnDef],
         models: [ModelConfig],
         service: OpenAIService,
         maxRetries: Int
     ) async {
-        let workItems = rows.flatMap { row in models.map { model in (row, model) } }
-        await processWorkItems(workItems, prompt: prompt, columns: columns, service: service, maxRetries: maxRetries)
+        let workItems = prompts.flatMap { prompt in
+            rows.flatMap { row in
+                models.map { model in (prompt, row, model) }
+            }
+        }
+        await processWorkItems(workItems, columns: columns, service: service, maxRetries: maxRetries)
 
         if Task.isCancelled { return }
         switch runState {
@@ -392,8 +400,7 @@ final class ProcessingViewModel: ObservableObject {
     }
 
     private func processWorkItems(
-        _ workItems: [(Row, ModelConfig)],
-        prompt: Prompt,
+        _ workItems: [(Prompt, Row, ModelConfig)],
         columns: [ColumnDef],
         service: OpenAIService,
         maxRetries: Int
@@ -401,11 +408,11 @@ final class ProcessingViewModel: ObservableObject {
         let cache = ResponseCache.shared
 
         // --- Partition: apply cache hits immediately, collect misses ---
-        var misses: [(Row, ModelConfig)] = []
+        var misses: [(Prompt, Row, ModelConfig)] = []
         // Map composite key → expandedPrompt for storing results after API calls
         var expandedPrompts: [String: String] = [:]
 
-        for (row, model) in workItems {
+        for (prompt, row, model) in workItems {
             let expanded = InterpolationEngine.expand(
                 template: prompt.template, row: row, columns: columns)
             let key = ResponseCache.cacheKey(
@@ -422,9 +429,9 @@ final class ProcessingViewModel: ObservableObject {
                 result.status = .completed
                 updateResult(result)
             } else {
-                let compositeKey = resultKey(rowID: row.id, modelID: model.id)
+                let compositeKey = resultKey(promptID: prompt.id, rowID: row.id, modelID: model.id)
                 expandedPrompts[compositeKey] = expanded
-                misses.append((row, model))
+                misses.append((prompt, row, model))
             }
         }
 
@@ -435,8 +442,8 @@ final class ProcessingViewModel: ObservableObject {
             var iterator = misses.makeIterator()
             var active = 0
 
-            while active < maxConcurrency, let (row, model) = iterator.next() {
-                let compositeKey = resultKey(rowID: row.id, modelID: model.id)
+            while active < maxConcurrency, let (prompt, row, model) = iterator.next() {
+                let compositeKey = resultKey(promptID: prompt.id, rowID: row.id, modelID: model.id)
                 let expanded = expandedPrompts[compositeKey]!
                 group.addTask { [model, prompt, rateLimiter] in
                     try? await rateLimiter.waitForSlot()
@@ -454,8 +461,14 @@ final class ProcessingViewModel: ObservableObject {
                 if result.status == .completed,
                    let text = result.responseText,
                    let usage = result.tokenUsage {
-                    let compositeKey = resultKey(rowID: result.rowID, modelID: result.modelID)
+                    let compositeKey = resultKey(promptID: result.promptID, rowID: result.rowID, modelID: result.modelID)
                     if let expanded = expandedPrompts[compositeKey] {
+                        guard let prompt = workItems.first(where: {
+                            $0.0.id == result.promptID && $0.1.id == result.rowID && $0.2.id == result.modelID
+                        })?.0 else {
+                            updateResult(result)
+                            continue
+                        }
                         let key = ResponseCache.cacheKey(
                             expandedPrompt: expanded,
                             modelID: result.modelID,
@@ -474,10 +487,10 @@ final class ProcessingViewModel: ObservableObject {
 
                 updateResult(result)
 
-                if let (row, model) = iterator.next() {
+                if let (prompt, row, model) = iterator.next() {
                     await waitIfPaused()
                     guard !Task.isCancelled else { break }
-                    let compositeKey = resultKey(rowID: row.id, modelID: model.id)
+                    let compositeKey = resultKey(promptID: prompt.id, rowID: row.id, modelID: model.id)
                     let expanded = expandedPrompts[compositeKey]!
                     group.addTask { [model, prompt, rateLimiter] in
                         try? await rateLimiter.waitForSlot()
@@ -562,7 +575,7 @@ final class ProcessingViewModel: ObservableObject {
     }
 
     private func updateResult(_ result: PromptResult) {
-        results[resultKey(rowID: result.rowID, modelID: result.modelID)] = result
+        results[resultKey(promptID: result.promptID, rowID: result.rowID, modelID: result.modelID)] = result
         switch runState {
         case .running(let done, let total):
             runState = .running(completed: done + 1, total: total)

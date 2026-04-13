@@ -3,6 +3,7 @@ import SwiftUI
 struct MainWindow: View {
     @StateObject private var workspace = WorkspaceViewModel()
     @StateObject private var dataPreview = DataPreviewViewModel()
+    @StateObject private var promptList = PromptListViewModel()
     @StateObject private var promptEditor = PromptEditorViewModel()
     @StateObject private var processing = ProcessingViewModel()
     @StateObject private var resultsVM = ResultsViewModel()
@@ -23,16 +24,20 @@ struct MainWindow: View {
                     DataTableView(
                         viewModel: dataPreview,
                         results: resultsVM,
-                        onRetry: { rowID, modelID in
-                            processing.retryResult(rowID: rowID, modelID: modelID)
+                        onRetry: { rowID, promptID, modelID in
+                            processing.retryResult(rowID: rowID, promptID: promptID, modelID: modelID)
                         }
                     )
                         .frame(minHeight: 200)
 
-                    PromptEditorView(
-                        viewModel: promptEditor,
-                        columns: dataPreview.columns
-                    )
+                    HSplitView {
+                        PromptListView(viewModel: promptList)
+
+                        PromptEditorView(
+                            viewModel: promptEditor,
+                            columns: dataPreview.columns
+                        )
+                    }
                     .frame(minHeight: 120, idealHeight: 200)
                 }
 
@@ -50,7 +55,8 @@ struct MainWindow: View {
                 RunControlsView(
                     processing: processing,
                     settings: settings,
-                    prompt: promptEditor.prompt,
+                    selectedPrompt: promptList.selectedPrompt,
+                    prompts: promptList.prompts,
                     rows: dataPreview.allRows,
                     columns: dataPreview.columns,
                     onModelChanged: { selectedModels = $0 }
@@ -72,8 +78,11 @@ struct MainWindow: View {
         }
         .frame(minWidth: 720, minHeight: 560)
         .onAppear {
-            workspace.onFileRemoved = { [weak promptEditor] file in
-                promptEditor?.removePrompt(for: file.id)
+            promptEditor.onPromptUpdated = { [weak promptList] prompt in
+                promptList?.updatePrompt(prompt)
+            }
+            workspace.onFileRemoved = { [weak promptList] file in
+                promptList?.removePrompts(for: file.id)
             }
             loadSelectedFile()
             processing.restoreIfNeeded()
@@ -87,18 +96,17 @@ struct MainWindow: View {
             statsVM.clear()
             loadSelectedFile()
         }
+        .onChange(of: promptList.selectedPromptID) {
+            syncPromptEditor()
+        }
+        .onChange(of: promptList.prompts) {
+            refreshDerivedViewModels()
+        }
+        .onChange(of: selectedModels) {
+            refreshDerivedViewModels()
+        }
         .onChange(of: processing.results) {
-            resultsVM.update(
-                results: processing.results,
-                prompt: promptEditor.prompt,
-                models: selectedModels
-            )
-            statsVM.update(
-                results: processing.results,
-                prompt: promptEditor.prompt,
-                models: selectedModels,
-                totalRows: dataPreview.allRows.count
-            )
+            refreshDerivedViewModels()
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             handleDrop(providers: providers)
@@ -137,8 +145,6 @@ struct MainWindow: View {
             table: table,
             results: processing.results,
             resultColumns: resultsVM.columns,
-            prompt: promptEditor.prompt,
-            models: selectedModels,
             suggestedName: file.displayName
         )
     }
@@ -155,12 +161,34 @@ struct MainWindow: View {
     private func loadSelectedFile() {
         guard let file = workspace.selectedFile else {
             dataPreview.clear()
+            promptList.clear()
             promptEditor.clear()
+            refreshDerivedViewModels()
             return
         }
         let table = workspace.parsedTable(for: file)
         dataPreview.load(table: table)
-        promptEditor.load(fileID: file.id, table: table)
+        promptList.load(fileID: file.id)
+        syncPromptEditor()
+        refreshDerivedViewModels()
+    }
+
+    private func syncPromptEditor() {
+        promptEditor.load(prompt: promptList.selectedPrompt, table: workspace.selectedFile.map { workspace.parsedTable(for: $0) } ?? .empty)
+    }
+
+    private func refreshDerivedViewModels() {
+        resultsVM.update(
+            results: processing.results,
+            prompts: promptList.prompts,
+            models: selectedModels
+        )
+        statsVM.update(
+            results: processing.results,
+            prompts: promptList.prompts,
+            models: selectedModels,
+            totalRows: dataPreview.allRows.count
+        )
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {

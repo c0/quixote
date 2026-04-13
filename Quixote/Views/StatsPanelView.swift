@@ -42,7 +42,7 @@ private struct StatCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(stats.modelDisplayName)
+            Text("\(stats.promptName) — \(stats.modelDisplayName)")
                 .font(.caption.weight(.semibold))
 
             Divider()

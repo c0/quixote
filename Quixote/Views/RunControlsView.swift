@@ -3,7 +3,8 @@ import SwiftUI
 struct RunControlsView: View {
     @ObservedObject var processing: ProcessingViewModel
     @ObservedObject var settings: SettingsViewModel
-    let prompt: Prompt?
+    let selectedPrompt: Prompt?
+    let prompts: [Prompt]
     let rows: [Row]
     let columns: [ColumnDef]
     var onModelChanged: (([ModelConfig]) -> Void)? = nil
@@ -11,6 +12,7 @@ struct RunControlsView: View {
     @AppStorage("quixote.selectedModels") private var selectedModelIDsData: Data = Data()
     @State private var showModelPicker = false
     @State private var rowLimit: RowLimit = .all
+    @State private var runScope: RunScope = .selected
 
     // MARK: - Selected models
 
@@ -39,9 +41,26 @@ struct RunControlsView: View {
         settings.openAIKey.trimmingCharacters(in: .whitespaces)
     }
 
+    private var runnablePrompts: [Prompt] {
+        prompts.filter { !$0.template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    private var promptsToRun: [Prompt] {
+        switch runScope {
+        case .selected:
+            guard let selectedPrompt,
+                  !selectedPrompt.template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return []
+            }
+            return [selectedPrompt]
+        case .all:
+            return runnablePrompts
+        }
+    }
+
     private var canRun: Bool {
         !apiKey.isEmpty
-            && !(prompt?.template.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
+            && !promptsToRun.isEmpty
             && !rows.isEmpty
             && !selectedModels.isEmpty
             && !processing.isActive
@@ -56,6 +75,17 @@ struct RunControlsView: View {
 
             Divider().frame(height: 16)
 
+            if prompts.count > 1 {
+                Picker("", selection: $runScope) {
+                    Text("Selected").tag(RunScope.selected)
+                    Text("All").tag(RunScope.all)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 150)
+
+                Divider().frame(height: 16)
+            }
+
             // Row limit
             Picker("", selection: $rowLimit) {
                 Text("All rows").tag(RowLimit.all)
@@ -65,6 +95,12 @@ struct RunControlsView: View {
             }
             .frame(width: 100)
             .font(.caption)
+
+            Divider().frame(height: 16)
+
+            Text(batchSummary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             Divider().frame(height: 16)
 
@@ -127,9 +163,8 @@ struct RunControlsView: View {
                     }
 
                     Button("Run") {
-                        guard let p = prompt else { return }
                         processing.startRun(
-                            prompt: p,
+                            prompts: promptsToRun,
                             rows: rowsToProcess,
                             columns: columns,
                             models: selectedModels,
@@ -243,6 +278,11 @@ struct RunControlsView: View {
                 .lineLimit(1)
         }
     }
+
+    private var batchSummary: String {
+        let batchCount = promptsToRun.count * rowsToProcess.count * selectedModels.count
+        return "\(batchCount) jobs"
+    }
 }
 
 // MARK: - Model Picker Popover
@@ -299,4 +339,9 @@ private struct ModelPickerPopover: View {
 enum RowLimit: Hashable {
     case all
     case first(Int)
+}
+
+enum RunScope: Hashable {
+    case selected
+    case all
 }
