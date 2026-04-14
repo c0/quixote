@@ -1,97 +1,245 @@
 import SwiftUI
 
 struct PromptEditorView: View {
+    private enum EditorMode: String, CaseIterable {
+        case write
+        case preview
+    }
+
     @ObservedObject var viewModel: PromptEditorViewModel
+    @ObservedObject var promptList: PromptListViewModel
     let columns: [ColumnDef]
 
-    @State private var showPreview = false
+    @State private var editorMode: EditorMode = .write
     @State private var showParameters = false
 
     var body: some View {
         VStack(spacing: 0) {
-            toolbar
-            Divider()
-            if showPreview {
-                previewPane
-            } else {
-                editorPane
+            header
+            if !columns.isEmpty {
+                Divider()
+                tokenShelf
             }
+            Divider()
+            content
         }
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    // MARK: - Toolbar
+    // MARK: - Header
 
-    private var toolbar: some View {
-        HStack(spacing: 8) {
-            Text("Prompt")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+    private var header: some View {
+        VStack(spacing: 10) {
+            promptTabs
 
-            Spacer()
-
-            // Column token chips
-            if !columns.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 4) {
-                        ForEach(columns) { column in
-                            Button {
-                                viewModel.insertToken(column.name)
-                            } label: {
-                                Text("{{\(column.name)}}")
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.accentColor.opacity(0.12))
-                                    .foregroundStyle(Color.accentColor)
-                                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            HStack(alignment: .center, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField(
+                        "Prompt",
+                        text: Binding(
+                            get: { viewModel.prompt?.name ?? "" },
+                            set: { newValue in
+                                if let promptID = viewModel.prompt?.id {
+                                    promptList.renamePrompt(id: promptID, name: newValue)
+                                }
                             }
-                            .buttonStyle(.plain)
-                            .help("Insert \(column.name) token")
+                        )
+                    )
+                    .textFieldStyle(.plain)
+                    .font(.title3.weight(.semibold))
+
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Picker("", selection: $editorMode) {
+                    Text("Write").tag(EditorMode.write)
+                    Text("Preview").tag(EditorMode.preview)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 160)
+
+                Toggle(isOn: $showParameters) {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .toggleStyle(.button)
+                .help("LLM parameters")
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(.bar)
+    }
+
+    private var promptTabs: some View {
+        HStack(spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(promptList.prompts) { prompt in
+                        Button {
+                            promptList.selectPrompt(prompt.id)
+                        } label: {
+                            Text(prompt.name)
+                                .lineLimit(1)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(prompt.id == promptList.selectedPromptID ? Color.accentColor : Color.secondary.opacity(0.10))
+                                .foregroundStyle(prompt.id == promptList.selectedPromptID ? Color.white : Color.primary)
+                                .clipShape(Capsule())
                         }
+                        .buttonStyle(.plain)
+                        .help(prompt.name)
                     }
                 }
-                .frame(maxWidth: 360)
             }
 
             Divider().frame(height: 16)
 
-            Toggle(isOn: $showPreview) {
-                Image(systemName: "eye")
+            Button {
+                promptList.moveSelectedPromptUp()
+            } label: {
+                Image(systemName: "arrow.left")
             }
-            .toggleStyle(.button)
-            .help("Preview interpolated output (uses first row)")
+            .buttonStyle(.plain)
+            .disabled(!canMoveSelectedPromptLeft)
 
-            Toggle(isOn: $showParameters) {
-                Image(systemName: "slider.horizontal.3")
+            Button {
+                promptList.moveSelectedPromptDown()
+            } label: {
+                Image(systemName: "arrow.right")
             }
-            .toggleStyle(.button)
-            .help("LLM parameters")
+            .buttonStyle(.plain)
+            .disabled(!canMoveSelectedPromptRight)
+
+            Button {
+                promptList.deleteSelectedPrompt()
+            } label: {
+                Image(systemName: "minus")
+            }
+            .buttonStyle(.plain)
+            .disabled(promptList.prompts.isEmpty)
+
+            Button {
+                promptList.addPrompt()
+            } label: {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.bar)
+    }
+
+    private var subtitle: String {
+        if editorMode == .preview {
+            if let previewRow = viewModel.previewRow {
+                return "Previewing with row \(previewRow.index + 1) from the current file."
+            }
+            return "Preview becomes available when a file with rows is loaded."
+        }
+
+        if columns.isEmpty {
+            return "Write the template that will run for each selected row."
+        }
+
+        return "Write the template that will run for each selected row. \(columns.count) columns ready to insert."
+    }
+
+    private var canMoveSelectedPromptLeft: Bool {
+        guard let selectedPromptID = promptList.selectedPromptID,
+              let index = promptList.prompts.firstIndex(where: { $0.id == selectedPromptID }) else {
+            return false
+        }
+        return index > 0
+    }
+
+    private var canMoveSelectedPromptRight: Bool {
+        guard let selectedPromptID = promptList.selectedPromptID,
+              let index = promptList.prompts.firstIndex(where: { $0.id == selectedPromptID }) else {
+            return false
+        }
+        return index < promptList.prompts.count - 1
+    }
+
+    private var tokenShelf: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text("Insert Column")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(columns) { column in
+                        Button {
+                            viewModel.insertToken(column.name)
+                        } label: {
+                            Text("{{\(column.name)}}")
+                                .font(.system(.caption, design: .monospaced))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(Color.accentColor.opacity(0.12))
+                                .foregroundStyle(Color.accentColor)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Insert \(column.name) token")
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.secondary.opacity(0.05))
+    }
+
+    private var content: some View {
+        Group {
+            if viewModel.prompt == nil {
+                ContentUnavailableView(
+                    "No Prompt",
+                    systemImage: "text.badge.plus",
+                    description: Text("Open a file and select a prompt to start editing.")
+                )
+            } else {
+                editorContent
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Editor pane
 
-    private var editorPane: some View {
-        HStack(spacing: 0) {
-            TextEditor(text: Binding(
-                get: { viewModel.prompt?.template ?? "" },
-                set: { viewModel.updateTemplate($0) }
-            ))
-            .font(.system(.body, design: .monospaced))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    private var editorContent: some View {
+        HSplitView {
+            Group {
+                if editorMode == .preview {
+                    previewPane
+                } else {
+                    editorPane
+                }
+            }
+            .frame(minWidth: 320)
+            .layoutPriority(1)
 
             if showParameters, let prompt = viewModel.prompt {
                 Divider()
-                ParametersPanel(
-                    parameters: prompt.parameters,
-                    onChange: { viewModel.updateParameters($0) }
-                )
-                .frame(width: 220)
+                parametersInspector(prompt: prompt)
+                    .frame(width: 250)
             }
         }
+    }
+
+    private var editorPane: some View {
+        TextEditor(text: Binding(
+                get: { viewModel.prompt?.template ?? "" },
+                set: { viewModel.updateTemplate($0) }
+            ))
+        .font(.system(.body, design: .monospaced))
+        .scrollContentBackground(.hidden)
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .textBackgroundColor))
     }
 
     // MARK: - Preview pane
@@ -102,7 +250,29 @@ struct PromptEditorView: View {
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(viewModel.previewText.isEmpty ? .tertiary : .primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
+                .padding(14)
+        }
+        .background(Color.secondary.opacity(0.05))
+    }
+
+    private func parametersInspector(prompt: Prompt) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Parameters")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(.bar)
+
+            Divider()
+
+            ParametersPanel(
+                parameters: prompt.parameters,
+                onChange: { viewModel.updateParameters($0) }
+            )
         }
         .background(Color.secondary.opacity(0.04))
     }
@@ -193,7 +363,6 @@ struct ParametersPanel: View {
             }
         }
         .formStyle(.grouped)
-        .scrollDisabled(true)
         .padding(.vertical, 4)
     }
 

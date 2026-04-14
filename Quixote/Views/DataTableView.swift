@@ -1,8 +1,20 @@
 import SwiftUI
 
+private enum DataTableMetrics {
+    static let sourceColumnMinWidth: CGFloat = 120
+    static let sourceColumnMaxWidth: CGFloat = 240
+    static let resultColumnMinWidth: CGFloat = 300
+    static let resultColumnMaxWidth: CGFloat = 520
+}
+
+private enum DataTableScrollTarget {
+    static let firstResultColumn = "data-table-first-result-column"
+}
+
 struct DataTableView: View {
     @ObservedObject var viewModel: DataPreviewViewModel
     @ObservedObject var results: ResultsViewModel
+    let selectedPromptID: UUID?
     var onRetry: ((UUID, UUID, String) -> Void)? = nil
 
     var body: some View {
@@ -14,31 +26,53 @@ struct DataTableView: View {
             )
         } else {
             VStack(spacing: 0) {
-                ScrollView([.horizontal, .vertical]) {
-                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
-                        Section {
-                            ForEach(viewModel.visibleRows) { row in
-                                DataRowView(
-                                    row: row,
+                ScrollViewReader { proxy in
+                    ScrollView([.horizontal, .vertical]) {
+                        LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
+                            Section {
+                                ForEach(viewModel.visibleRows) { row in
+                                    DataRowView(
+                                        row: row,
+                                        columns: viewModel.columns,
+                                        resultColumns: visibleResultColumns,
+                                        getResult: { results.result(for: row.id, column: $0) },
+                                        onRetry: { col in onRetry?(row.id, col.promptID, col.modelID) }
+                                    )
+                                    .background(row.index % 2 == 0 ? Color.clear : Color.secondary.opacity(0.05))
+                                }
+                            } header: {
+                                DataHeaderView(
                                     columns: viewModel.columns,
-                                    resultColumns: results.columns,
-                                    getResult: { results.result(for: row.id, column: $0) },
-                                    onRetry: { col in onRetry?(row.id, col.promptID, col.modelID) }
+                                    resultColumns: visibleResultColumns
                                 )
-                                .background(row.index % 2 == 0 ? Color.clear : Color.secondary.opacity(0.05))
                             }
-                        } header: {
-                            DataHeaderView(
-                                columns: viewModel.columns,
-                                resultColumns: results.columns
-                            )
                         }
+                    }
+                    .onAppear {
+                        scrollToResults(in: proxy)
+                    }
+                    .onChange(of: visibleResultColumns.map(\.id)) {
+                        scrollToResults(in: proxy)
                     }
                 }
 
                 if viewModel.pageCount > 1 {
                     PaginationBar(viewModel: viewModel)
                 }
+            }
+        }
+    }
+
+    private var visibleResultColumns: [ResultsViewModel.ResultColumn] {
+        let filtered = results.columns(for: selectedPromptID)
+        return filtered.isEmpty ? results.columns : filtered
+    }
+
+    private func scrollToResults(in proxy: ScrollViewProxy) {
+        guard !visibleResultColumns.isEmpty else { return }
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.18)) {
+                proxy.scrollTo(DataTableScrollTarget.firstResultColumn, anchor: .leading)
             }
         }
     }
@@ -61,32 +95,61 @@ struct DataHeaderView: View {
                 .foregroundStyle(.secondary)
             Divider()
 
+            // Result columns
+            ForEach(resultColumns) { col in
+                resultHeaderColumn(col)
+                Divider()
+            }
+
             // Original columns
             ForEach(columns) { column in
                 Text(column.name)
-                    .frame(minWidth: 120, maxWidth: 240, alignment: .leading)
+                    .frame(
+                        minWidth: DataTableMetrics.sourceColumnMinWidth,
+                        maxWidth: DataTableMetrics.sourceColumnMaxWidth,
+                        alignment: .leading
+                    )
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
                 Divider()
             }
-
-            // Result columns
-            ForEach(resultColumns) { col in
-                HStack(spacing: 4) {
-                    Image(systemName: "sparkles")
-                        .foregroundStyle(Color.accentColor)
-                    Text(col.header)
-                }
-                .frame(minWidth: 240, maxWidth: 400, alignment: .leading)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .font(.caption.weight(.semibold))
-                Divider()
-            }
         }
         .background(.bar)
+    }
+
+    @ViewBuilder
+    private func resultHeaderColumn(_ col: ResultsViewModel.ResultColumn) -> some View {
+        let header = VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(Color.accentColor)
+                Text(col.promptName)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(2)
+            }
+
+            Text(col.modelDisplayName)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(
+            minWidth: DataTableMetrics.resultColumnMinWidth,
+            maxWidth: DataTableMetrics.resultColumnMaxWidth,
+            alignment: .leading
+        )
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .fixedSize(horizontal: false, vertical: true)
+        .help(col.header)
+
+        if col.id == resultColumns.first?.id {
+            header.id(DataTableScrollTarget.firstResultColumn)
+        } else {
+            header
+        }
     }
 }
 
@@ -110,26 +173,34 @@ struct DataRowView: View {
                 .foregroundStyle(.tertiary)
             Divider()
 
-            // Original columns
-            ForEach(columns) { column in
-                Text(row.values[column.name] ?? "")
-                    .frame(minWidth: 120, maxWidth: 240, alignment: .leading)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .font(.caption)
-                    .lineLimit(2)
-                Divider()
-            }
-
             // Result columns
             ForEach(resultColumns) { col in
                 ResultCell(
                     result: getResult(col),
                     onRetry: onRetry.map { fn in { fn(col) } }
                 )
-                .frame(minWidth: 240, maxWidth: 400, alignment: .leading)
+                .frame(
+                    minWidth: DataTableMetrics.resultColumnMinWidth,
+                    maxWidth: DataTableMetrics.resultColumnMaxWidth,
+                    alignment: .leading
+                )
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
+                Divider()
+            }
+
+            // Original columns
+            ForEach(columns) { column in
+                Text(row.values[column.name] ?? "")
+                    .frame(
+                        minWidth: DataTableMetrics.sourceColumnMinWidth,
+                        maxWidth: DataTableMetrics.sourceColumnMaxWidth,
+                        alignment: .leading
+                    )
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .font(.caption)
+                    .lineLimit(2)
                 Divider()
             }
         }
@@ -159,7 +230,7 @@ struct ResultCell: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(result?.responseText ?? "")
                     .font(.caption)
-                    .lineLimit(4)
+                    .lineLimit(5)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if let similarity = result?.cosineSimilarity {
