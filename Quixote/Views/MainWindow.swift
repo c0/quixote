@@ -24,43 +24,19 @@ struct MainWindow: View {
                     DataTableView(
                         viewModel: dataPreview,
                         results: resultsVM,
+                        selectedPromptID: promptList.selectedPromptID,
                         onRetry: { rowID, promptID, modelID in
                             processing.retryResult(rowID: rowID, promptID: promptID, modelID: modelID)
                         }
                     )
-                        .frame(minHeight: 200)
+                    .frame(minHeight: 250, idealHeight: 320)
 
-                    HSplitView {
-                        PromptListView(viewModel: promptList)
-
-                        PromptEditorView(
-                            viewModel: promptEditor,
-                            columns: dataPreview.columns
-                        )
-                    }
-                    .frame(minHeight: 120, idealHeight: 200)
+                    promptWorkspace
+                        .frame(minHeight: 260, idealHeight: 340)
+                        .layoutPriority(1)
                 }
 
-                Divider()
-
-                // Stats panel (visible when results exist)
-                StatsPanelView(
-                    statsVM: statsVM,
-                    showExtrapolation: settings.showExtrapolation,
-                    extrapolationScale: settings.extrapolationScale
-                )
-
-                Divider()
-
-                RunControlsView(
-                    processing: processing,
-                    settings: settings,
-                    selectedPrompt: promptList.selectedPrompt,
-                    prompts: promptList.prompts,
-                    rows: dataPreview.allRows,
-                    columns: dataPreview.columns,
-                    onModelChanged: { selectedModels = $0 }
-                )
+                bottomControls
             }
             .navigationTitle(workspace.selectedFile?.displayName ?? "Quixote")
             .navigationSubtitle(subtitleText)
@@ -100,6 +76,7 @@ struct MainWindow: View {
             syncPromptEditor()
         }
         .onChange(of: promptList.prompts) {
+            syncPromptEditor()
             refreshDerivedViewModels()
         }
         .onChange(of: selectedModels) {
@@ -133,6 +110,41 @@ struct MainWindow: View {
     }
 
     // MARK: - Export
+
+    private var promptWorkspace: some View {
+        PromptEditorView(
+            viewModel: promptEditor,
+            promptList: promptList,
+            columns: dataPreview.columns
+        )
+    }
+
+    private var bottomControls: some View {
+        VStack(spacing: 0) {
+            Divider()
+
+            StatsPanelView(
+                statsVM: statsVM,
+                selectedPromptID: promptList.selectedPromptID,
+                showExtrapolation: settings.showExtrapolation,
+                extrapolationScale: settings.extrapolationScale
+            )
+
+            if !statsVM.modelStats.isEmpty {
+                Divider()
+            }
+
+            RunControlsView(
+                processing: processing,
+                settings: settings,
+                selectedPrompt: promptList.selectedPrompt,
+                prompts: promptList.prompts,
+                rows: dataPreview.allRows,
+                columns: dataPreview.columns,
+                onModelChanged: { selectedModels = $0 }
+            )
+        }
+    }
 
     private var canExport: Bool {
         workspace.selectedFile != nil && !dataPreview.columns.isEmpty

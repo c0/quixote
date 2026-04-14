@@ -67,6 +67,11 @@ final class StatsViewModel: ObservableObject {
         modelStats = []
     }
 
+    func stats(for promptID: UUID?) -> [ModelStats] {
+        guard let promptID else { return modelStats }
+        return modelStats.filter { $0.promptID == promptID }
+    }
+
     // MARK: - Helpers
 
     private static func median(_ values: [Double]) -> Double {

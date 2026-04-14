@@ -8,6 +8,8 @@ final class ResultsViewModel: ObservableObject {
     struct ResultColumn: Identifiable, Equatable {
         let id: String           // "\(promptID)-\(modelID)"
         let header: String       // e.g. "Output — gpt-4o"
+        let promptName: String
+        let modelDisplayName: String
         let promptID: UUID
         let modelID: String
     }
@@ -33,6 +35,8 @@ final class ResultsViewModel: ObservableObject {
                 ResultColumn(
                     id: "\(prompt.id)-\(model.id)",
                     header: "\(prompt.name) — \(model.displayName)",
+                    promptName: prompt.name,
+                    modelDisplayName: model.displayName,
                     promptID: prompt.id,
                     modelID: model.id
                 )
@@ -43,6 +47,11 @@ final class ResultsViewModel: ObservableObject {
     func clear() {
         rawResults = [:]
         columns = []
+    }
+
+    func columns(for promptID: UUID?) -> [ResultColumn] {
+        guard let promptID else { return columns }
+        return columns.filter { $0.promptID == promptID }
     }
 
     // MARK: - Lookup

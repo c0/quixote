@@ -31,7 +31,7 @@ struct PromptListView: View {
                 .listStyle(.sidebar)
             }
         }
-        .frame(minWidth: 180, idealWidth: 220, maxWidth: 260)
+        .frame(minWidth: 168, idealWidth: 190, maxWidth: 220)
     }
 
     private var selectionBinding: Binding<UUID?> {
@@ -84,8 +84,8 @@ struct PromptListView: View {
             .buttonStyle(.plain)
             .help("Add prompt")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .background(.bar)
     }
 
