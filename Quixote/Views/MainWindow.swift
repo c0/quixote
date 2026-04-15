@@ -11,48 +11,53 @@ struct MainWindow: View {
     @StateObject private var exportVM = ExportViewModel()
     @StateObject private var settings = SettingsViewModel()
 
-    @State private var selectedModels: [ModelConfig] = []
+    @AppStorage("quixote.selectedModels") private var selectedModelIDsData: Data = Data()
     @State private var showFileChangedAlert = false
 
     var body: some View {
-        NavigationSplitView {
-            SidebarView(workspace: workspace)
-                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 320)
-        } detail: {
-            VStack(spacing: 0) {
-                VSplitView {
-                    DataTableView(
-                        viewModel: dataPreview,
-                        results: resultsVM,
-                        selectedPromptID: promptList.selectedPromptID,
-                        onRetry: { rowID, promptID, modelID in
-                            processing.retryResult(rowID: rowID, promptID: promptID, modelID: modelID)
-                        }
-                    )
-                    .frame(minHeight: 250, idealHeight: 320)
+        VStack(spacing: 0) {
+            HSplitView {
+                SidebarView(workspace: workspace)
+                    .frame(minWidth: 220, idealWidth: 220, maxWidth: 240)
 
-                    promptWorkspace
-                        .frame(minHeight: 260, idealHeight: 340)
-                        .layoutPriority(1)
-                }
+                PromptEditorView(
+                    viewModel: promptEditor,
+                    promptList: promptList,
+                    settings: settings,
+                    columns: dataPreview.columns,
+                    selectedModelIDs: selectedModelsBinding
+                )
+                .frame(minWidth: 420, idealWidth: 460, maxWidth: 540)
 
-                bottomControls
-            }
-            .navigationTitle(workspace.selectedFile?.displayName ?? "Quixote")
-            .navigationSubtitle(subtitleText)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        triggerExport()
-                    } label: {
-                        Label("Export", systemImage: "square.and.arrow.up")
+                DataTableView(
+                    viewModel: dataPreview,
+                    results: resultsVM,
+                    selectedPromptID: promptList.selectedPromptID,
+                    datasetName: workspace.selectedFile?.displayName ?? "Quixote",
+                    datasetSubtitle: subtitleText.isEmpty ? "No dataset loaded" : subtitleText,
+                    canExport: canExport,
+                    onExport: triggerExport,
+                    onRetry: { rowID, promptID, modelID in
+                        processing.retryResult(rowID: rowID, promptID: promptID, modelID: modelID)
                     }
-                    .disabled(!canExport)
-                    .help("Save Results… (⌘S)")
-                }
+                )
+                .frame(minWidth: 580, maxWidth: .infinity)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            RunControlsView(
+                processing: processing,
+                settings: settings,
+                selectedPrompt: promptList.selectedPrompt,
+                prompts: promptList.prompts,
+                rows: dataPreview.allRows,
+                columns: dataPreview.columns,
+                selectedModels: selectedModels
+            )
         }
-        .frame(minWidth: 720, minHeight: 560)
+        .background(Color.quixoteAppBackground)
+        .preferredColorScheme(.dark)
+        .frame(minWidth: 1240, minHeight: 760)
         .onAppear {
             promptEditor.onPromptUpdated = { [weak promptList] prompt in
                 promptList?.updatePrompt(prompt)
@@ -64,11 +69,16 @@ struct MainWindow: View {
             for file in workspace.changedFiles {
                 processing.clearPersistedCompletedResults(for: file.id)
             }
+            ensureSelectedModelsAreValid()
             loadSelectedFile()
             processing.restoreIfNeeded()
             if !workspace.changedFiles.isEmpty {
                 showFileChangedAlert = true
             }
+        }
+        .onChange(of: settings.availableModels) {
+            ensureSelectedModelsAreValid()
+            refreshDerivedViewModels()
         }
         .onChange(of: workspace.selectedFileID) {
             processing.cancel()
@@ -81,9 +91,6 @@ struct MainWindow: View {
         }
         .onChange(of: promptList.prompts) {
             syncPromptEditor()
-            refreshDerivedViewModels()
-        }
-        .onChange(of: selectedModels) {
             refreshDerivedViewModels()
         }
         .onChange(of: processing.results) {
@@ -113,59 +120,33 @@ struct MainWindow: View {
         }
     }
 
-    // MARK: - Export
-
-    private var promptWorkspace: some View {
-        PromptEditorView(
-            viewModel: promptEditor,
-            promptList: promptList,
-            columns: dataPreview.columns
+    private var selectedModelsBinding: Binding<Set<String>> {
+        Binding(
+            get: { selectedModelIDs },
+            set: { selectedModelIDs = $0 }
         )
     }
 
-    private var bottomControls: some View {
-        VStack(spacing: 0) {
-            Divider()
-
-            StatsPanelView(
-                statsVM: statsVM,
-                selectedPromptID: promptList.selectedPromptID,
-                showExtrapolation: settings.showExtrapolation,
-                extrapolationScale: settings.extrapolationScale
-            )
-
-            if !statsVM.modelStats.isEmpty {
-                Divider()
-            }
-
-            RunControlsView(
-                processing: processing,
-                settings: settings,
-                selectedPrompt: promptList.selectedPrompt,
-                prompts: promptList.prompts,
-                rows: dataPreview.allRows,
-                columns: dataPreview.columns,
-                onModelChanged: { selectedModels = $0 }
-            )
+    private var selectedModelIDs: Set<String> {
+        get {
+            (try? JSONDecoder().decode(Set<String>.self, from: selectedModelIDsData)) ?? ["gpt-4o-mini"]
         }
+        nonmutating set {
+            selectedModelIDsData = (try? JSONEncoder().encode(newValue)) ?? Data()
+        }
+    }
+
+    private var selectedModels: [ModelConfig] {
+        let ids = selectedModelIDs
+        let available = settings.availableModels
+        let models = available.filter { ids.contains($0.id) }
+        if !models.isEmpty { return models }
+        return available.first.map { [$0] } ?? []
     }
 
     private var canExport: Bool {
         workspace.selectedFile?.isAvailable == true && !dataPreview.columns.isEmpty
     }
-
-    private func triggerExport() {
-        guard let file = workspace.selectedFile else { return }
-        let table = workspace.parsedTable(for: file)
-        exportVM.export(
-            table: table,
-            results: processing.results,
-            resultColumns: resultsVM.columns,
-            suggestedName: file.displayName
-        )
-    }
-
-    // MARK: - Helpers
 
     private var subtitleText: String {
         guard let file = workspace.selectedFile else { return "" }
@@ -184,6 +165,27 @@ struct MainWindow: View {
         let table = workspace.parsedTable(for: file)
         guard !table.columns.isEmpty else { return "" }
         return "\(table.rows.count) rows · \(table.columns.count) columns"
+    }
+
+    private func ensureSelectedModelsAreValid() {
+        let availableIDs = Set(settings.availableModels.map(\.id))
+        let current = selectedModelIDs.intersection(availableIDs)
+        if current.isEmpty, let fallback = settings.availableModels.first?.id {
+            selectedModelIDs = [fallback]
+        } else if current != selectedModelIDs {
+            selectedModelIDs = current
+        }
+    }
+
+    private func triggerExport() {
+        guard let file = workspace.selectedFile else { return }
+        let table = workspace.parsedTable(for: file)
+        exportVM.export(
+            table: table,
+            results: processing.results,
+            resultColumns: resultsVM.columns,
+            suggestedName: file.displayName
+        )
     }
 
     private func loadSelectedFile() {

@@ -58,6 +58,7 @@ final class ResponseCache: ObservableObject {
 
     static func cacheKey(
         expandedPrompt: String,
+        systemMessage: String,
         modelID: String,
         params: LLMParameters
     ) -> String {
@@ -69,7 +70,7 @@ final class ResponseCache: ObservableObject {
             "\(params.presencePenalty)",
             params.reasoningEffort?.rawValue ?? "none"
         ].joined(separator: "|")
-        let raw = expandedPrompt + "\0" + modelID + "\0" + paramsString
+        let raw = systemMessage + "\0" + expandedPrompt + "\0" + modelID + "\0" + paramsString
         let digest = SHA256.hash(data: Data(raw.utf8))
         return digest.map { String(format: "%02x", $0) }.joined()
     }

@@ -111,9 +111,13 @@ final class PromptListViewModel: ObservableObject {
     }
 
     func deleteSelectedPrompt() {
+        guard let selectedPromptID else { return }
+        deletePrompt(id: selectedPromptID)
+    }
+
+    func deletePrompt(id: UUID) {
         guard let fileID = currentFileID,
-              let selectedPromptID,
-              let index = prompts.firstIndex(where: { $0.id == selectedPromptID }) else { return }
+              let index = prompts.firstIndex(where: { $0.id == id }) else { return }
 
         prompts.remove(at: index)
         if prompts.isEmpty {

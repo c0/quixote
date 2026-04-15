@@ -109,6 +109,7 @@ struct Prompt: Identifiable, Codable, Equatable {
     let id: UUID
     var fileID: UUID
     var name: String
+    var systemMessage: String
     var template: String
     var parameters: LLMParameters
     var createdAt: Date
@@ -118,10 +119,34 @@ struct Prompt: Identifiable, Codable, Equatable {
         self.id = UUID()
         self.fileID = fileID
         self.name = name
+        self.systemMessage = ""
         self.template = ""
         self.parameters = LLMParameters()
         self.createdAt = Date()
         self.updatedAt = Date()
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case fileID
+        case name
+        case systemMessage
+        case template
+        case parameters
+        case createdAt
+        case updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        fileID = try container.decode(UUID.self, forKey: .fileID)
+        name = try container.decode(String.self, forKey: .name)
+        systemMessage = try container.decodeIfPresent(String.self, forKey: .systemMessage) ?? ""
+        template = try container.decode(String.self, forKey: .template)
+        parameters = try container.decodeIfPresent(LLMParameters.self, forKey: .parameters) ?? LLMParameters()
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 }
 
