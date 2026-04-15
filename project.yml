@@ -39,14 +39,6 @@ targets:
           CODE_SIGN_IDENTITY: "Developer ID Application"
     entitlements:
       path: Quixote/Quixote.entitlements
-      properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.network.client: true
-        com.apple.security.files.user-selected.read-only: true
-        com.apple.security.files.bookmarks.app-scope: true
-        com.apple.security.temporary-exception.mach-lookup.global-name:
-          - $(PRODUCT_BUNDLE_IDENTIFIER)-spks
-          - $(PRODUCT_BUNDLE_IDENTIFIER)-spki
     info:
       path: Quixote/Info.plist
       properties:

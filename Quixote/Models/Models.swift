@@ -18,6 +18,19 @@ enum FileType: String, Codable, CaseIterable {
     }
 }
 
+enum FileRestoreState: String, Codable, Equatable {
+    case available
+    case bookmarkMissing
+    case bookmarkResolutionFailed
+    case accessDenied
+    case missing
+    case parseFailed
+
+    var isAvailable: Bool {
+        self == .available
+    }
+}
+
 // MARK: - WorkspaceFile
 
 struct WorkspaceFile: Identifiable, Codable, Equatable {
@@ -27,6 +40,7 @@ struct WorkspaceFile: Identifiable, Codable, Equatable {
     var fileType: FileType
     var addedAt: Date
     var contentHash: String
+    var restoreState: FileRestoreState
 
     init(url: URL) {
         self.id = UUID()
@@ -35,6 +49,11 @@ struct WorkspaceFile: Identifiable, Codable, Equatable {
         self.fileType = FileType.detect(from: url)
         self.addedAt = Date()
         self.contentHash = ""
+        self.restoreState = .available
+    }
+
+    var isAvailable: Bool {
+        restoreState.isAvailable
     }
 }
 
