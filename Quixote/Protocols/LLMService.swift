@@ -25,6 +25,7 @@ enum LLMServiceError: LocalizedError {
 protocol LLMService {
     func complete(
         prompt: String,
+        systemMessage: String,
         model: ModelConfig,
         params: LLMParameters
     ) async throws -> LLMResponse

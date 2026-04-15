@@ -25,6 +25,7 @@ struct OpenAIService: LLMService {
 
     func complete(
         prompt: String,
+        systemMessage: String,
         model: ModelConfig,
         params: LLMParameters
     ) async throws -> LLMResponse {
@@ -34,9 +35,15 @@ struct OpenAIService: LLMService {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        var messages: [[String: Any]] = []
+        if !systemMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            messages.append(["role": "system", "content": systemMessage])
+        }
+        messages.append(["role": "user", "content": prompt])
+
         var body: [String: Any] = [
             "model": model.id,
-            "messages": [["role": "user", "content": prompt]],
+            "messages": messages,
             "temperature": params.temperature,
             "top_p": params.topP,
             "frequency_penalty": params.frequencyPenalty,

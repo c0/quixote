@@ -281,6 +281,7 @@ final class ProcessingViewModel: ObservableObject {
         Task {
             let result = await Self.callService(
                 service: service, prompt: expandedPrompt,
+                systemMessage: prompt.systemMessage,
                 params: prompt.parameters,
                 row: row, promptID: prompt.id, model: model,
                 maxRetries: maxRetries
@@ -290,6 +291,7 @@ final class ProcessingViewModel: ObservableObject {
                let usage = result.tokenUsage {
                 let key = ResponseCache.cacheKey(
                     expandedPrompt: expandedPrompt,
+                    systemMessage: prompt.systemMessage,
                     modelID: result.modelID,
                     params: prompt.parameters)
                 ResponseCache.shared.store(
@@ -510,7 +512,10 @@ final class ProcessingViewModel: ObservableObject {
             let expanded = InterpolationEngine.expand(
                 template: prompt.template, row: row, columns: columns)
             let key = ResponseCache.cacheKey(
-                expandedPrompt: expanded, modelID: model.id, params: prompt.parameters)
+                expandedPrompt: expanded,
+                systemMessage: prompt.systemMessage,
+                modelID: model.id,
+                params: prompt.parameters)
 
             if let entry = cache.entry(for: key) {
                 var result = PromptResult(
@@ -543,6 +548,7 @@ final class ProcessingViewModel: ObservableObject {
                     try? await rateLimiter.waitForSlot()
                     return await Self.callService(
                         service: service, prompt: expanded,
+                        systemMessage: prompt.systemMessage,
                         params: prompt.parameters,
                         row: row, promptID: prompt.id, model: model,
                         maxRetries: maxRetries)
@@ -565,6 +571,7 @@ final class ProcessingViewModel: ObservableObject {
                         }
                         let key = ResponseCache.cacheKey(
                             expandedPrompt: expanded,
+                            systemMessage: prompt.systemMessage,
                             modelID: result.modelID,
                             params: prompt.parameters)
                         cache.store(
@@ -590,6 +597,7 @@ final class ProcessingViewModel: ObservableObject {
                         try? await rateLimiter.waitForSlot()
                         return await Self.callService(
                             service: service, prompt: expanded,
+                            systemMessage: prompt.systemMessage,
                             params: prompt.parameters,
                             row: row, promptID: prompt.id, model: model,
                             maxRetries: maxRetries)
@@ -624,6 +632,7 @@ final class ProcessingViewModel: ObservableObject {
     private static func callService(
         service: OpenAIService,
         prompt: String,
+        systemMessage: String,
         params: LLMParameters,
         row: Row,
         promptID: UUID,
@@ -641,7 +650,10 @@ final class ProcessingViewModel: ObservableObject {
         while true {
             do {
                 let response = try await service.complete(
-                    prompt: prompt, model: model, params: params)
+                    prompt: prompt,
+                    systemMessage: systemMessage,
+                    model: model,
+                    params: params)
                 result.responseText = response.text
                 result.tokenUsage = response.tokenUsage
                 result.durationMs = response.durationMs

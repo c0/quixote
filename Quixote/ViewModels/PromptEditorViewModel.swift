@@ -38,6 +38,14 @@ final class PromptEditorViewModel: ObservableObject {
         onPromptUpdated?(prompt)
     }
 
+    func updateSystemMessage(_ text: String) {
+        guard var prompt else { return }
+        prompt.systemMessage = text
+        prompt.updatedAt = Date()
+        self.prompt = prompt
+        onPromptUpdated?(prompt)
+    }
+
     func insertToken(_ columnName: String) {
         guard var prompt else { return }
         prompt.template += "{{\(columnName)}}"
