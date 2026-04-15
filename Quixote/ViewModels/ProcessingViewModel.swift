@@ -5,6 +5,9 @@ private let kKeychainOpenAIKey = "openai-api-key"
 
 @MainActor
 final class ProcessingViewModel: ObservableObject {
+    struct PersistedCompletedResultsStore: Codable {
+        var resultsByFileID: [UUID: [String: PromptResult]]
+    }
 
     enum RunState: Equatable {
         case idle
@@ -45,6 +48,9 @@ final class ProcessingViewModel: ObservableObject {
     private var maxConcurrency = 2
     private var rateLimiter = RateLimiter(requestsPerSecond: 5)
     private var saveTask: Task<Void, Never>?
+    private var completedResultsSaveTask: Task<Void, Never>?
+    private var activeFileID: UUID?
+    private var persistedCompletedResultsByFileID: [UUID: [String: PromptResult]] = [:]
 
     var isRunning: Bool {
         if case .running = runState { return true }
@@ -87,8 +93,11 @@ final class ProcessingViewModel: ObservableObject {
             guard let self else { return }
             Task { @MainActor in
                 self.saveQueueStateNow()
+                self.saveCompletedResultsNow()
             }
         }
+
+        loadCompletedResultsStore()
     }
 
     // MARK: - Composite key
@@ -116,8 +125,13 @@ final class ProcessingViewModel: ObservableObject {
             prompts: prompts, rows: rows, columns: columns,
             models: models, apiKey: apiKey, maxRetries: maxRetries
         )
+        activeFileID = prompts.first?.fileID
         isRestoredFromDisk = false
         results = [:]
+        if let activeFileID {
+            persistedCompletedResultsByFileID.removeValue(forKey: activeFileID)
+            scheduleCompletedResultsSave()
+        }
         clearSavedState()
         let total = prompts.count * rows.count * models.count
         runState = .running(completed: 0, total: total)
@@ -166,12 +180,50 @@ final class ProcessingViewModel: ObservableObject {
         }
         runState = .idle
         clearSavedState()
+        persistCompletedResultsForActiveFile()
     }
 
     func clearResults() {
         results = [:]
+        runContext = nil
+        isRestoredFromDisk = false
         runState = .idle
         clearSavedState()
+        persistCompletedResultsForActiveFile()
+    }
+
+    func clearDisplayedResults() {
+        results = [:]
+        runContext = nil
+        isRestoredFromDisk = false
+        runState = .idle
+        clearSavedState()
+    }
+
+    func setActiveFile(_ fileID: UUID?) {
+        activeFileID = fileID
+    }
+
+    func loadPersistedCompletedResults(for fileID: UUID) {
+        activeFileID = fileID
+        guard !isActive else { return }
+        runContext = nil
+        isRestoredFromDisk = false
+        results = persistedCompletedResultsByFileID[fileID] ?? [:]
+        if results.isEmpty {
+            runState = .idle
+        } else if case .failed = runState {
+            runState = .idle
+        }
+    }
+
+    func clearPersistedCompletedResults(for fileID: UUID) {
+        persistedCompletedResultsByFileID.removeValue(forKey: fileID)
+        scheduleCompletedResultsSave()
+        if activeFileID == fileID, !isActive {
+            results = [:]
+            runState = .idle
+        }
     }
 
     func retryFailed(concurrency: Int, rateLimit: Double) {
@@ -252,6 +304,7 @@ final class ProcessingViewModel: ObservableObject {
                     for: key)
             }
             results[resultKey(promptID: result.promptID, rowID: result.rowID, modelID: result.modelID)] = result
+            persistCompletedResultsForActiveFile()
         }
     }
 
@@ -291,6 +344,7 @@ final class ProcessingViewModel: ObservableObject {
             prompts: ctx.prompts, rows: ctx.rows, columns: ctx.columns,
             models: ctx.models, apiKey: apiKey, maxRetries: ctx.maxRetries
         )
+        activeFileID = ctx.prompts.first?.fileID
 
         runState = .running(completed: completedSoFar, total: total)
         let service = OpenAIService(apiKey: apiKey)
@@ -320,6 +374,13 @@ final class ProcessingViewModel: ObservableObject {
         return dir.appendingPathComponent("queue-state.json")
     }()
 
+    private static let completedResultsURL: URL = {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = support.appendingPathComponent("Quixote")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("completed-results.json")
+    }()
+
     func restoreIfNeeded() {
         guard runState == .idle, runContext == nil else { return }
         guard let data = try? Data(contentsOf: Self.persistenceURL),
@@ -330,6 +391,7 @@ final class ProcessingViewModel: ObservableObject {
             prompts: snapshot.prompts, rows: snapshot.rows, columns: snapshot.columns,
             models: snapshot.models, apiKey: apiKey, maxRetries: snapshot.maxRetries
         )
+        activeFileID = snapshot.prompts.first?.fileID
         results = snapshot.results
         isRestoredFromDisk = true
         runState = .paused(completed: snapshot.completedCount, total: snapshot.totalCount)
@@ -370,6 +432,38 @@ final class ProcessingViewModel: ObservableObject {
         saveTask?.cancel()
         saveTask = nil
         try? FileManager.default.removeItem(at: Self.persistenceURL)
+    }
+
+    private func loadCompletedResultsStore() {
+        guard let data = try? Data(contentsOf: Self.completedResultsURL),
+              let store = try? JSONDecoder().decode(PersistedCompletedResultsStore.self, from: data) else { return }
+        persistedCompletedResultsByFileID = store.resultsByFileID
+    }
+
+    private func scheduleCompletedResultsSave() {
+        completedResultsSaveTask?.cancel()
+        completedResultsSaveTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            saveCompletedResultsNow()
+        }
+    }
+
+    private func saveCompletedResultsNow() {
+        let store = PersistedCompletedResultsStore(resultsByFileID: persistedCompletedResultsByFileID)
+        let data = try? JSONEncoder().encode(store)
+        try? data?.write(to: Self.completedResultsURL, options: .atomic)
+    }
+
+    private func persistCompletedResultsForActiveFile() {
+        guard let activeFileID else { return }
+        let completed = results.filter { $0.value.status == .completed }
+        if completed.isEmpty {
+            persistedCompletedResultsByFileID.removeValue(forKey: activeFileID)
+        } else {
+            persistedCompletedResultsByFileID[activeFileID] = completed
+        }
+        scheduleCompletedResultsSave()
     }
 
     // MARK: - Processing
@@ -576,6 +670,7 @@ final class ProcessingViewModel: ObservableObject {
 
     private func updateResult(_ result: PromptResult) {
         results[resultKey(promptID: result.promptID, rowID: result.rowID, modelID: result.modelID)] = result
+        persistCompletedResultsForActiveFile()
         switch runState {
         case .running(let done, let total):
             runState = .running(completed: done + 1, total: total)

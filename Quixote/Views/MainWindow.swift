@@ -57,8 +57,12 @@ struct MainWindow: View {
             promptEditor.onPromptUpdated = { [weak promptList] prompt in
                 promptList?.updatePrompt(prompt)
             }
-            workspace.onFileRemoved = { [weak promptList] file in
+            workspace.onFileRemoved = { [weak promptList, weak processing] file in
                 promptList?.removePrompts(for: file.id)
+                processing?.clearPersistedCompletedResults(for: file.id)
+            }
+            for file in workspace.changedFiles {
+                processing.clearPersistedCompletedResults(for: file.id)
             }
             loadSelectedFile()
             processing.restoreIfNeeded()
@@ -147,7 +151,7 @@ struct MainWindow: View {
     }
 
     private var canExport: Bool {
-        workspace.selectedFile != nil && !dataPreview.columns.isEmpty
+        workspace.selectedFile?.isAvailable == true && !dataPreview.columns.isEmpty
     }
 
     private func triggerExport() {
@@ -165,6 +169,18 @@ struct MainWindow: View {
 
     private var subtitleText: String {
         guard let file = workspace.selectedFile else { return "" }
+        guard file.isAvailable else {
+            switch file.restoreState {
+            case .bookmarkMissing, .bookmarkResolutionFailed, .accessDenied:
+                return "Access could not be restored"
+            case .missing:
+                return "File unavailable"
+            case .parseFailed:
+                return "File could not be read"
+            case .available:
+                return ""
+            }
+        }
         let table = workspace.parsedTable(for: file)
         guard !table.columns.isEmpty else { return "" }
         return "\(table.rows.count) rows · \(table.columns.count) columns"
@@ -172,15 +188,27 @@ struct MainWindow: View {
 
     private func loadSelectedFile() {
         guard let file = workspace.selectedFile else {
+            processing.setActiveFile(nil)
             dataPreview.clear()
             promptList.clear()
             promptEditor.clear()
+            processing.clearDisplayedResults()
+            refreshDerivedViewModels()
+            return
+        }
+        processing.setActiveFile(file.id)
+        guard file.isAvailable else {
+            dataPreview.clear()
+            promptList.clear()
+            promptEditor.clear()
+            processing.clearDisplayedResults()
             refreshDerivedViewModels()
             return
         }
         let table = workspace.parsedTable(for: file)
         dataPreview.load(table: table)
         promptList.load(fileID: file.id)
+        processing.loadPersistedCompletedResults(for: file.id)
         syncPromptEditor()
         refreshDerivedViewModels()
     }
