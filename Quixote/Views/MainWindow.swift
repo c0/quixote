@@ -27,7 +27,7 @@ struct MainWindow: View {
                     columns: dataPreview.columns,
                     selectedModelIDs: selectedModelsBinding
                 )
-                .frame(minWidth: 420, idealWidth: 460, maxWidth: 540)
+                .frame(minWidth: 400, idealWidth: 440, maxWidth: 500)
 
                 DataTableView(
                     viewModel: dataPreview,
