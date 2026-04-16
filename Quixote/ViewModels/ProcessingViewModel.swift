@@ -106,6 +106,22 @@ final class ProcessingViewModel: ObservableObject {
         "\(promptID.uuidString)-\(rowID.uuidString)-\(modelID)"
     }
 
+    private func resultKeys(
+        prompts: [Prompt],
+        rows: [Row],
+        models: [ModelConfig]
+    ) -> Set<String> {
+        Set(
+            prompts.flatMap { prompt in
+                rows.flatMap { row in
+                    models.map { model in
+                        resultKey(promptID: prompt.id, rowID: row.id, modelID: model.id)
+                    }
+                }
+            }
+        )
+    }
+
     // MARK: - Start
 
     func startRun(
@@ -127,9 +143,16 @@ final class ProcessingViewModel: ObservableObject {
         )
         activeFileID = prompts.first?.fileID
         isRestoredFromDisk = false
-        results = [:]
-        if let activeFileID {
-            persistedCompletedResultsByFileID.removeValue(forKey: activeFileID)
+        let keysToReplace = resultKeys(prompts: prompts, rows: rows, models: models)
+        results = results.filter { !keysToReplace.contains($0.key) }
+        if let activeFileID,
+           var persisted = persistedCompletedResultsByFileID[activeFileID] {
+            persisted = persisted.filter { !keysToReplace.contains($0.key) }
+            if persisted.isEmpty {
+                persistedCompletedResultsByFileID.removeValue(forKey: activeFileID)
+            } else {
+                persistedCompletedResultsByFileID[activeFileID] = persisted
+            }
             scheduleCompletedResultsSave()
         }
         clearSavedState()

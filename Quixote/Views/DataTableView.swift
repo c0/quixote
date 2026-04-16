@@ -1,14 +1,12 @@
 import SwiftUI
 
 private enum DataTableMetrics {
-    static let sourceColumnMinWidth: CGFloat = 138
-    static let sourceColumnMaxWidth: CGFloat = 220
-    static let resultColumnMinWidth: CGFloat = 300
-    static let resultColumnMaxWidth: CGFloat = 460
-}
-
-private enum DataTableScrollTarget {
-    static let firstResultColumn = "data-table-first-result-column"
+    static let sourceColumnMinWidth: CGFloat = 122
+    static let sourceColumnMaxWidth: CGFloat = 188
+    static let singleResultColumnMinWidth: CGFloat = 300
+    static let singleResultColumnMaxWidth: CGFloat = 460
+    static let multiResultColumnMinWidth: CGFloat = 232
+    static let multiResultColumnMaxWidth: CGFloat = 320
 }
 
 struct DataTableView: View {
@@ -25,7 +23,7 @@ struct DataTableView: View {
         VStack(spacing: 0) {
             paneHeader
                 .padding(.horizontal, 18)
-                .padding(.vertical, 14)
+                .padding(.vertical, 10)
 
             QuixoteRowDivider()
 
@@ -71,7 +69,7 @@ struct DataTableView: View {
 
     private var tableContent: some View {
         VStack(spacing: 0) {
-            ScrollViewReader { proxy in
+            GeometryReader { proxy in
                 ScrollView([.horizontal, .vertical]) {
                     LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
                         Section {
@@ -92,33 +90,28 @@ struct DataTableView: View {
                             )
                         }
                     }
+                    .frame(
+                        minWidth: proxy.size.width,
+                        minHeight: proxy.size.height,
+                        alignment: .topLeading
+                    )
                 }
-                .onAppear {
-                    scrollToResults(in: proxy)
-                }
-                .onChange(of: visibleResultColumns.map(\.id)) {
-                    scrollToResults(in: proxy)
-                }
+                .scrollClipDisabled()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .clipped()
 
             if viewModel.pageCount > 1 {
                 PaginationBar(viewModel: viewModel)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var visibleResultColumns: [ResultsViewModel.ResultColumn] {
         let filtered = results.columns(for: selectedPromptID)
         return filtered.isEmpty ? results.columns : filtered
-    }
-
-    private func scrollToResults(in proxy: ScrollViewProxy) {
-        guard !visibleResultColumns.isEmpty else { return }
-        DispatchQueue.main.async {
-            withAnimation(.easeOut(duration: 0.18)) {
-                proxy.scrollTo(DataTableScrollTarget.firstResultColumn, anchor: .leading)
-            }
-        }
     }
 }
 
@@ -168,10 +161,10 @@ struct DataHeaderView: View {
 
     @ViewBuilder
     private func resultHeaderColumn(_ col: ResultsViewModel.ResultColumn) -> some View {
-        let header = VStack(alignment: .leading, spacing: 4) {
+        let header = VStack(alignment: .leading, spacing: 3) {
             Text(col.promptName.uppercased())
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .tracking(1.2)
+                .tracking(1.0)
                 .foregroundStyle(Color.quixoteTextPrimary)
                 .lineLimit(1)
 
@@ -181,24 +174,28 @@ struct DataHeaderView: View {
                 .lineLimit(1)
         }
         .frame(
-            minWidth: DataTableMetrics.resultColumnMinWidth,
-            maxWidth: DataTableMetrics.resultColumnMaxWidth,
+            minWidth: resultColumnMinWidth,
+            maxWidth: resultColumnMaxWidth,
             alignment: .leading
         )
         .padding(.horizontal, 10)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
 
-        if col.id == resultColumns.first?.id {
-            header.id(DataTableScrollTarget.firstResultColumn)
-        } else {
-            header
-        }
+        header
     }
 
     private var gridDivider: some View {
         Rectangle()
             .fill(Color.quixoteDivider)
             .frame(width: 1)
+    }
+
+    private var resultColumnMinWidth: CGFloat {
+        resultColumns.count > 1 ? DataTableMetrics.multiResultColumnMinWidth : DataTableMetrics.singleResultColumnMinWidth
+    }
+
+    private var resultColumnMaxWidth: CGFloat {
+        resultColumns.count > 1 ? DataTableMetrics.multiResultColumnMaxWidth : DataTableMetrics.singleResultColumnMaxWidth
     }
 }
 
@@ -214,8 +211,8 @@ struct DataRowView: View {
             Text("\(row.index + 1)")
                 .frame(width: 52, alignment: .trailing)
                 .padding(.horizontal, 10)
-                .padding(.vertical, 10)
-                .font(.system(size: 12, design: .monospaced))
+                .padding(.vertical, 8)
+                .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(Color.quixoteTextMuted)
             gridDivider
 
@@ -235,12 +232,12 @@ struct DataRowView: View {
                     onRetry: onRetry.map { fn in { fn(col) } }
                 )
                 .frame(
-                    minWidth: DataTableMetrics.resultColumnMinWidth,
-                    maxWidth: DataTableMetrics.resultColumnMaxWidth,
+                    minWidth: resultColumnMinWidth,
+                    maxWidth: resultColumnMaxWidth,
                     alignment: .leading
                 )
                 .padding(.horizontal, 10)
-                .padding(.vertical, 10)
+                .padding(.vertical, 8)
                 gridDivider
             }
         }
@@ -254,6 +251,14 @@ struct DataRowView: View {
             .fill(Color.quixoteDivider)
             .frame(width: 1)
     }
+
+    private var resultColumnMinWidth: CGFloat {
+        resultColumns.count > 1 ? DataTableMetrics.multiResultColumnMinWidth : DataTableMetrics.singleResultColumnMinWidth
+    }
+
+    private var resultColumnMaxWidth: CGFloat {
+        resultColumns.count > 1 ? DataTableMetrics.multiResultColumnMaxWidth : DataTableMetrics.singleResultColumnMaxWidth
+    }
 }
 
 private struct SourceCell: View {
@@ -266,14 +271,14 @@ private struct SourceCell: View {
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
-            .padding(.vertical, 10)
+            .padding(.vertical, 8)
     }
 
     private var font: Font {
         if isNumberLike || isBoolean {
-            return .system(size: 12, design: .monospaced)
+            return .system(size: 11, design: .monospaced)
         }
-        return .system(size: 12, weight: .medium)
+        return .system(size: 11, weight: .regular)
     }
 
     private var foreground: Color {
@@ -299,7 +304,7 @@ struct ResultCell: View {
         switch result?.status {
         case .none, .pending:
             Text("—")
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(Color.quixoteTextMuted)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -308,14 +313,14 @@ struct ResultCell: View {
                 ProgressView().controlSize(.small)
                     .tint(Color.quixoteBlue)
                 Text("Running…")
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(Color.quixoteTextSecondary)
             }
 
         case .completed:
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(result?.responseText ?? "")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 11, weight: .regular))
                     .foregroundStyle(Color.quixoteTextPrimary)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
