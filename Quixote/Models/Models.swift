@@ -92,12 +92,17 @@ enum ReasoningEffort: String, Codable, CaseIterable {
     case low
     case medium
     case high
+
+    var displayName: String {
+        rawValue.capitalized
+    }
 }
 
 struct LLMParameters: Codable, Equatable {
     var temperature: Double = 1.0
     var maxTokens: Int? = nil
     var topP: Double = 1.0
+    // Deprecated runtime settings. Kept for backward-compatible decoding.
     var frequencyPenalty: Double = 0.0
     var presencePenalty: Double = 0.0
     var reasoningEffort: ReasoningEffort? = nil
@@ -157,20 +162,20 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
     var displayName: String
     var provider: LLMProvider
     var created: Int?     // Unix timestamp from API; nil for builtIn
+    var supportedReasoningLevels: [ReasoningEffort] = []
 
     static let builtIn: [ModelConfig] = [
-        ModelConfig(id: "gpt-4o",       displayName: "GPT-4o",        provider: .openAI),
-        ModelConfig(id: "gpt-4o-mini",  displayName: "GPT-4o mini",   provider: .openAI),
-        ModelConfig(id: "gpt-4-turbo",  displayName: "GPT-4 Turbo",   provider: .openAI),
-        ModelConfig(id: "gpt-3.5-turbo",displayName: "GPT-3.5 Turbo", provider: .openAI),
+        ModelConfig(id: "gpt-4o",       displayName: "GPT-4o",        provider: .openAI, supportedReasoningLevels: []),
+        ModelConfig(id: "gpt-4o-mini",  displayName: "GPT-4o mini",   provider: .openAI, supportedReasoningLevels: []),
+        ModelConfig(id: "gpt-4-turbo",  displayName: "GPT-4 Turbo",   provider: .openAI, supportedReasoningLevels: []),
+        ModelConfig(id: "gpt-3.5-turbo",displayName: "GPT-3.5 Turbo", provider: .openAI, supportedReasoningLevels: []),
     ]
 
     // MARK: - Family grouping
 
     /// Whether this model supports the reasoning_effort parameter
     var supportsReasoningEffort: Bool {
-        let prefixes = ["o1", "o3", "o4", "gpt-5"]
-        return prefixes.contains { id.hasPrefix($0) }
+        !supportedReasoningLevels.isEmpty
     }
 
     // MARK: - Pricing (USD per 1M tokens)
@@ -239,6 +244,12 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
             .map { (family: $0.key, models: $0.value.sorted { ($0.created ?? 0) > ($1.created ?? 0) }) }
             .sorted { $0.family.localizedStandardCompare($1.family) == .orderedAscending }
     }
+
+    static func supportedReasoningLevels(for id: String) -> [ReasoningEffort] {
+        let prefixes = ["o1", "o3", "o4", "gpt-5"]
+        guard prefixes.contains(where: { id.hasPrefix($0) }) else { return [] }
+        return [.low, .medium, .high]
+    }
 }
 
 enum LLMProvider: String, Codable {
@@ -287,14 +298,16 @@ struct ProcessingRun: Identifiable, Codable {
     let id: UUID
     var promptID: UUID
     var modelID: String
+    var modelConfigID: UUID?
     var status: RunStatus
     var startedAt: Date
     var completedAt: Date?
 
-    init(promptID: UUID, modelID: String) {
+    init(promptID: UUID, modelID: String, modelConfigID: UUID? = nil) {
         self.id = UUID()
         self.promptID = promptID
         self.modelID = modelID
+        self.modelConfigID = modelConfigID
         self.status = .pending
         self.startedAt = Date()
     }
@@ -308,6 +321,7 @@ struct PromptResult: Identifiable, Codable, Equatable {
     var rowID: UUID
     var promptID: UUID
     var modelID: String
+    var modelConfigID: UUID?
     var responseText: String?
     var status: ResultStatus
     var tokenUsage: TokenUsage?
@@ -316,14 +330,41 @@ struct PromptResult: Identifiable, Codable, Equatable {
     var retryCount: Int = 0
     var cosineSimilarity: Double?
 
-    init(runID: UUID, rowID: UUID, promptID: UUID, modelID: String) {
+    init(runID: UUID, rowID: UUID, promptID: UUID, modelID: String, modelConfigID: UUID? = nil) {
         self.id = UUID()
         self.runID = runID
         self.rowID = rowID
         self.promptID = promptID
         self.modelID = modelID
+        self.modelConfigID = modelConfigID
         self.status = .pending
     }
+}
+
+// MARK: - FileModelConfig
+
+struct FileModelConfig: Identifiable, Codable, Equatable {
+    let id: UUID
+    var fileID: UUID
+    var modelID: String
+    var parameters: LLMParameters
+
+    init(id: UUID = UUID(), fileID: UUID, modelID: String, parameters: LLMParameters = LLMParameters()) {
+        self.id = id
+        self.fileID = fileID
+        self.modelID = modelID
+        self.parameters = parameters
+    }
+}
+
+struct ResolvedFileModelConfig: Identifiable, Codable, Equatable {
+    let id: UUID
+    let fileID: UUID
+    let model: ModelConfig
+    let parameters: LLMParameters
+    let displayName: String
+
+    var modelID: String { model.id }
 }
 
 // MARK: - ParsedTable

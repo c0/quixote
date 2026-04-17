@@ -21,7 +21,7 @@ final class ProcessingViewModel: ObservableObject {
         let prompts: [Prompt]
         let rows: [Row]
         let columns: [ColumnDef]
-        let models: [ModelConfig]
+        let modelConfigs: [ResolvedFileModelConfig]
         let apiKey: String
         let maxRetries: Int
     }
@@ -31,7 +31,7 @@ final class ProcessingViewModel: ObservableObject {
         let prompts: [Prompt]
         let rows: [Row]
         let columns: [ColumnDef]
-        let models: [ModelConfig]
+        let modelConfigs: [ResolvedFileModelConfig]
         let maxRetries: Int
         let results: [String: PromptResult]
         let completedCount: Int
@@ -39,7 +39,7 @@ final class ProcessingViewModel: ObservableObject {
     }
 
     @Published var runState: RunState = .idle
-    // Results keyed by composite "\(promptID)-\(rowID)-\(modelID)"
+    // Results keyed by composite "\(promptID)-\(rowID)-\(modelConfigID)"
     @Published var results: [String: PromptResult] = [:]
 
     private var runTask: Task<Void, Never>?
@@ -102,20 +102,20 @@ final class ProcessingViewModel: ObservableObject {
 
     // MARK: - Composite key
 
-    private func resultKey(promptID: UUID, rowID: UUID, modelID: String) -> String {
-        "\(promptID.uuidString)-\(rowID.uuidString)-\(modelID)"
+    private func resultKey(promptID: UUID, rowID: UUID, modelConfigID: UUID) -> String {
+        "\(promptID.uuidString)-\(rowID.uuidString)-\(modelConfigID.uuidString)"
     }
 
     private func resultKeys(
         prompts: [Prompt],
         rows: [Row],
-        models: [ModelConfig]
+        modelConfigs: [ResolvedFileModelConfig]
     ) -> Set<String> {
         Set(
             prompts.flatMap { prompt in
                 rows.flatMap { row in
-                    models.map { model in
-                        resultKey(promptID: prompt.id, rowID: row.id, modelID: model.id)
+                    modelConfigs.map { config in
+                        resultKey(promptID: prompt.id, rowID: row.id, modelConfigID: config.id)
                     }
                 }
             }
@@ -128,22 +128,22 @@ final class ProcessingViewModel: ObservableObject {
         prompts: [Prompt],
         rows: [Row],
         columns: [ColumnDef],
-        models: [ModelConfig],
+        modelConfigs: [ResolvedFileModelConfig],
         apiKey: String,
         concurrency: Int = 2,
         rateLimit: Double = 5,
         maxRetries: Int = 3
     ) {
-        guard !isActive, !models.isEmpty, !prompts.isEmpty else { return }
+        guard !isActive, !modelConfigs.isEmpty, !prompts.isEmpty else { return }
         maxConcurrency = max(1, concurrency)
         rateLimiter = RateLimiter(requestsPerSecond: max(1, rateLimit))
         runContext = RunContext(
             prompts: prompts, rows: rows, columns: columns,
-            models: models, apiKey: apiKey, maxRetries: maxRetries
+            modelConfigs: modelConfigs, apiKey: apiKey, maxRetries: maxRetries
         )
         activeFileID = prompts.first?.fileID
         isRestoredFromDisk = false
-        let keysToReplace = resultKeys(prompts: prompts, rows: rows, models: models)
+        let keysToReplace = resultKeys(prompts: prompts, rows: rows, modelConfigs: modelConfigs)
         results = results.filter { !keysToReplace.contains($0.key) }
         if let activeFileID,
            var persisted = persistedCompletedResultsByFileID[activeFileID] {
@@ -156,14 +156,14 @@ final class ProcessingViewModel: ObservableObject {
             scheduleCompletedResultsSave()
         }
         clearSavedState()
-        let total = prompts.count * rows.count * models.count
+        let total = prompts.count * rows.count * modelConfigs.count
         runState = .running(completed: 0, total: total)
 
         let service = OpenAIService(apiKey: apiKey)
 
         runTask = Task {
             await processRows(prompts: prompts, rows: rows,
-                              columns: columns, models: models,
+                              columns: columns, modelConfigs: modelConfigs,
                               service: service, maxRetries: maxRetries)
         }
     }
@@ -262,11 +262,12 @@ final class ProcessingViewModel: ObservableObject {
         let promptsByID = Dictionary(uniqueKeysWithValues: ctx.prompts.map { ($0.id, $0) })
         let promptScopedWorkItems = results.values
             .filter { $0.status == .failed }
-            .compactMap { result -> (Prompt, Row, ModelConfig)? in
+            .compactMap { result -> (Prompt, Row, ResolvedFileModelConfig)? in
                 guard let prompt = promptsByID[result.promptID],
                       let row = ctx.rows.first(where: { $0.id == result.rowID }),
-                      let model = ctx.models.first(where: { $0.id == result.modelID }) else { return nil }
-                return (prompt, row, model)
+                      let modelConfigID = result.modelConfigID,
+                      let config = ctx.modelConfigs.first(where: { $0.id == modelConfigID }) else { return nil }
+                return (prompt, row, config)
             }
 
         guard !promptScopedWorkItems.isEmpty else { return }
@@ -284,13 +285,13 @@ final class ProcessingViewModel: ObservableObject {
         }
     }
 
-    func retryResult(rowID: UUID, promptID: UUID, modelID: String) {
+    func retryResult(rowID: UUID, promptID: UUID, modelConfigID: UUID) {
         guard let ctx = runContext,
               let prompt = ctx.prompts.first(where: { $0.id == promptID }),
               let row = ctx.rows.first(where: { $0.id == rowID }),
-              let model = ctx.models.first(where: { $0.id == modelID }) else { return }
+              let config = ctx.modelConfigs.first(where: { $0.id == modelConfigID }) else { return }
 
-        let key = resultKey(promptID: promptID, rowID: rowID, modelID: modelID)
+        let key = resultKey(promptID: promptID, rowID: rowID, modelConfigID: modelConfigID)
         if var current = results[key] {
             current.status = .inProgress
             results[key] = current
@@ -305,8 +306,8 @@ final class ProcessingViewModel: ObservableObject {
             let result = await Self.callService(
                 service: service, prompt: expandedPrompt,
                 systemMessage: prompt.systemMessage,
-                params: prompt.parameters,
-                row: row, promptID: prompt.id, model: model,
+                params: config.parameters,
+                row: row, promptID: prompt.id, modelConfig: config,
                 maxRetries: maxRetries
             )
             if result.status == .completed,
@@ -316,7 +317,7 @@ final class ProcessingViewModel: ObservableObject {
                     expandedPrompt: expandedPrompt,
                     systemMessage: prompt.systemMessage,
                     modelID: result.modelID,
-                    params: prompt.parameters)
+                    params: config.parameters)
                 ResponseCache.shared.store(
                     entry: CachedEntry(
                         responseText: text,
@@ -328,7 +329,7 @@ final class ProcessingViewModel: ObservableObject {
                     ),
                     for: key)
             }
-            results[resultKey(promptID: result.promptID, rowID: result.rowID, modelID: result.modelID)] = result
+            results[resultKey(promptID: result.promptID, rowID: result.rowID, modelConfigID: modelConfigID)] = result
             persistCompletedResultsForActiveFile()
         }
     }
@@ -337,11 +338,11 @@ final class ProcessingViewModel: ObservableObject {
 
     private func resumeRemaining(ctx: RunContext, completedSoFar: Int, total: Int) {
         let completedKeys = Set(results.filter { $0.value.status == .completed }.keys)
-        let remainingItems: [(Prompt, Row, ModelConfig)] = ctx.prompts.flatMap { prompt in
+        let remainingItems: [(Prompt, Row, ResolvedFileModelConfig)] = ctx.prompts.flatMap { prompt in
             ctx.rows.flatMap { row in
-                ctx.models.compactMap { model in
-                    let key = resultKey(promptID: prompt.id, rowID: row.id, modelID: model.id)
-                    return completedKeys.contains(key) ? nil : (prompt, row, model)
+                ctx.modelConfigs.compactMap { config in
+                    let key = resultKey(promptID: prompt.id, rowID: row.id, modelConfigID: config.id)
+                    return completedKeys.contains(key) ? nil : (prompt, row, config)
                 }
             }
         }
@@ -367,7 +368,7 @@ final class ProcessingViewModel: ObservableObject {
         // Update runContext with fresh apiKey
         runContext = RunContext(
             prompts: ctx.prompts, rows: ctx.rows, columns: ctx.columns,
-            models: ctx.models, apiKey: apiKey, maxRetries: ctx.maxRetries
+            modelConfigs: ctx.modelConfigs, apiKey: apiKey, maxRetries: ctx.maxRetries
         )
         activeFileID = ctx.prompts.first?.fileID
 
@@ -414,7 +415,7 @@ final class ProcessingViewModel: ObservableObject {
         let apiKey = KeychainHelper.read(for: kKeychainOpenAIKey) ?? ""
         runContext = RunContext(
             prompts: snapshot.prompts, rows: snapshot.rows, columns: snapshot.columns,
-            models: snapshot.models, apiKey: apiKey, maxRetries: snapshot.maxRetries
+            modelConfigs: snapshot.modelConfigs, apiKey: apiKey, maxRetries: snapshot.maxRetries
         )
         activeFileID = snapshot.prompts.first?.fileID
         results = snapshot.results
@@ -444,7 +445,7 @@ final class ProcessingViewModel: ObservableObject {
 
         let snapshot = QueueSnapshot(
             prompts: ctx.prompts, rows: ctx.rows, columns: ctx.columns,
-            models: ctx.models, maxRetries: ctx.maxRetries,
+            modelConfigs: ctx.modelConfigs, maxRetries: ctx.maxRetries,
             results: results,
             completedCount: completedCount, totalCount: totalCount
         )
@@ -497,13 +498,13 @@ final class ProcessingViewModel: ObservableObject {
         prompts: [Prompt],
         rows: [Row],
         columns: [ColumnDef],
-        models: [ModelConfig],
+        modelConfigs: [ResolvedFileModelConfig],
         service: OpenAIService,
         maxRetries: Int
     ) async {
         let workItems = prompts.flatMap { prompt in
             rows.flatMap { row in
-                models.map { model in (prompt, row, model) }
+                modelConfigs.map { modelConfig in (prompt, row, modelConfig) }
             }
         }
         await processWorkItems(workItems, columns: columns, service: service, maxRetries: maxRetries)
@@ -519,7 +520,7 @@ final class ProcessingViewModel: ObservableObject {
     }
 
     private func processWorkItems(
-        _ workItems: [(Prompt, Row, ModelConfig)],
+        _ workItems: [(Prompt, Row, ResolvedFileModelConfig)],
         columns: [ColumnDef],
         service: OpenAIService,
         maxRetries: Int
@@ -527,22 +528,26 @@ final class ProcessingViewModel: ObservableObject {
         let cache = ResponseCache.shared
 
         // --- Partition: apply cache hits immediately, collect misses ---
-        var misses: [(Prompt, Row, ModelConfig)] = []
+        var misses: [(Prompt, Row, ResolvedFileModelConfig)] = []
         // Map composite key → expandedPrompt for storing results after API calls
         var expandedPrompts: [String: String] = [:]
 
-        for (prompt, row, model) in workItems {
+        for (prompt, row, modelConfig) in workItems {
             let expanded = InterpolationEngine.expand(
                 template: prompt.template, row: row, columns: columns)
             let key = ResponseCache.cacheKey(
                 expandedPrompt: expanded,
                 systemMessage: prompt.systemMessage,
-                modelID: model.id,
-                params: prompt.parameters)
+                modelID: modelConfig.modelID,
+                params: modelConfig.parameters)
 
             if let entry = cache.entry(for: key) {
                 var result = PromptResult(
-                    runID: UUID(), rowID: row.id, promptID: prompt.id, modelID: model.id)
+                    runID: UUID(),
+                    rowID: row.id,
+                    promptID: prompt.id,
+                    modelID: modelConfig.modelID,
+                    modelConfigID: modelConfig.id)
                 result.responseText = entry.responseText
                 result.tokenUsage = entry.tokenUsage
                 result.durationMs = entry.durationMs
@@ -551,9 +556,12 @@ final class ProcessingViewModel: ObservableObject {
                 result.status = .completed
                 updateResult(result)
             } else {
-                let compositeKey = resultKey(promptID: prompt.id, rowID: row.id, modelID: model.id)
+                let compositeKey = resultKey(
+                    promptID: prompt.id,
+                    rowID: row.id,
+                    modelConfigID: modelConfig.id)
                 expandedPrompts[compositeKey] = expanded
-                misses.append((prompt, row, model))
+                misses.append((prompt, row, modelConfig))
             }
         }
 
@@ -564,16 +572,19 @@ final class ProcessingViewModel: ObservableObject {
             var iterator = misses.makeIterator()
             var active = 0
 
-            while active < maxConcurrency, let (prompt, row, model) = iterator.next() {
-                let compositeKey = resultKey(promptID: prompt.id, rowID: row.id, modelID: model.id)
+            while active < maxConcurrency, let (prompt, row, modelConfig) = iterator.next() {
+                let compositeKey = resultKey(
+                    promptID: prompt.id,
+                    rowID: row.id,
+                    modelConfigID: modelConfig.id)
                 let expanded = expandedPrompts[compositeKey]!
-                group.addTask { [model, prompt, rateLimiter] in
+                group.addTask { [modelConfig, prompt, rateLimiter] in
                     try? await rateLimiter.waitForSlot()
                     return await Self.callService(
                         service: service, prompt: expanded,
                         systemMessage: prompt.systemMessage,
-                        params: prompt.parameters,
-                        row: row, promptID: prompt.id, model: model,
+                        params: modelConfig.parameters,
+                        row: row, promptID: prompt.id, modelConfig: modelConfig,
                         maxRetries: maxRetries)
                 }
                 active += 1
@@ -582,21 +593,27 @@ final class ProcessingViewModel: ObservableObject {
             for await result in group {
                 // Store completed results in cache
                 if result.status == .completed,
+                   let modelConfigID = result.modelConfigID,
                    let text = result.responseText,
                    let usage = result.tokenUsage {
-                    let compositeKey = resultKey(promptID: result.promptID, rowID: result.rowID, modelID: result.modelID)
+                    let compositeKey = resultKey(
+                        promptID: result.promptID,
+                        rowID: result.rowID,
+                        modelConfigID: modelConfigID)
                     if let expanded = expandedPrompts[compositeKey] {
-                        guard let prompt = workItems.first(where: {
-                            $0.0.id == result.promptID && $0.1.id == result.rowID && $0.2.id == result.modelID
-                        })?.0 else {
+                        guard let workItem = workItems.first(where: {
+                            $0.0.id == result.promptID &&
+                            $0.1.id == result.rowID &&
+                            $0.2.id == modelConfigID
+                        }) else {
                             updateResult(result)
                             continue
                         }
                         let key = ResponseCache.cacheKey(
                             expandedPrompt: expanded,
-                            systemMessage: prompt.systemMessage,
+                            systemMessage: workItem.0.systemMessage,
                             modelID: result.modelID,
-                            params: prompt.parameters)
+                            params: workItem.2.parameters)
                         cache.store(
                             entry: CachedEntry(
                                 responseText: text,
@@ -611,18 +628,21 @@ final class ProcessingViewModel: ObservableObject {
 
                 updateResult(result)
 
-                if let (prompt, row, model) = iterator.next() {
+                if let (prompt, row, modelConfig) = iterator.next() {
                     await waitIfPaused()
                     guard !Task.isCancelled else { break }
-                    let compositeKey = resultKey(promptID: prompt.id, rowID: row.id, modelID: model.id)
+                    let compositeKey = resultKey(
+                        promptID: prompt.id,
+                        rowID: row.id,
+                        modelConfigID: modelConfig.id)
                     let expanded = expandedPrompts[compositeKey]!
-                    group.addTask { [model, prompt, rateLimiter] in
+                    group.addTask { [modelConfig, prompt, rateLimiter] in
                         try? await rateLimiter.waitForSlot()
                         return await Self.callService(
                             service: service, prompt: expanded,
                             systemMessage: prompt.systemMessage,
-                            params: prompt.parameters,
-                            row: row, promptID: prompt.id, model: model,
+                            params: modelConfig.parameters,
+                            row: row, promptID: prompt.id, modelConfig: modelConfig,
                             maxRetries: maxRetries)
                     }
                 }
@@ -659,14 +679,16 @@ final class ProcessingViewModel: ObservableObject {
         params: LLMParameters,
         row: Row,
         promptID: UUID,
-        model: ModelConfig,
+        modelConfig: ResolvedFileModelConfig,
         maxRetries: Int
     ) async -> PromptResult {
         let runID = UUID()
         var result = PromptResult(
             runID: runID,
             rowID: row.id,
-            promptID: promptID, modelID: model.id)
+            promptID: promptID,
+            modelID: modelConfig.modelID,
+            modelConfigID: modelConfig.id)
         result.status = .inProgress
 
         var attempt = 0
@@ -675,12 +697,12 @@ final class ProcessingViewModel: ObservableObject {
                 let response = try await service.complete(
                     prompt: prompt,
                     systemMessage: systemMessage,
-                    model: model,
+                    model: modelConfig.model,
                     params: params)
                 result.responseText = response.text
                 result.tokenUsage = response.tokenUsage
                 result.durationMs = response.durationMs
-                result.costUSD = model.costFor(
+                result.costUSD = modelConfig.model.costFor(
                     inputTokens: response.tokenUsage.input,
                     outputTokens: response.tokenUsage.output
                 )
@@ -704,7 +726,12 @@ final class ProcessingViewModel: ObservableObject {
     }
 
     private func updateResult(_ result: PromptResult) {
-        results[resultKey(promptID: result.promptID, rowID: result.rowID, modelID: result.modelID)] = result
+        guard let modelConfigID = result.modelConfigID else { return }
+        results[resultKey(
+            promptID: result.promptID,
+            rowID: result.rowID,
+            modelConfigID: modelConfigID
+        )] = result
         persistCompletedResultsForActiveFile()
         switch runState {
         case .running(let done, let total):

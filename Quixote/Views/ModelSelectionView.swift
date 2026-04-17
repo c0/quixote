@@ -1,41 +1,43 @@
 import SwiftUI
 
-struct ModelPickerPopover: View {
+struct SingleModelPickerPopover: View {
     let groupedModels: [(family: String, models: [ModelConfig])]
-    let selectedIDs: Set<String>
-    let onToggle: (String) -> Void
-    let onSelectAll: ([ModelConfig]) -> Void
-    let onDeselectAll: ([ModelConfig]) -> Void
+    let selectedID: String?
+    let onSelect: (String) -> Void
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 14) {
                 ForEach(groupedModels, id: \.family) { group in
                     VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text(group.family.uppercased())
-                                .font(.system(size: 11, weight: .semibold))
-                                .tracking(1.6)
-                                .foregroundStyle(Color.quixoteTextSecondary)
-
-                            Spacer()
-
-                            Button("All") { onSelectAll(group.models) }
-                                .buttonStyle(.plain)
-                                .font(.caption)
-                                .foregroundStyle(Color.quixoteBlueMuted)
-
-                            Button("None") { onDeselectAll(group.models) }
-                                .buttonStyle(.plain)
-                                .font(.caption)
-                                .foregroundStyle(Color.quixoteTextSecondary)
-                        }
+                        Text(group.family.uppercased())
+                            .font(.system(size: 11, weight: .semibold))
+                            .tracking(1.6)
+                            .foregroundStyle(Color.quixoteTextSecondary)
 
                         ForEach(group.models) { model in
-                            Toggle(model.displayName, isOn: toggleBinding(for: model.id))
-                                .toggleStyle(.checkbox)
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color.quixoteTextPrimary)
+                            Button {
+                                onSelect(model.id)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: selectedID == model.id ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(selectedID == model.id ? Color.quixoteBlue : Color.quixoteTextMuted)
+
+                                    Text(model.displayName)
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.quixoteTextPrimary)
+
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(selectedID == model.id ? Color.quixoteSelection : Color.clear)
+                                )
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(12)
@@ -53,12 +55,5 @@ struct ModelPickerPopover: View {
         }
         .frame(width: 280, height: 320)
         .background(Color.quixoteAppBackground)
-    }
-
-    private func toggleBinding(for id: String) -> Binding<Bool> {
-        Binding(
-            get: { selectedIDs.contains(id) },
-            set: { _ in onToggle(id) }
-        )
     }
 }
