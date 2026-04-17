@@ -3,7 +3,7 @@ import Sparkle
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
-        guard urls.contains(where: { $0.scheme == "quixote-swift" }) else { return }
+        guard urls.contains(where: { $0.scheme == "quixote" }) else { return }
         // Handle deep links here
     }
 }
@@ -33,6 +33,11 @@ struct QuixoteApp: App {
                     NotificationCenter.default.post(name: .exportResults, object: nil)
                 }
                 .keyboardShortcut("s", modifiers: .command)
+            }
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    updaterController.checkForUpdates(nil)
+                }
             }
         }
 

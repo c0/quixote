@@ -23,7 +23,7 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>quixote-swift</string>
+				<string>quixote</string>
 			</array>
 		</dict>
 	</array>
@@ -36,8 +36,8 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>SUFeedURL</key>
-	<string>https://c0.github.io/quixote-swift/appcast.xml</string>
+	<string>https://c0.github.io/quixote/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>REPLACE_WITH_YOUR_PUBLIC_ED_KEY</string>
+	<string>w54moWKzPLbV7kXiRz0jAOueJglfLBhuuigk5hAYIBs=</string>
 </dict>
 </plist>

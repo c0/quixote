@@ -76,6 +76,31 @@ ARCHIVE_PATH="$BUILD_DIR/Quixote.xcarchive"
 EXPORT_DIR="$BUILD_DIR/export"
 DMG_NAME="Quixote-${VERSION}.dmg"
 DMG_PATH="$BUILD_DIR/$DMG_NAME"
+REPO_SLUG="c0/quixote"
+PAGES_BASE_URL="https://c0.github.io/quixote"
+APPCAST_PATH="$REPO_ROOT/site/public/appcast.xml"
+
+if [ ! -f site/package-lock.json ]; then
+  echo "ERROR: site/package-lock.json is missing. Run 'cd site && npm install' and commit the lockfile."
+  exit 1
+fi
+
+SUPUBLICEDKEY="$(ruby -e 'require \"yaml\"; puts YAML.load_file(\"project.yml\").dig(\"targets\", \"Quixote\", \"info\", \"properties\", \"SUPublicEDKey\")')"
+if [ -z "$SUPUBLICEDKEY" ] || [ "$SUPUBLICEDKEY" = "REPLACE_WITH_YOUR_PUBLIC_ED_KEY" ]; then
+  echo "ERROR: SUPublicEDKey in project.yml is not configured."
+  exit 1
+fi
+
+if ! grep -q "^## \\[$VERSION\\]" CHANGELOG.md; then
+  echo "ERROR: CHANGELOG.md is missing a section for version $VERSION."
+  exit 1
+fi
+
+: "${SPARKLE_PRIVATE_KEY_PATH:?ERROR: SPARKLE_PRIVATE_KEY_PATH not set in .env}"
+if [ ! -f "$SPARKLE_PRIVATE_KEY_PATH" ]; then
+  echo "ERROR: SPARKLE_PRIVATE_KEY_PATH does not point to a file: $SPARKLE_PRIVATE_KEY_PATH"
+  exit 1
+fi
 
 mkdir -p "$BUILD_DIR"
 rm -rf "$ARCHIVE_PATH" "$EXPORT_DIR" "$DMG_PATH"
@@ -195,13 +220,7 @@ xcrun notarytool submit "$DMG_PATH" \
 echo "▶ Stapling..."
 xcrun stapler staple "$DMG_PATH"
 
-# ── 8. Tag and push ──────────────────────────────────────────────────────────
-
-echo "▶ Tagging v${VERSION}..."
-git tag "v${VERSION}"
-git push origin "v${VERSION}"
-
-# ── 9. Generate appcast ──────────────────────────────────────────────────────
+# ── 8. Generate appcast ──────────────────────────────────────────────────────
 
 echo "▶ Generating appcast..."
 APPCAST_DIR="$REPO_ROOT/site/public"
@@ -215,15 +234,20 @@ if [ -z "$GENERATE_APPCAST" ]; then
 fi
 
 "$GENERATE_APPCAST" \
-  --download-url-prefix "https://github.com/c0/quixote-swift/releases/download/v${VERSION}/" \
-  -o "$APPCAST_DIR/appcast.xml" \
+  --ed-key-file "$SPARKLE_PRIVATE_KEY_PATH" \
+  --download-url-prefix "https://github.com/${REPO_SLUG}/releases/download/v${VERSION}/" \
+  --link "https://github.com/${REPO_SLUG}" \
+  -o "$APPCAST_PATH" \
   "$BUILD_DIR"
 
-git add "$APPCAST_DIR/appcast.xml" project.yml Quixote.xcodeproj/project.pbxproj site/src/pages/index.astro
+git add "$APPCAST_PATH" project.yml Quixote.xcodeproj/project.pbxproj site/src/pages/index.astro
 git commit -m "chore: update appcast for v${VERSION}"
-git push origin main
 
-# ── 10. Create GitHub Release ────────────────────────────────────────────────
+# ── 9. Tag and publish release ───────────────────────────────────────────────
+
+echo "▶ Tagging v${VERSION}..."
+git tag "v${VERSION}"
+git push origin "v${VERSION}"
 
 echo "▶ Creating GitHub Release..."
 
@@ -233,8 +257,10 @@ gh release create "v${VERSION}" "$DMG_PATH" \
   --title "v${VERSION}" \
   --notes "$NOTES"
 
+git push origin main
+
 echo ""
 echo "✓ Released v${VERSION}"
 echo "  DMG:     $DMG_PATH"
 echo "  Tag:     v${VERSION}"
-echo "  Appcast: https://c0.github.io/quixote-swift/appcast.xml"
+echo "  Appcast: ${PAGES_BASE_URL}/appcast.xml"
