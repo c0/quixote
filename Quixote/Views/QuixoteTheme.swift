@@ -88,6 +88,8 @@ struct QuixoteSecondaryButtonStyle: ButtonStyle {
 }
 
 struct QuixoteChip: View {
+    private static let maxTextWidth: CGFloat = 220
+
     let text: String
     var actionIcon: String? = nil
     var tint: Color = .quixoteTextPrimary
@@ -98,6 +100,9 @@ struct QuixoteChip: View {
             Text(text)
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .foregroundStyle(tint)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: Self.maxTextWidth, alignment: .leading)
 
             if let actionIcon {
                 Image(systemName: actionIcon)

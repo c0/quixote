@@ -1,0 +1,197 @@
+<div class="dither-background" aria-hidden="true">
+  <canvas class="dither-canvas" data-dither-canvas></canvas>
+  <div class="dither-vignette"></div>
+</div>
+
+<style>
+  .dither-background {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background: #030405;
+  }
+
+  .dither-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    opacity: 0.98;
+  }
+
+  .dither-vignette {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 54% 46%, rgba(6, 7, 9, 0) 0%, rgba(6, 7, 9, 0.08) 42%, rgba(3, 4, 5, 0.44) 78%, rgba(2, 3, 4, 0.72) 100%),
+      linear-gradient(180deg, rgba(3, 4, 5, 0.08) 0%, rgba(3, 4, 5, 0.2) 100%);
+  }
+</style>
+
+<script is:inline>
+  (() => {
+    const canvas = document.querySelector("[data-dither-canvas]");
+    if (!(canvas instanceof HTMLCanvasElement)) return;
+
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) return;
+    const bufferCanvas = document.createElement("canvas");
+    const bufferContext = bufferCanvas.getContext("2d", { alpha: false });
+    if (!bufferContext) return;
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const bayer4 = [
+      [0, 8, 2, 10],
+      [12, 4, 14, 6],
+      [3, 11, 1, 9],
+      [15, 7, 13, 5],
+    ];
+    const palette = [
+      [4, 5, 7],
+      [12, 14, 18],
+      [22, 26, 31],
+      [36, 41, 47],
+      [58, 65, 74],
+      [132, 140, 150],
+    ];
+
+    let animationFrame = 0;
+    let width = 0;
+    let height = 0;
+    let cellSize = 9;
+    let columns = 0;
+    let rows = 0;
+    let imageData = null;
+    let data = null;
+    let lastFrameMs = 0;
+    const targetFrameMs = 1000 / 12;
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function smoothstep(edge0, edge1, x) {
+      const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+
+    function gaussian(nx, ny, cx, cy, rx, ry) {
+      const dx = (nx - cx) / rx;
+      const dy = (ny - cy) / ry;
+      return Math.exp(-(dx * dx + dy * dy));
+    }
+
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      cellSize = width < 720 ? 1 : 1.25;
+      columns = Math.ceil(width / cellSize);
+      rows = Math.ceil(height / cellSize);
+
+      canvas.width = width;
+      canvas.height = height;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.imageSmoothingEnabled = false;
+
+      bufferCanvas.width = columns;
+      bufferCanvas.height = rows;
+      bufferContext.imageSmoothingEnabled = false;
+      imageData = bufferContext.createImageData(columns, rows);
+      data = imageData.data;
+    }
+
+    function fieldAt(nx, ny, time) {
+      const driftX = time * 0.018;
+      const driftY = time * 0.011;
+
+      const waveA = Math.sin((nx + driftX) * 6.2 + Math.sin((ny + driftY) * 2.4) * 0.8);
+      const waveB = Math.cos((ny - driftY) * 5.1 - Math.cos((nx - driftX) * 2.7) * 1.1);
+      const waveC = Math.sin((nx + ny) * 4.1 - time * 0.014);
+      const waveD = Math.cos((nx * 1.8 - ny * 1.25) * 5.6 + time * 0.01);
+
+      const ridgeA = gaussian(nx, ny, 0.2, 0.34, 0.28, 0.22);
+      const ridgeB = gaussian(nx, ny, 0.54 + Math.sin(time * 0.01) * 0.02, 0.56, 0.34, 0.26);
+      const ridgeC = gaussian(nx, ny, 0.84, 0.44 + Math.cos(time * 0.008) * 0.015, 0.24, 0.22);
+      const ridgeD = gaussian(nx, ny, 0.66, 0.8, 0.38, 0.18);
+
+      const broadMass = ridgeA * 0.54 + ridgeB * 0.72 + ridgeC * 0.48 + ridgeD * 0.4;
+      const banding = waveA * 0.16 + waveB * 0.13 + waveC * 0.11 + waveD * 0.09;
+
+      const distanceX = (nx - 0.52) / 1.12;
+      const distanceY = (ny - 0.5) / 1.08;
+      const vignette = clamp(1 - Math.sqrt(distanceX * distanceX + distanceY * distanceY), 0, 1);
+
+      const horizonBias = smoothstep(0.04, 0.92, 1 - Math.abs(ny - 0.55) * 1.25) * 0.24;
+      const floor = 0.18;
+      const value = floor + broadMass * 0.82 + banding * 0.72 + horizonBias;
+      return clamp(value + smoothstep(0.02, 0.98, vignette) * 0.16, 0, 1);
+    }
+
+    function toneIndex(field, x, y) {
+      const threshold = (bayer4[y % 4][x % 4] + 0.5) / 16 - 0.5;
+      const quantized = field * 3.05 + threshold * 0.38;
+      let index = Math.round(quantized);
+      index = clamp(index, 0, palette.length - 2);
+
+      if (field > 0.985 && ((x + y) % 17 === 0 || bayer4[y % 4][x % 4] === 0)) {
+        index = palette.length - 1;
+      }
+
+      return index;
+    }
+
+    function render(timeMs) {
+      if (!reduceMotion.matches && timeMs - lastFrameMs < targetFrameMs) {
+        animationFrame = window.requestAnimationFrame(render);
+        return;
+      }
+
+      lastFrameMs = timeMs;
+      const time = timeMs * 0.001;
+
+      for (let y = 0; y < rows; y += 1) {
+        for (let x = 0; x < columns; x += 1) {
+          const nx = columns <= 1 ? 0 : x / (columns - 1);
+          const ny = rows <= 1 ? 0 : y / (rows - 1);
+          const field = fieldAt(nx, ny, time);
+          const tone = palette[toneIndex(field, x, y)];
+          const offset = (y * columns + x) * 4;
+          data[offset] = tone[0];
+          data[offset + 1] = tone[1];
+          data[offset + 2] = tone[2];
+          data[offset + 3] = 255;
+        }
+      }
+
+      bufferContext.putImageData(imageData, 0, 0);
+      context.clearRect(0, 0, width, height);
+      context.drawImage(bufferCanvas, 0, 0, width, height);
+
+      if (!reduceMotion.matches) {
+        animationFrame = window.requestAnimationFrame(render);
+      }
+    }
+
+    function restart() {
+      window.cancelAnimationFrame(animationFrame);
+      resize();
+      render(performance.now());
+    }
+
+    const handleMotionChange = () => restart();
+    const handleResize = () => restart();
+
+    resize();
+    render(performance.now());
+
+    window.addEventListener("resize", handleResize, { passive: true });
+    reduceMotion.addEventListener("change", handleMotionChange);
+  })();
+</script>
