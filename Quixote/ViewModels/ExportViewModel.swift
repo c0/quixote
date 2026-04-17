@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import UniformTypeIdentifiers
 
 @MainActor
 final class ExportViewModel: ObservableObject {
@@ -19,21 +20,19 @@ final class ExportViewModel: ObservableObject {
 
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.commaSeparatedText]
-        panel.nameFieldStringValue = suggestedName.isEmpty
-            ? "export_enriched.csv"
-            : "\(suggestedName)_enriched.csv"
-        panel.prompt = "Export"
-        panel.message = "Save enriched CSV"
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.nameFieldStringValue = suggestedFilename(for: suggestedName)
+        panel.prompt = "Save"
+        panel.message = "Save results as CSV"
+        panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+
+        NSApp.activate(ignoringOtherApps: true)
 
         guard panel.runModal() == .OK, let url = panel.url else {
             return
         }
-
-        do {
-            try csv.write(to: url, atomically: true, encoding: .utf8)
-        } catch {
-            // Surface via alert in a future pass; for now silently fail
-        }
+        write(csv: csv, to: url)
     }
 
     // MARK: - CSV building
@@ -83,5 +82,31 @@ final class ExportViewModel: ObservableObject {
             || value.contains("\n") || value.contains("\r")
         guard needsQuoting else { return value }
         return "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
+
+    private func suggestedFilename(for suggestedName: String) -> String {
+        let trimmed = suggestedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "export.csv" }
+        let ext = URL(fileURLWithPath: trimmed).pathExtension
+        if ext.caseInsensitiveCompare("csv") == .orderedSame {
+            return trimmed
+        }
+        let base = URL(fileURLWithPath: trimmed).deletingPathExtension().lastPathComponent
+        return "\(base).csv"
+    }
+
+    private func write(csv: String, to url: URL) {
+        let destinationURL: URL
+        if url.pathExtension.isEmpty {
+            destinationURL = url.appendingPathExtension(for: .commaSeparatedText)
+        } else {
+            destinationURL = url
+        }
+
+        do {
+            try csv.write(to: destinationURL, atomically: true, encoding: .utf8)
+        } catch {
+            NSSound.beep()
+        }
     }
 }
