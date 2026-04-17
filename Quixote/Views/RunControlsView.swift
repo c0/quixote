@@ -50,35 +50,6 @@ struct RunControlsView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            statusCluster
-
-            QuixotePaneDivider()
-                .frame(height: 28)
-
-            if prompts.count > 1 {
-                Picker("", selection: $runScope) {
-                    Text("Selected").tag(RunScope.selected)
-                    Text("All").tag(RunScope.all)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 156)
-                .colorScheme(.dark)
-            }
-
-            Picker("", selection: $rowLimit) {
-                Text("All rows").tag(RowLimit.all)
-                Text("First 10").tag(RowLimit.first(10))
-                Text("First 50").tag(RowLimit.first(50))
-                Text("First 100").tag(RowLimit.first(100))
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .tint(Color.quixoteTextPrimary)
-
-            Text(batchSummary)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(Color.quixoteTextSecondary)
-
             Spacer(minLength: 12)
 
             if apiKey.isEmpty {
@@ -99,16 +70,6 @@ struct RunControlsView: View {
         .background(Color.quixotePanel)
         .overlay(alignment: .top) {
             QuixoteRowDivider()
-        }
-    }
-
-    private var statusCluster: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(selectedModelsLabel)
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                .foregroundStyle(Color.quixoteTextPrimary)
-
-            progressSection
         }
     }
 
@@ -147,80 +108,93 @@ struct RunControlsView: View {
                             concurrency: settings.concurrency,
                             rateLimit: Double(settings.rateLimit)
                         )
-                    }
+                }
                     .buttonStyle(QuixoteSecondaryButtonStyle())
                 }
 
-                Button {
-                    processing.startRun(
-                        prompts: promptsToRun,
-                        rows: rowsToProcess,
-                        columns: columns,
-                        models: selectedModels,
-                        apiKey: apiKey,
-                        concurrency: settings.concurrency,
-                        rateLimit: Double(settings.rateLimit),
-                        maxRetries: settings.maxRetries
-                    )
+                splitRunButton
+            }
+        }
+    }
+
+    private var runAction: () -> Void {
+        {
+            processing.startRun(
+                prompts: promptsToRun,
+                rows: rowsToProcess,
+                columns: columns,
+                models: selectedModels,
+                apiKey: apiKey,
+                concurrency: settings.concurrency,
+                rateLimit: Double(settings.rateLimit),
+                maxRetries: settings.maxRetries
+            )
+        }
+    }
+
+    private var splitRunButton: some View {
+        let caretSegmentWidth: CGFloat = 48
+
+        return HStack(spacing: 0) {
+            Button(action: runAction) {
+                Label("RUN", systemImage: "play")
+                    .font(.system(size: 13, weight: .bold))
+                    .tracking(1.2)
+                    .foregroundStyle(Color.white)
+                    .frame(minWidth: 92)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 13)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            ZStack {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .frame(width: caretSegmentWidth, height: 46)
+
+                Menu {
+                    Picker("Rows", selection: $rowLimit) {
+                        Text("All rows").tag(RowLimit.all)
+                        Text("First 10").tag(RowLimit.first(10))
+                        Text("First 50").tag(RowLimit.first(50))
+                        Text("First 100").tag(RowLimit.first(100))
+                    }
                 } label: {
-                    Label("RUN", systemImage: "play")
+                    Color.clear
                 }
-                .buttonStyle(QuixotePrimaryButtonStyle())
-                .disabled(!canRun)
-                .opacity(canRun ? 1 : 0.5)
+                .frame(width: caretSegmentWidth, height: 46)
+                .frame(width: caretSegmentWidth, height: 46)
+                .contentShape(Rectangle())
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Row limit")
             }
         }
-    }
-
-    @ViewBuilder
-    private var progressSection: some View {
-        switch processing.runState {
-        case .idle:
-            Text("idle")
-                .font(.caption)
-                .foregroundStyle(Color.quixoteTextSecondary)
-        case .running(let done, let total):
-            HStack(spacing: 8) {
-                ProgressView(value: Double(done), total: Double(total))
-                    .frame(width: 96)
-                    .tint(Color.quixoteBlue)
-                Text("\(done)/\(total)")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(Color.quixoteTextSecondary)
-            }
-        case .paused(let done, let total):
-            HStack(spacing: 8) {
-                ProgressView(value: Double(done), total: Double(total))
-                    .frame(width: 96)
-                    .tint(Color.quixoteOrange)
-                Image(systemName: "pause.fill")
-                    .font(.caption2)
-                    .foregroundStyle(Color.quixoteOrange)
-                Text("\(done)/\(total)")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(Color.quixoteTextSecondary)
-            }
-        case .completed(let total):
-            Label("\(total) done", systemImage: "checkmark.circle.fill")
-                .font(.caption)
-                .foregroundStyle(Color.quixoteGreen)
-        case .failed(let msg):
-            Label(msg, systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundStyle(Color.quixoteRed)
-                .lineLimit(1)
+        .background(
+            RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
+                .fill(Color.quixoteBlue)
+                .overlay(alignment: .center) {
+                    HStack {
+                        Spacer()
+                        Rectangle()
+                            .fill(Color.white.opacity(0.10))
+                            .frame(width: 1)
+                            .padding(.vertical, 12)
+                            .offset(x: -caretSegmentWidth)
+                    }
+                }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
+                .stroke(Color.white.opacity(0.04), lineWidth: 1)
         }
-    }
-
-    private var selectedModelsLabel: String {
-        if selectedModels.isEmpty { return "no model selected" }
-        if selectedModels.count == 1 { return selectedModels[0].displayName.lowercased() }
-        return "\(selectedModels.count) models selected"
-    }
-
-    private var batchSummary: String {
-        let batchCount = promptsToRun.count * rowsToProcess.count * selectedModels.count
-        return "\(batchCount) jobs"
+        .disabled(!canRun)
+        .opacity(canRun ? 1 : 0.5)
+        .accessibilityElement(children: .contain)
     }
 }
 
