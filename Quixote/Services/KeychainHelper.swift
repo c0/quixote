@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 enum KeychainHelper {
-    private static let service = Bundle.main.bundleIdentifier ?? "com.c0.quixote-swift"
+    private static let service = Bundle.main.bundleIdentifier ?? "com.c0.quixote"
 
     static func save(_ value: String, for key: String) {
         guard let data = value.data(using: .utf8) else { return }

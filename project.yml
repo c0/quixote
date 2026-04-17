@@ -25,7 +25,7 @@ targets:
     settings:
       base:
         PRODUCT_NAME: "Quixote"
-        PRODUCT_BUNDLE_IDENTIFIER: com.c0.quixote-swift
+        PRODUCT_BUNDLE_IDENTIFIER: com.c0.quixote
         SWIFT_VERSION: "5.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
@@ -49,11 +49,11 @@ targets:
         LSMinimumSystemVersion: "14.0"
         NSPrincipalClass: NSApplication
         NSHighResolutionCapable: true
-        SUFeedURL: "https://c0.github.io/quixote-swift/appcast.xml"
-        SUPublicEDKey: "REPLACE_WITH_YOUR_PUBLIC_ED_KEY"
+        SUFeedURL: "https://c0.github.io/quixote/appcast.xml"
+        SUPublicEDKey: "w54moWKzPLbV7kXiRz0jAOueJglfLBhuuigk5hAYIBs="
         CFBundleURLTypes:
           - CFBundleURLSchemes:
-              - quixote-swift
+              - quixote
     dependencies:
       - package: Sparkle
       - package: CoreXLSX

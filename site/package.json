@@ -1,5 +1,5 @@
 {
-  "name": "quixote-swift-site",
+  "name": "quixote-site",
   "type": "module",
   "scripts": {
     "dev": "astro dev",
