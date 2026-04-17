@@ -1,12 +1,15 @@
 import SwiftUI
 
 private enum DataTableMetrics {
+    static let indexColumnWidth: CGFloat = 52
+    static let dividerWidth: CGFloat = 1
     static let sourceColumnMinWidth: CGFloat = 122
     static let sourceColumnMaxWidth: CGFloat = 188
     static let singleResultColumnMinWidth: CGFloat = 300
     static let singleResultColumnMaxWidth: CGFloat = 460
     static let multiResultColumnMinWidth: CGFloat = 232
     static let multiResultColumnMaxWidth: CGFloat = 320
+    static let cellHorizontalPadding: CGFloat = 20
 }
 
 struct DataTableView: View {
@@ -74,14 +77,7 @@ struct DataTableView: View {
                     LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
                         Section {
                             ForEach(viewModel.visibleRows) { row in
-                                DataRowView(
-                                    row: row,
-                                    columns: viewModel.columns,
-                                    resultColumns: visibleResultColumns,
-                                    getResult: { results.result(for: row.id, column: $0) },
-                                    onRetry: { col in onRetry?(row.id, col.promptID, col.modelConfigID) }
-                                )
-                                .background(row.index % 2 == 0 ? Color.clear : Color.quixotePanelRaised.opacity(0.45))
+                                rowView(for: row)
                             }
                         } header: {
                             DataHeaderView(
@@ -90,11 +86,8 @@ struct DataTableView: View {
                             )
                         }
                     }
-                    .frame(
-                        minWidth: proxy.size.width,
-                        minHeight: proxy.size.height,
-                        alignment: .topLeading
-                    )
+                    .frame(width: max(tableContentWidth, proxy.size.width), alignment: .topLeading)
+                    .frame(minHeight: proxy.size.height, alignment: .topLeading)
                 }
                 .scrollClipDisabled()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -113,6 +106,48 @@ struct DataTableView: View {
         let filtered = results.columns(for: selectedPromptID)
         return filtered.isEmpty ? results.columns : filtered
     }
+
+    private var tableContentWidth: CGFloat {
+        let dividerCount = 1 + viewModel.columns.count + visibleResultColumns.count
+        let indexColumnWidth = DataTableMetrics.indexColumnWidth + DataTableMetrics.cellHorizontalPadding
+        let sourceColumnsWidth = CGFloat(viewModel.columns.count) * sourceColumnWidth
+        let resultColumnsWidth = CGFloat(visibleResultColumns.count) * resultColumnWidth
+        return indexColumnWidth
+            + sourceColumnsWidth
+            + resultColumnsWidth
+            + CGFloat(dividerCount) * DataTableMetrics.dividerWidth
+    }
+
+    private var sourceColumnWidth: CGFloat {
+        DataTableMetrics.sourceColumnMaxWidth + DataTableMetrics.cellHorizontalPadding
+    }
+
+    private var resultColumnWidth: CGFloat {
+        let baseWidth = visibleResultColumns.count > 1
+            ? DataTableMetrics.multiResultColumnMaxWidth
+            : DataTableMetrics.singleResultColumnMaxWidth
+        return baseWidth + DataTableMetrics.cellHorizontalPadding
+    }
+
+    private func rowView(for row: Row) -> some View {
+        let rowColumns = visibleResultColumns
+        let retryHandler: ((ResultsViewModel.ResultColumn) -> Void)? = onRetry.map { retry in
+            { column in
+                retry(row.id, column.promptID, column.modelConfigID)
+            }
+        }
+
+        return DataRowView(
+            row: row,
+            columns: viewModel.columns,
+            resultColumns: rowColumns,
+            getResult: { column in
+                results.result(for: row.id, column: column)
+            },
+            onRetry: retryHandler
+        )
+        .background(row.index.isMultiple(of: 2) ? Color.clear : Color.quixotePanelRaised.opacity(0.45))
+    }
 }
 
 struct DataHeaderView: View {
@@ -121,14 +156,17 @@ struct DataHeaderView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            headerCell("#", width: 52, alignment: .trailing)
+            headerCell(
+                "#",
+                width: DataTableMetrics.indexColumnWidth + DataTableMetrics.cellHorizontalPadding,
+                alignment: .trailing
+            )
             gridDivider
 
             ForEach(columns) { column in
                 headerCell(
                     column.name.uppercased(),
-                    minWidth: DataTableMetrics.sourceColumnMinWidth,
-                    maxWidth: DataTableMetrics.sourceColumnMaxWidth
+                    width: sourceColumnWidth
                 )
                 gridDivider
             }
@@ -144,15 +182,12 @@ struct DataHeaderView: View {
     private func headerCell(
         _ text: String,
         width: CGFloat? = nil,
-        minWidth: CGFloat? = nil,
-        maxWidth: CGFloat? = nil,
         alignment: Alignment = .leading
     ) -> some View {
         Text(text)
-            .frame(width: width, alignment: alignment)
-            .frame(minWidth: minWidth, maxWidth: maxWidth, alignment: alignment)
             .padding(.horizontal, 10)
             .padding(.vertical, 10)
+            .frame(width: width, alignment: alignment)
             .font(.system(size: 11, weight: .semibold, design: .monospaced))
             .tracking(1.2)
             .foregroundStyle(Color.quixoteTextSecondary)
@@ -173,13 +208,9 @@ struct DataHeaderView: View {
                 .foregroundStyle(Color.quixoteTextSecondary)
                 .lineLimit(1)
         }
-        .frame(
-            minWidth: resultColumnMinWidth,
-            maxWidth: resultColumnMaxWidth,
-            alignment: .leading
-        )
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
+        .frame(width: resultColumnWidth, alignment: .leading)
 
         header
     }
@@ -187,15 +218,18 @@ struct DataHeaderView: View {
     private var gridDivider: some View {
         Rectangle()
             .fill(Color.quixoteDivider)
-            .frame(width: 1)
+            .frame(width: DataTableMetrics.dividerWidth)
     }
 
-    private var resultColumnMinWidth: CGFloat {
-        resultColumns.count > 1 ? DataTableMetrics.multiResultColumnMinWidth : DataTableMetrics.singleResultColumnMinWidth
+    private var sourceColumnWidth: CGFloat {
+        DataTableMetrics.sourceColumnMaxWidth + DataTableMetrics.cellHorizontalPadding
     }
 
-    private var resultColumnMaxWidth: CGFloat {
-        resultColumns.count > 1 ? DataTableMetrics.multiResultColumnMaxWidth : DataTableMetrics.singleResultColumnMaxWidth
+    private var resultColumnWidth: CGFloat {
+        let baseWidth = resultColumns.count > 1
+            ? DataTableMetrics.multiResultColumnMaxWidth
+            : DataTableMetrics.singleResultColumnMaxWidth
+        return baseWidth + DataTableMetrics.cellHorizontalPadding
     }
 }
 
@@ -209,20 +243,16 @@ struct DataRowView: View {
     var body: some View {
         HStack(spacing: 0) {
             Text("\(row.index + 1)")
-                .frame(width: 52, alignment: .trailing)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
+                .frame(width: DataTableMetrics.indexColumnWidth + DataTableMetrics.cellHorizontalPadding, alignment: .trailing)
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(Color.quixoteTextMuted)
             gridDivider
 
             ForEach(columns) { column in
                 SourceCell(value: row.values[column.name] ?? "")
-                    .frame(
-                        minWidth: DataTableMetrics.sourceColumnMinWidth,
-                        maxWidth: DataTableMetrics.sourceColumnMaxWidth,
-                        alignment: .leading
-                    )
+                    .frame(width: sourceColumnWidth, alignment: .leading)
                 gridDivider
             }
 
@@ -231,13 +261,9 @@ struct DataRowView: View {
                     result: getResult(col),
                     onRetry: onRetry.map { fn in { fn(col) } }
                 )
-                .frame(
-                    minWidth: resultColumnMinWidth,
-                    maxWidth: resultColumnMaxWidth,
-                    alignment: .leading
-                )
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
+                .frame(width: resultColumnWidth, alignment: .leading)
                 gridDivider
             }
         }
@@ -249,15 +275,18 @@ struct DataRowView: View {
     private var gridDivider: some View {
         Rectangle()
             .fill(Color.quixoteDivider)
-            .frame(width: 1)
+            .frame(width: DataTableMetrics.dividerWidth)
     }
 
-    private var resultColumnMinWidth: CGFloat {
-        resultColumns.count > 1 ? DataTableMetrics.multiResultColumnMinWidth : DataTableMetrics.singleResultColumnMinWidth
+    private var sourceColumnWidth: CGFloat {
+        DataTableMetrics.sourceColumnMaxWidth + DataTableMetrics.cellHorizontalPadding
     }
 
-    private var resultColumnMaxWidth: CGFloat {
-        resultColumns.count > 1 ? DataTableMetrics.multiResultColumnMaxWidth : DataTableMetrics.singleResultColumnMaxWidth
+    private var resultColumnWidth: CGFloat {
+        let baseWidth = resultColumns.count > 1
+            ? DataTableMetrics.multiResultColumnMaxWidth
+            : DataTableMetrics.singleResultColumnMaxWidth
+        return baseWidth + DataTableMetrics.cellHorizontalPadding
     }
 }
 
