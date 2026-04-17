@@ -32,7 +32,7 @@ The core loop is:
 
 1. Open a file (CSV to start; extensible to any tabular format).
 2. Write one or more prompts that reference column values.
-3. Select one or more models.
+3. Configure one or more per-file model boxes.
 4. Run — the app processes every row in the background.
 5. Export the enriched file.
 
@@ -51,10 +51,11 @@ The app follows strict MVVM. Views hold no business logic. ViewModels expose `@P
 | `ColumnDef` | `id: UUID`, `fileID: UUID`, `name: String`, `index: Int` |
 | `Row` | `id: UUID`, `fileID: UUID`, `index: Int`, `values: [String: String]` |
 | `Prompt` | `id: UUID`, `fileID: UUID`, `name: String`, `template: String`, `parameters: LLMParameters`, `createdAt: Date`, `updatedAt: Date` |
-| `LLMParameters` | `temperature: Double`, `maxTokens: Int?`, `topP: Double`, `frequencyPenalty: Double`, `presencePenalty: Double` |
-| `ModelConfig` | `id: String`, `displayName: String`, `provider: LLMProvider` |
-| `ProcessingRun` | `id: UUID`, `promptID: UUID`, `modelID: String`, `status: RunStatus`, `startedAt: Date`, `completedAt: Date?` |
-| `PromptResult` | `id: UUID`, `runID: UUID`, `rowID: UUID`, `promptID: UUID`, `modelID: String`, `responseText: String?`, `status: ResultStatus`, `tokenUsage: TokenUsage?`, `costUSD: Double?`, `durationMs: Int?`, `cosineSimilarity: Double?` |
+| `LLMParameters` | `temperature: Double`, `maxTokens: Int?`, `topP: Double`, `reasoningEffort: ReasoningEffort?` |
+| `ModelConfig` | `id: String`, `displayName: String`, `provider: LLMProvider`, `supportedReasoningLevels: [ReasoningEffort]` |
+| `FileModelConfig` | `id: UUID`, `fileID: UUID`, `modelID: String`, `parameters: LLMParameters` |
+| `ProcessingRun` | `id: UUID`, `promptID: UUID`, `modelID: String`, `modelConfigID: UUID?`, `status: RunStatus`, `startedAt: Date`, `completedAt: Date?` |
+| `PromptResult` | `id: UUID`, `runID: UUID`, `rowID: UUID`, `promptID: UUID`, `modelID: String`, `modelConfigID: UUID?`, `responseText: String?`, `status: ResultStatus`, `tokenUsage: TokenUsage?`, `costUSD: Double?`, `durationMs: Int?`, `cosineSimilarity: Double?` |
 | `TokenUsage` | `input: Int`, `output: Int`, `total: Int` |
 | `AppSettings` | `concurrency: Int`, `rateLimit: Int`, `maxRetries: Int`, `requestTimeout: Int?`, `showExtrapolation: Bool`, `extrapolationScale: ExtrapolationScale` |
 
@@ -74,7 +75,8 @@ Concrete implementations: `CSVParser: FileParser`, `OpenAIService: LLMService`.
 | `WorkspaceViewModel` | Open/close/select files, detect type, route to parser, persist workspace |
 | `DataPreviewViewModel` | Pagination, sorting, row selection |
 | `PromptListViewModel` | CRUD on prompts for current file, prompt selection, ordering |
-| `PromptEditorViewModel` | Template editing, column interpolation preview, parameter editing |
+| `PromptEditorViewModel` | Template editing, column interpolation preview, legacy prompt parameter migration |
+| `FileModelConfigsViewModel` | Persist file-level model boxes, mutate per-box settings, enforce at least one box |
 | `ProcessingViewModel` | Start/pause/resume/cancel runs, async queue, concurrency + rate limits |
 | `ResultsViewModel` | Aggregate results across prompts and models into display columns |
 | `StatsViewModel` | Per-model per-prompt statistics, extrapolation |
@@ -90,7 +92,7 @@ Concrete implementations: `CSVParser: FileParser`, `OpenAIService: LLMService`.
 | `FileDetailView` | — | Container: data table + prompt list + run controls + results |
 | `DataTableView` | `DataPreviewViewModel` | Scrollable table of rows, status indicators, result columns |
 | `PromptListView` | `PromptListViewModel` | List of prompts per file, add/delete/rename/reorder |
-| `PromptEditorView` | `PromptEditorViewModel` | Text editor, column token insertion, parameter controls |
+| `PromptEditorView` | `PromptEditorViewModel` | Text editor, column token insertion, per-file model box controls |
 | `RunControlsView` | `ProcessingViewModel` | Start/pause/resume/cancel, progress bar, row count selector |
 | `StatsPanel` | `StatsViewModel` | Per-model stats, extrapolation toggle |
 | `SettingsWindow` | `SettingsViewModel` | Separate window: API keys, processing params, data management |
@@ -133,8 +135,7 @@ erDiagram
         Double temperature
         Int maxTokens
         Double topP
-        Double frequencyPenalty
-        Double presencePenalty
+        String reasoningEffort
         Date createdAt
         Date updatedAt
     }
@@ -143,12 +144,24 @@ erDiagram
         String id PK
         String displayName
         String provider
+        String supportedReasoningLevels
+    }
+
+    FileModelConfig {
+        UUID id PK
+        UUID fileID FK
+        String modelID FK
+        Double temperature
+        Int maxTokens
+        Double topP
+        String reasoningEffort
     }
 
     ProcessingRun {
         UUID id PK
         UUID promptID FK
         String modelID FK
+        UUID modelConfigID FK
         String status
         Date startedAt
         Date completedAt
@@ -160,6 +173,7 @@ erDiagram
         UUID rowID FK
         UUID promptID FK
         String modelID FK
+        UUID modelConfigID FK
         String responseText
         String status
         Int inputTokens
@@ -172,8 +186,10 @@ erDiagram
     WorkspaceFile ||--o{ ColumnDef : "has columns"
     WorkspaceFile ||--o{ Row : "has rows"
     WorkspaceFile ||--o{ Prompt : "has prompts"
+    WorkspaceFile ||--o{ FileModelConfig : "has model boxes"
     Prompt ||--o{ ProcessingRun : "executed as"
     ModelConfig ||--o{ ProcessingRun : "used in"
+    ModelConfig ||--o{ FileModelConfig : "selected by"
     ProcessingRun ||--o{ PromptResult : "produces"
     Row ||--o{ PromptResult : "receives"
     Prompt ||--o{ PromptResult : "generates"
@@ -196,7 +212,7 @@ flowchart TD
     H --> I[User creates or selects a Prompt]
     I --> J[PromptEditorViewModel]
     J --> K[User writes template with column interpolation]
-    K --> L[User selects model and clicks Run]
+    K --> L[User configures model boxes and clicks Run]
 
     L --> M[ProcessingViewModel]
     M --> N[Expand prompt per row via interpolation engine]
@@ -279,7 +295,7 @@ No multi-model, no statistics, no cosine similarity, no queue persistence, no se
 | Phase | Feature | Depends On |
 |---|---|---|
 | **AO-1** | [DONE] Multiple prompts per file — `PromptListView`, full `PromptListViewModel`, per-prompt result columns, per-prompt export columns | CP-2 |
-| **AO-2** | [DONE] Multi-model selection — model list from API, multi-select UI, N×M request queue, per-model result columns | CP-3 |
+| **AO-2** | [DONE] File-level multi-model boxes — model list from API, per-file model-box UI, N×M request queue, per-model-box result columns | CP-3 |
 | **AO-3** | [DONE] Pause / resume / cancel — queue state management, state-dependent button labels | CP-3 |
 | **AO-4** | [DONE] Retry logic — auto-retry with configurable max, per-row retry button, "retry all failed" | CP-3 |
 | **AO-5** | [DONE] Settings window + Keychain — `SettingsViewModel`, `SettingsWindow`, API key in Keychain, processing params, validate on save | no hard dep |
@@ -383,17 +399,23 @@ Detection happens once per file open and is not user-configurable (no override U
 - Prompts are restored when the file is re-selected or the app is relaunched.
 - Changing a prompt does not automatically re-run completed rows.
 
-### 9.4 LLM Parameters
+### 9.4 File-Level Model Box Parameters
 
-Each prompt has its own independently configurable parameters:
+Each file owns one or more model boxes. Each box targets exactly one model and has its own independently configurable parameters shared across prompts in that file:
 
 | Parameter | Default | Description |
 |---|---|---|
-| Temperature | 1.0 | Response randomness |
+| Temp | 1.0 | Response randomness |
 | Max tokens | — | Maximum output length |
 | Top-P | 1.0 | Nucleus sampling |
-| Frequency penalty | 0.0 | Penalizes repeated tokens |
-| Presence penalty | 0.0 | Penalizes new topic introduction |
+| Reasoning level | Default | Model-aware reasoning effort when supported |
+
+- The `MODEL` section renders one box per file-level model config.
+- Clicking `+` beside `MODEL` adds a new box after the user picks a model.
+- Clicking a model title changes only that box's model.
+- Each box has its own hidden advanced settings panel.
+- Boxes can be removed with a trash action, but the last remaining box cannot be deleted.
+- Duplicate models are allowed and are disambiguated in results.
 
 ---
 
@@ -405,12 +427,13 @@ Each prompt has its own independently configurable parameters:
 - Models are grouped by family and sorted newest-first.
 - The list refreshes when the API key changes.
 
-### 10.2 Multi-Model Selection (AO-2)
+### 10.2 File-Level Model Boxes (AO-2)
 
-- The user can select one or more models simultaneously.
-- When multiple models are selected, every row is sent to each model independently.
-- This enables direct model comparison on the same data with the same prompt.
-- The model selection is persisted across sessions.
+- Each open file owns its own list of model boxes.
+- Each model box represents one chosen model plus independent settings.
+- When multiple boxes exist, every row is sent to each box independently.
+- This enables direct model comparison, including duplicate runs of the same model with different settings.
+- Model boxes are persisted per file across sessions.
 
 ---
 
@@ -424,14 +447,14 @@ Prompt scopes:
 
 | Scope | Description |
 |---|---|
-| **Selected prompt** | Sends rows to the currently selected prompt across the selected model(s) |
-| **All prompts** | Sends rows to every prompt for the current file across the selected model(s) |
+| **Selected prompt** | Sends rows to the currently selected prompt across the current file's model box(es) |
+| **All prompts** | Sends rows to every prompt for the current file across the current file's model box(es) |
 
 Row modes:
 
 | Mode | Description |
 |---|---|
-| **Process all rows** | Sends every row to the selected model(s) |
+| **Process all rows** | Sends every row to the current file's model box(es) |
 | **Process N rows** | Sends the first N rows (for sampling/testing) |
 | **Process single row** | Sends one specific row (for retry or spot-check) |
 
@@ -472,9 +495,9 @@ Starting a new run clears previous results and begins fresh for the current file
 
 ### 11.8 Multi-Prompt and Multi-Model Parallelism
 
-- When P prompts and M models are active, each row can spawn up to P×M independent requests.
+- When P prompts and M model boxes are active, each row can spawn up to P×M independent requests.
 - All requests are enqueued together and processed concurrently within queue limits.
-- Results arrive and are stored per-prompt and per-model independently.
+- Results arrive and are stored per-prompt and per-model-box independently.
 
 ---
 

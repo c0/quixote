@@ -58,8 +58,8 @@ final class ExportViewModel: ObservableObject {
             var fields = table.columns.map { row.values[$0.name] ?? "" }
 
             for col in resultColumns {
-                let key = "\(col.promptID.uuidString)-\(row.id.uuidString)-\(col.modelID)"
-                if let r = results[key], r.modelID == col.modelID, r.status == .completed {
+                let key = "\(col.promptID.uuidString)-\(row.id.uuidString)-\(col.modelConfigID.uuidString)"
+                if let r = results[key], r.modelConfigID == col.modelConfigID, r.status == .completed {
                     fields.append(r.responseText ?? "")
                     fields.append(r.durationMs.map(String.init) ?? "")
                     fields.append(r.tokenUsage.map { String($0.total) } ?? "")

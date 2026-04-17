@@ -46,8 +46,6 @@ struct OpenAIService: LLMService {
             "messages": messages,
             "temperature": params.temperature,
             "top_p": params.topP,
-            "frequency_penalty": params.frequencyPenalty,
-            "presence_penalty": params.presencePenalty,
         ]
         if let max = params.maxTokens {
             body["max_tokens"] = max
@@ -142,7 +140,8 @@ struct OpenAIService: LLMService {
                     id: entry.id,
                     displayName: Self.displayName(for: entry.id),
                     provider: .openAI,
-                    created: entry.created
+                    created: entry.created,
+                    supportedReasoningLevels: ModelConfig.supportedReasoningLevels(for: entry.id)
                 )
             }
             .sorted { $0.created ?? 0 > $1.created ?? 0 }

@@ -14,7 +14,7 @@ Saved from user-provided references on 2026-04-14.
 The reference is a dense desktop workspace with a dark shell and a three-pane layout:
 
 - Left sidebar for app identity and datasets.
-- Center prompt editor with tabs, model selection, variable chips, system message, and prompt composer.
+- Center prompt editor with tabs, stacked model boxes, variable chips, system message, and prompt composer.
 - Right results table with a sticky header and top-right primary actions.
 
 The UI aims for a quiet, technical, data-tool feel rather than a marketing or consumer look. Contrast is driven by dark neutrals, thin dividers, muted labels, and one strong blue action color.
@@ -26,7 +26,7 @@ The UI aims for a quiet, technical, data-tool feel rather than a marketing or co
 - Corners are consistently rounded; controls trend toward pill or rounded-rect shapes.
 - Borders are thin and low-contrast, used heavily to define panes and rows.
 - Accent color is a saturated blue used almost exclusively for the main `Run` CTA and blue data links/boolean values.
-- Success/status color appears as green in the model card.
+- Success/status color should be used sparingly; avoid redundant status lines inside model boxes.
 
 ## Color Cues From The References
 
@@ -87,10 +87,11 @@ Practical translation for implementation:
 ### 4. Prompt Editor
 
 - Structured as stacked sections with generous vertical spacing.
-- `MODEL` section contains a single prominent card with current model and settings.
+- `MODEL` section contains one or more stacked model boxes, each with a single model, its own settings, and add/remove affordances.
 - `VARIABLES` section uses compact rounded chips in a flowing wrap layout.
 - `SYSTEM MESSAGE` and `PROMPT` use large dark text areas with subtle borders.
 - Labels are uppercase and widely tracked, which gives the editor a control-panel feel.
+- Detailed per-model settings stay hidden until the settings toggle is opened for that box.
 
 ### 5. Results Table
 

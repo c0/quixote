@@ -10,8 +10,7 @@ struct MainWindow: View {
     @StateObject private var statsVM = StatsViewModel()
     @StateObject private var exportVM = ExportViewModel()
     @StateObject private var settings = SettingsViewModel()
-
-    @AppStorage("quixote.selectedModels") private var selectedModelIDsData: Data = Data()
+    @StateObject private var fileModelConfigs = FileModelConfigsViewModel()
     @State private var showFileChangedAlert = false
 
     var body: some View {
@@ -24,8 +23,8 @@ struct MainWindow: View {
                     viewModel: promptEditor,
                     promptList: promptList,
                     settings: settings,
-                    columns: dataPreview.columns,
-                    selectedModelIDs: selectedModelsBinding
+                    modelConfigs: fileModelConfigs,
+                    columns: dataPreview.columns
                 )
                 .frame(minWidth: 400, idealWidth: 440, maxWidth: 500)
 
@@ -37,8 +36,8 @@ struct MainWindow: View {
                     datasetSubtitle: subtitleText.isEmpty ? "No dataset loaded" : subtitleText,
                     canExport: canExport,
                     onExport: triggerExport,
-                    onRetry: { rowID, promptID, modelID in
-                        processing.retryResult(rowID: rowID, promptID: promptID, modelID: modelID)
+                    onRetry: { rowID, promptID, modelConfigID in
+                        processing.retryResult(rowID: rowID, promptID: promptID, modelConfigID: modelConfigID)
                     }
                 )
                 .frame(minWidth: 580, maxWidth: .infinity)
@@ -52,7 +51,7 @@ struct MainWindow: View {
                 prompts: promptList.prompts,
                 rows: dataPreview.allRows,
                 columns: dataPreview.columns,
-                selectedModels: selectedModels
+                modelConfigs: resolvedModelConfigs
             )
         }
         .background(Color.quixoteAppBackground)
@@ -65,11 +64,11 @@ struct MainWindow: View {
             workspace.onFileRemoved = { [weak promptList, weak processing] file in
                 promptList?.removePrompts(for: file.id)
                 processing?.clearPersistedCompletedResults(for: file.id)
+                fileModelConfigs.removeConfigs(for: file.id)
             }
             for file in workspace.changedFiles {
                 processing.clearPersistedCompletedResults(for: file.id)
             }
-            ensureSelectedModelsAreValid()
             loadSelectedFile()
             processing.restoreIfNeeded()
             if !workspace.changedFiles.isEmpty {
@@ -77,7 +76,7 @@ struct MainWindow: View {
             }
         }
         .onChange(of: settings.availableModels) {
-            ensureSelectedModelsAreValid()
+            fileModelConfigs.ensureAvailableModelsAreValid(settings.availableModels)
             refreshDerivedViewModels()
         }
         .onChange(of: workspace.selectedFileID) {
@@ -120,28 +119,8 @@ struct MainWindow: View {
         }
     }
 
-    private var selectedModelsBinding: Binding<Set<String>> {
-        Binding(
-            get: { selectedModelIDs },
-            set: { selectedModelIDs = $0 }
-        )
-    }
-
-    private var selectedModelIDs: Set<String> {
-        get {
-            (try? JSONDecoder().decode(Set<String>.self, from: selectedModelIDsData)) ?? ["gpt-4o-mini"]
-        }
-        nonmutating set {
-            selectedModelIDsData = (try? JSONEncoder().encode(newValue)) ?? Data()
-        }
-    }
-
-    private var selectedModels: [ModelConfig] {
-        let ids = selectedModelIDs
-        let available = settings.availableModels
-        let models = available.filter { ids.contains($0.id) }
-        if !models.isEmpty { return models }
-        return available.first.map { [$0] } ?? []
+    private var resolvedModelConfigs: [ResolvedFileModelConfig] {
+        fileModelConfigs.resolvedConfigs(using: settings.availableModels)
     }
 
     private var canExport: Bool {
@@ -167,16 +146,6 @@ struct MainWindow: View {
         return "\(table.rows.count) rows · \(table.columns.count) columns"
     }
 
-    private func ensureSelectedModelsAreValid() {
-        let availableIDs = Set(settings.availableModels.map(\.id))
-        let current = selectedModelIDs.intersection(availableIDs)
-        if current.isEmpty, let fallback = settings.availableModels.first?.id {
-            selectedModelIDs = [fallback]
-        } else if current != selectedModelIDs {
-            selectedModelIDs = current
-        }
-    }
-
     private func triggerExport() {
         guard let file = workspace.selectedFile else { return }
         let table = workspace.parsedTable(for: file)
@@ -194,6 +163,7 @@ struct MainWindow: View {
             dataPreview.clear()
             promptList.clear()
             promptEditor.clear()
+            fileModelConfigs.clear()
             processing.clearDisplayedResults()
             refreshDerivedViewModels()
             return
@@ -203,6 +173,7 @@ struct MainWindow: View {
             dataPreview.clear()
             promptList.clear()
             promptEditor.clear()
+            fileModelConfigs.clear()
             processing.clearDisplayedResults()
             refreshDerivedViewModels()
             return
@@ -210,6 +181,14 @@ struct MainWindow: View {
         let table = workspace.parsedTable(for: file)
         dataPreview.load(table: table)
         promptList.load(fileID: file.id)
+        let legacyModelIDs = Array(readLegacySelectedModelIDs())
+        let legacyParameters = promptList.prompts.first?.parameters ?? LLMParameters()
+        fileModelConfigs.load(
+            fileID: file.id,
+            availableModels: settings.availableModels,
+            legacyModelIDs: legacyModelIDs,
+            legacyParameters: legacyParameters
+        )
         processing.loadPersistedCompletedResults(for: file.id)
         syncPromptEditor()
         refreshDerivedViewModels()
@@ -223,14 +202,22 @@ struct MainWindow: View {
         resultsVM.update(
             results: processing.results,
             prompts: promptList.prompts,
-            models: selectedModels
+            modelConfigs: resolvedModelConfigs
         )
         statsVM.update(
             results: processing.results,
             prompts: promptList.prompts,
-            models: selectedModels,
+            modelConfigs: resolvedModelConfigs,
             totalRows: dataPreview.allRows.count
         )
+    }
+
+    private func readLegacySelectedModelIDs() -> Set<String> {
+        guard let data = UserDefaults.standard.data(forKey: "quixote.selectedModels"),
+              let ids = try? JSONDecoder().decode(Set<String>.self, from: data) else {
+            return []
+        }
+        return ids
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {

@@ -66,8 +66,6 @@ final class ResponseCache: ObservableObject {
             "\(params.temperature)",
             "\(params.maxTokens ?? -1)",
             "\(params.topP)",
-            "\(params.frequencyPenalty)",
-            "\(params.presencePenalty)",
             params.reasoningEffort?.rawValue ?? "none"
         ].joined(separator: "|")
         let raw = systemMessage + "\0" + expandedPrompt + "\0" + modelID + "\0" + paramsString

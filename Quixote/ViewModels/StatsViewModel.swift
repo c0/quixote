@@ -8,6 +8,7 @@ final class StatsViewModel: ObservableObject {
         let promptID: UUID
         let promptName: String
         let modelID: String
+        let modelConfigID: UUID
         let modelDisplayName: String
         let totalCostUSD: Double
         let medianDurationSec: Double
@@ -16,7 +17,7 @@ final class StatsViewModel: ObservableObject {
         let completedRows: Int
         let totalRows: Int
 
-        var id: String { "\(promptID)-\(modelID)" }
+        var id: String { "\(promptID)-\(modelConfigID)" }
     }
 
     @Published private(set) var modelStats: [ModelStats] = []
@@ -26,18 +27,18 @@ final class StatsViewModel: ObservableObject {
     func update(
         results: [String: PromptResult],
         prompts: [Prompt],
-        models: [ModelConfig],
+        modelConfigs: [ResolvedFileModelConfig],
         totalRows: Int
     ) {
-        guard !prompts.isEmpty, !models.isEmpty else {
+        guard !prompts.isEmpty, !modelConfigs.isEmpty else {
             modelStats = []
             return
         }
 
         modelStats = prompts.flatMap { prompt in
-            models.map { model in
+            modelConfigs.map { config in
                 let completed = results.values.filter {
-                    $0.promptID == prompt.id && $0.modelID == model.id && $0.status == .completed
+                    $0.promptID == prompt.id && $0.modelConfigID == config.id && $0.status == .completed
                 }
 
                 let totalCost = completed.compactMap { $0.costUSD }.reduce(0, +)
@@ -50,8 +51,9 @@ final class StatsViewModel: ObservableObject {
                 return ModelStats(
                     promptID: prompt.id,
                     promptName: prompt.name,
-                    modelID: model.id,
-                    modelDisplayName: model.displayName,
+                    modelID: config.modelID,
+                    modelConfigID: config.id,
+                    modelDisplayName: config.displayName,
                     totalCostUSD: totalCost,
                     medianDurationSec: medianDuration,
                     totalTokens: tokens,

@@ -7,7 +7,7 @@ struct RunControlsView: View {
     let prompts: [Prompt]
     let rows: [Row]
     let columns: [ColumnDef]
-    let selectedModels: [ModelConfig]
+    let modelConfigs: [ResolvedFileModelConfig]
 
     @State private var rowLimit: RowLimit = .all
     @State private var runScope: RunScope = .selected
@@ -44,7 +44,7 @@ struct RunControlsView: View {
         !apiKey.isEmpty
             && !promptsToRun.isEmpty
             && !rows.isEmpty
-            && !selectedModels.isEmpty
+            && !modelConfigs.isEmpty
             && !processing.isActive
     }
 
@@ -123,7 +123,7 @@ struct RunControlsView: View {
                 prompts: promptsToRun,
                 rows: rowsToProcess,
                 columns: columns,
-                models: selectedModels,
+                modelConfigs: modelConfigs,
                 apiKey: apiKey,
                 concurrency: settings.concurrency,
                 rateLimit: Double(settings.rateLimit),

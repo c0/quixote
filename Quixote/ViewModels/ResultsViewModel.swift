@@ -6,39 +6,41 @@ final class ResultsViewModel: ObservableObject {
     /// One result column in the table (one per prompt × model combination).
     /// AO-2: multiple columns — one per selected model.
     struct ResultColumn: Identifiable, Equatable {
-        let id: String           // "\(promptID)-\(modelID)"
+        let id: String           // "\(promptID)-\(modelConfigID)"
         let header: String       // e.g. "Output — gpt-4o"
         let promptName: String
         let modelDisplayName: String
         let promptID: UUID
         let modelID: String
+        let modelConfigID: UUID
     }
 
     @Published private(set) var columns: [ResultColumn] = []
-    private var rawResults: [String: PromptResult] = [:]  // composite key: "\(promptID)-\(rowID)-\(modelID)"
+    private var rawResults: [String: PromptResult] = [:]  // composite key: "\(promptID)-\(rowID)-\(modelConfigID)"
 
     // MARK: - Update
 
     func update(
         results: [String: PromptResult],
         prompts: [Prompt],
-        models: [ModelConfig]
+        modelConfigs: [ResolvedFileModelConfig]
     ) {
         rawResults = results
-        guard !prompts.isEmpty, !models.isEmpty else {
+        guard !prompts.isEmpty, !modelConfigs.isEmpty else {
             columns = []
             return
         }
 
         columns = prompts.flatMap { prompt in
-            models.map { model in
+            modelConfigs.map { config in
                 ResultColumn(
-                    id: "\(prompt.id)-\(model.id)",
-                    header: "\(prompt.name) — \(model.displayName)",
+                    id: "\(prompt.id)-\(config.id.uuidString)",
+                    header: "\(prompt.name) — \(config.displayName)",
                     promptName: prompt.name,
-                    modelDisplayName: model.displayName,
+                    modelDisplayName: config.displayName,
                     promptID: prompt.id,
-                    modelID: model.id
+                    modelID: config.modelID,
+                    modelConfigID: config.id
                 )
             }
         }
@@ -57,10 +59,11 @@ final class ResultsViewModel: ObservableObject {
     // MARK: - Lookup
 
     func result(for rowID: UUID, column: ResultColumn) -> PromptResult? {
-        let key = "\(column.promptID.uuidString)-\(rowID.uuidString)-\(column.modelID)"
+        let key = "\(column.promptID.uuidString)-\(rowID.uuidString)-\(column.modelConfigID.uuidString)"
         guard let r = rawResults[key],
               r.promptID == column.promptID,
-              r.modelID == column.modelID else { return nil }
+              r.modelID == column.modelID,
+              r.modelConfigID == column.modelConfigID else { return nil }
         return r
     }
 }

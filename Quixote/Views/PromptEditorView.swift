@@ -9,14 +9,14 @@ struct PromptEditorView: View {
     @ObservedObject var viewModel: PromptEditorViewModel
     @ObservedObject var promptList: PromptListViewModel
     @ObservedObject var settings: SettingsViewModel
+    @ObservedObject var modelConfigs: FileModelConfigsViewModel
     let columns: [ColumnDef]
-    @Binding var selectedModelIDs: Set<String>
 
     @State private var editorMode: EditorMode = .write
-    @State private var showModelPicker = false
+    @State private var showAddModelPicker = false
 
-    private var selectedModels: [ModelConfig] {
-        settings.availableModels.filter { selectedModelIDs.contains($0.id) }
+    private var resolvedModelConfigs: [ResolvedFileModelConfig] {
+        modelConfigs.resolvedConfigs(using: settings.availableModels)
     }
 
     var body: some View {
@@ -103,64 +103,46 @@ struct PromptEditorView: View {
 
     private var modelSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            QuixoteSectionLabel(text: "Model")
-
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Button {
-                            showModelPicker = true
-                        } label: {
-                            HStack(spacing: 10) {
-                                Text(modelSummaryTitle)
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundStyle(Color.quixoteTextPrimary)
-                                Circle()
-                                    .fill(Color.quixoteGreen)
-                                    .frame(width: 10, height: 10)
-                                    .shadow(color: Color.quixoteGreen.opacity(0.7), radius: 6)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .popover(isPresented: $showModelPicker) {
-                            ModelPickerPopover(
-                                groupedModels: settings.groupedModels,
-                                selectedIDs: selectedModelIDs,
-                                onToggle: toggleModel,
-                                onSelectAll: selectAllModels,
-                                onDeselectAll: deselectAllModels
-                            )
-                        }
-
-                        Text(modelSummaryDetail)
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(Color.quixoteGreen)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 18, weight: .medium))
+            HStack {
+                QuixoteSectionLabel(text: "Model")
+                Spacer()
+                Button {
+                    showAddModelPicker = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color.quixoteTextSecondary)
                 }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showAddModelPicker) {
+                    SingleModelPickerPopover(
+                        groupedModels: settings.groupedModels,
+                        selectedID: nil
+                    ) { modelID in
+                        modelConfigs.addModel(modelID: modelID, availableModels: settings.availableModels)
+                        showAddModelPicker = false
+                    }
+                }
+            }
 
-                if let prompt = viewModel.prompt {
-                    PromptParametersCard(
-                        parameters: prompt.parameters,
-                        selectedModels: selectedModels,
-                        onChange: { viewModel.updateParameters($0) }
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(resolvedModelConfigs) { config in
+                    ModelConfigCard(
+                        config: config,
+                        groupedModels: settings.groupedModels,
+                        canDelete: resolvedModelConfigs.count > 1,
+                        onSelectModel: { modelID in
+                            modelConfigs.updateModel(configID: config.id, modelID: modelID, availableModels: settings.availableModels)
+                        },
+                        onUpdateParameters: { parameters in
+                            modelConfigs.updateParameters(configID: config.id, parameters: parameters, availableModels: settings.availableModels)
+                        },
+                        onDelete: {
+                            modelConfigs.removeConfig(id: config.id, availableModels: settings.availableModels)
+                        }
                     )
                 }
             }
-            .padding(18)
-            .background(
-                RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
-                    .fill(Color.quixoteCard)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
-                            .stroke(Color.quixoteDivider, lineWidth: 1)
-                    )
-            )
         }
     }
 
@@ -271,108 +253,284 @@ struct PromptEditorView: View {
             }
         }
     }
+}
 
-    private var modelSummaryTitle: String {
-        if selectedModels.isEmpty { return "No model selected" }
-        if selectedModels.count == 1 { return selectedModels[0].id }
-        return "\(selectedModels.count) models selected"
-    }
+private struct ModelConfigCard: View {
+    let config: ResolvedFileModelConfig
+    let groupedModels: [(family: String, models: [ModelConfig])]
+    let canDelete: Bool
+    let onSelectModel: (String) -> Void
+    let onUpdateParameters: (LLMParameters) -> Void
+    let onDelete: () -> Void
 
-    private var modelSummaryDetail: String {
-        guard let prompt = viewModel.prompt else { return "tokens: \(columns.count)" }
-        return "temp: \(String(format: "%.2f", prompt.parameters.temperature))  top_p: \(String(format: "%.2f", prompt.parameters.topP))  tokens: \(prompt.parameters.maxTokens ?? 2048)"
-    }
+    @State private var isExpanded = false
+    @State private var showModelPicker = false
 
-    private func toggleModel(_ id: String) {
-        if selectedModelIDs.contains(id) {
-            selectedModelIDs.remove(id)
-        } else {
-            selectedModelIDs.insert(id)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Button {
+                    showModelPicker = true
+                } label: {
+                    Text(config.displayName)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(Color.quixoteTextPrimary)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showModelPicker) {
+                    SingleModelPickerPopover(
+                        groupedModels: groupedModels,
+                        selectedID: config.modelID,
+                        onSelect: { modelID in
+                            onSelectModel(modelID)
+                            showModelPicker = false
+                        }
+                    )
+                }
+
+                Spacer()
+
+                HStack(spacing: 12) {
+                    Button {
+                        isExpanded.toggle()
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(isExpanded ? Color.quixoteTextPrimary : Color.quixoteTextSecondary)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        onDelete()
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(canDelete ? Color.quixoteTextSecondary : Color.quixoteTextMuted)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canDelete)
+                }
+            }
+
+            HStack(spacing: 18) {
+                SummaryMetric(title: "Temp", value: Self.decimalString(config.parameters.temperature))
+                SummaryMetric(title: "Top P", value: Self.decimalString(config.parameters.topP))
+                SummaryMetric(title: "Max Tokens", value: config.parameters.maxTokens.map(String.init) ?? "Auto")
+                if config.model.supportsReasoningEffort {
+                    SummaryMetric(title: "Reasoning Level", value: config.parameters.reasoningEffort?.displayName ?? "Default")
+                }
+            }
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 14) {
+                    ParameterSliderRow(
+                        title: "Temp",
+                        value: config.parameters.temperature,
+                        range: 0...2,
+                        step: 0.1
+                    ) { newValue in
+                        var updated = config.parameters
+                        updated.temperature = newValue
+                        onUpdateParameters(updated)
+                    }
+
+                    ParameterSliderRow(
+                        title: "Top P",
+                        value: config.parameters.topP,
+                        range: 0...1,
+                        step: 0.05
+                    ) { newValue in
+                        var updated = config.parameters
+                        updated.topP = newValue
+                        onUpdateParameters(updated)
+                    }
+
+                    if !config.model.supportedReasoningLevels.isEmpty {
+                        ReasoningLevelRow(
+                            supportedLevels: config.model.supportedReasoningLevels,
+                            selectedLevel: config.parameters.reasoningEffort
+                        ) { level in
+                            var updated = config.parameters
+                            updated.reasoningEffort = level
+                            onUpdateParameters(updated)
+                        }
+                    }
+
+                    MaxTokensRow(value: config.parameters.maxTokens) { newValue in
+                        var updated = config.parameters
+                        updated.maxTokens = newValue
+                        onUpdateParameters(updated)
+                    }
+                }
+            }
         }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
+                .fill(Color.quixoteCard)
+                .overlay(
+                    RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
+                        .stroke(Color.quixoteDivider, lineWidth: 1)
+                )
+        )
     }
 
-    private func selectAllModels(_ models: [ModelConfig]) {
-        for model in models {
-            selectedModelIDs.insert(model.id)
-        }
+    private static func decimalString(_ value: Double) -> String {
+        String(format: "%.2f", value)
     }
+}
 
-    private func deselectAllModels(_ models: [ModelConfig]) {
-        for model in models {
-            selectedModelIDs.remove(model.id)
+private struct SummaryMetric: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(1.2)
+                .foregroundStyle(Color.quixoteTextSecondary)
+            Text(value)
+                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                .foregroundStyle(Color.quixoteTextPrimary)
         }
     }
 }
 
-private struct PromptParametersCard: View {
-    var parameters: LLMParameters
-    let selectedModels: [ModelConfig]
-    var onChange: (LLMParameters) -> Void
-
-    @State private var maxTokensText: String = ""
+private struct ReasoningLevelRow: View {
+    let supportedLevels: [ReasoningEffort]
+    let selectedLevel: ReasoningEffort?
+    let onSelect: (ReasoningEffort?) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                parameterMetric(title: "Temperature", value: String(format: "%.2f", parameters.temperature))
-                parameterMetric(title: "Top P", value: String(format: "%.2f", parameters.topP))
-                parameterMetric(title: "Max Tokens", value: parameters.maxTokens.map(String.init) ?? "auto")
-            }
-
-            if selectedModels.contains(where: { $0.supportsReasoningEffort }) {
+        HStack {
+            Text("Reasoning Level")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.quixoteTextSecondary)
+            Spacer()
+            Menu {
+                Button("Default") { onSelect(nil) }
+                ForEach(supportedLevels, id: \.self) { level in
+                    Button(level.displayName) { onSelect(level) }
+                }
+            } label: {
                 HStack(spacing: 8) {
-                    ForEach(ReasoningEffort.allCases, id: \.self) { level in
-                        Button(level.rawValue.capitalized) {
-                            var updated = parameters
-                            updated.reasoningEffort = parameters.reasoningEffort == level ? nil : level
-                            onChange(updated)
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(parameters.reasoningEffort == level ? Color.quixoteBlue : Color.quixoteSelection)
+                    Text(selectedLevel?.displayName ?? "Default")
+                        .font(.system(size: 12, design: .monospaced))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .foregroundStyle(Color.quixoteTextPrimary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.quixotePanel)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color.quixoteDivider, lineWidth: 1)
                         )
-                        .foregroundStyle(Color.quixoteTextPrimary)
-                    }
-                }
+                )
             }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
+        }
+    }
+}
 
-            VStack(alignment: .leading, spacing: 10) {
-                parameterSlider(title: "Temperature", value: parameters.temperature, range: 0...2, step: 0.1) {
-                    var updated = parameters
-                    updated.temperature = $0
-                    onChange(updated)
+private struct MaxTokensRow: View {
+    let value: Int?
+    let onUpdate: (Int?) -> Void
+
+    @State private var text = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        HStack {
+            Text("Max Tokens")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.quixoteTextSecondary)
+
+            Spacer()
+
+            TextField("Auto", text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12, design: .monospaced))
+                .multilineTextAlignment(.trailing)
+                .focused($isFocused)
+                .foregroundStyle(Color.quixoteTextPrimary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(width: 96)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.quixotePanel)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color.quixoteDivider, lineWidth: 1)
+                        )
+                )
+                .onSubmit(commit)
+                .onChange(of: isFocused) {
+                    if !isFocused { commit() }
                 }
-                parameterSlider(title: "Top P", value: parameters.topP, range: 0...1, step: 0.05) {
-                    var updated = parameters
-                    updated.topP = $0
-                    onChange(updated)
-                }
-                parameterSlider(title: "Frequency", value: parameters.frequencyPenalty, range: -2...2, step: 0.1) {
-                    var updated = parameters
-                    updated.frequencyPenalty = $0
-                    onChange(updated)
-                }
-                parameterSlider(title: "Presence", value: parameters.presencePenalty, range: -2...2, step: 0.1) {
-                    var updated = parameters
-                    updated.presencePenalty = $0
-                    onChange(updated)
-                }
+        }
+        .onAppear {
+            text = value.map(String.init) ?? ""
+        }
+        .onChange(of: value) {
+            if !isFocused {
+                text = value.map(String.init) ?? ""
             }
+        }
+    }
 
-            HStack(spacing: 10) {
-                Text("Max tokens")
+    private func commit() {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            text = ""
+            onUpdate(nil)
+            return
+        }
+        guard let parsed = Int(trimmed), parsed > 0 else {
+            text = value.map(String.init) ?? ""
+            return
+        }
+        text = String(parsed)
+        onUpdate(parsed)
+    }
+}
+
+private struct ParameterSliderRow: View {
+    let title: String
+    let value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    let onUpdate: (Double) -> Void
+
+    @State private var text = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Color.quixoteTextSecondary)
 
-                TextField("2048", text: $maxTokensText)
+                Spacer()
+
+                TextField("", text: $text)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12, design: .monospaced))
+                    .multilineTextAlignment(.trailing)
+                    .focused($isFocused)
                     .foregroundStyle(Color.quixoteTextPrimary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
+                    .frame(width: 70)
                     .background(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(Color.quixotePanel)
@@ -381,56 +539,79 @@ private struct PromptParametersCard: View {
                                     .stroke(Color.quixoteDivider, lineWidth: 1)
                             )
                     )
-                    .frame(width: 90)
-                    .onChange(of: maxTokensText) {
-                        var updated = parameters
-                        updated.maxTokens = maxTokensText.isEmpty ? nil : Int(maxTokensText)
-                        onChange(updated)
+                    .onSubmit(commit)
+                    .onChange(of: isFocused) {
+                        if !isFocused { commit() }
                     }
             }
+
+            CompactValueSlider(value: value, range: range, step: step, onUpdate: onUpdate)
+                .frame(height: 18)
         }
         .onAppear {
-            maxTokensText = parameters.maxTokens.map(String.init) ?? ""
+            text = formatted(value)
         }
-    }
-
-    private func parameterMetric(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased())
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(1.4)
-                .foregroundStyle(Color.quixoteTextSecondary)
-            Text(value)
-                .font(.system(size: 13, weight: .medium, design: .monospaced))
-                .foregroundStyle(Color.quixoteTextPrimary)
-        }
-    }
-
-    private func parameterSlider(
-        title: String,
-        value: Double,
-        range: ClosedRange<Double>,
-        step: Double,
-        onUpdate: @escaping (Double) -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title.uppercased())
-                    .font(.system(size: 10, weight: .semibold))
-                    .tracking(1.4)
-                    .foregroundStyle(Color.quixoteTextSecondary)
-                Spacer()
-                Text(String(format: "%.2f", value))
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(Color.quixoteTextSecondary)
+        .onChange(of: value) {
+            if !isFocused {
+                text = formatted(value)
             }
+        }
+    }
 
-            Slider(
-                value: Binding(get: { value }, set: onUpdate),
-                in: range,
-                step: step
+    private func commit() {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let parsed = Double(trimmed) else {
+            text = formatted(value)
+            return
+        }
+        let clamped = min(max(parsed, range.lowerBound), range.upperBound)
+        let snapped = (clamped / step).rounded() * step
+        text = formatted(snapped)
+        onUpdate(snapped)
+    }
+
+    private func formatted(_ value: Double) -> String {
+        String(format: "%.2f", value)
+    }
+}
+
+private struct CompactValueSlider: View {
+    let value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    let onUpdate: (Double) -> Void
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = max(geometry.size.width - 12, 1)
+            let progress = CGFloat((value - range.lowerBound) / (range.upperBound - range.lowerBound))
+            let knobX = progress * width
+
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(Color.quixotePanel)
+                    .frame(height: 6)
+
+                Capsule(style: .continuous)
+                    .fill(Color.quixoteTextMuted.opacity(0.72))
+                    .frame(width: knobX + 6, height: 6)
+
+                Circle()
+                    .fill(Color.quixoteTextPrimary)
+                    .frame(width: 12, height: 12)
+                    .offset(x: knobX)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        let x = min(max(gesture.location.x - 6, 0), width)
+                        let rawValue = range.lowerBound + Double(x / width) * (range.upperBound - range.lowerBound)
+                        let snapped = (rawValue / step).rounded() * step
+                        let clamped = min(max(snapped, range.lowerBound), range.upperBound)
+                        onUpdate(clamped)
+                    }
             )
-            .tint(Color.quixoteBlue)
         }
     }
 }

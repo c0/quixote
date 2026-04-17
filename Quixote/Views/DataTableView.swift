@@ -17,7 +17,7 @@ struct DataTableView: View {
     let datasetSubtitle: String
     let canExport: Bool
     let onExport: () -> Void
-    var onRetry: ((UUID, UUID, String) -> Void)? = nil
+    var onRetry: ((UUID, UUID, UUID) -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -79,7 +79,7 @@ struct DataTableView: View {
                                     columns: viewModel.columns,
                                     resultColumns: visibleResultColumns,
                                     getResult: { results.result(for: row.id, column: $0) },
-                                    onRetry: { col in onRetry?(row.id, col.promptID, col.modelID) }
+                                    onRetry: { col in onRetry?(row.id, col.promptID, col.modelConfigID) }
                                 )
                                 .background(row.index % 2 == 0 ? Color.clear : Color.quixotePanelRaised.opacity(0.45))
                             }
