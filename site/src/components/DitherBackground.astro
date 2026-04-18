@@ -28,8 +28,8 @@
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(circle at 54% 46%, rgba(6, 7, 9, 0) 0%, rgba(6, 7, 9, 0.08) 42%, rgba(3, 4, 5, 0.44) 78%, rgba(2, 3, 4, 0.72) 100%),
-      linear-gradient(180deg, rgba(3, 4, 5, 0.08) 0%, rgba(3, 4, 5, 0.2) 100%);
+      radial-gradient(circle at 52% 46%, rgba(6, 7, 9, 0) 0%, rgba(6, 7, 9, 0.04) 42%, rgba(3, 4, 5, 0.18) 76%, rgba(2, 3, 4, 0.4) 100%),
+      linear-gradient(180deg, rgba(3, 4, 5, 0.03) 0%, rgba(3, 4, 5, 0.1) 100%);
   }
 </style>
 
@@ -52,12 +52,12 @@
       [15, 7, 13, 5],
     ];
     const palette = [
-      [4, 5, 7],
-      [12, 14, 18],
-      [22, 26, 31],
-      [36, 41, 47],
-      [58, 65, 74],
-      [132, 140, 150],
+      [3, 4, 5],
+      [10, 12, 15],
+      [18, 21, 25],
+      [31, 35, 40],
+      [52, 58, 66],
+      [164, 171, 180],
     ];
 
     let animationFrame = 0;
@@ -80,16 +80,10 @@
       return t * t * (3 - 2 * t);
     }
 
-    function gaussian(nx, ny, cx, cy, rx, ry) {
-      const dx = (nx - cx) / rx;
-      const dy = (ny - cy) / ry;
-      return Math.exp(-(dx * dx + dy * dy));
-    }
-
     function resize() {
       width = window.innerWidth;
       height = window.innerHeight;
-      cellSize = width < 720 ? 1 : 1.25;
+      cellSize = width < 720 ? 2 : 2.5;
       columns = Math.ceil(width / cellSize);
       rows = Math.ceil(height / cellSize);
 
@@ -108,39 +102,47 @@
     }
 
     function fieldAt(nx, ny, time) {
-      const driftX = time * 0.018;
-      const driftY = time * 0.011;
+      const driftX = time * 0.009;
+      const driftY = time * 0.0056;
 
-      const waveA = Math.sin((nx + driftX) * 6.2 + Math.sin((ny + driftY) * 2.4) * 0.8);
-      const waveB = Math.cos((ny - driftY) * 5.1 - Math.cos((nx - driftX) * 2.7) * 1.1);
-      const waveC = Math.sin((nx + ny) * 4.1 - time * 0.014);
-      const waveD = Math.cos((nx * 1.8 - ny * 1.25) * 5.6 + time * 0.01);
+      const bandA = Math.sin((ny + driftY) * 9.6 + Math.sin((nx + driftX * 0.85) * 2.7) * 1.25);
+      const bandB = Math.cos((ny - driftY * 0.9) * 7.3 - Math.cos((nx - driftX * 0.55) * 3.5) * 1.05);
+      const bandC = Math.sin((ny * 6.4 + nx * 1.55) + time * 0.0064);
+      const bandD = Math.cos((ny * 5.3 - nx * 1.1) - time * 0.0052);
+      const longWave = Math.sin((nx * 1.4 + ny * 2.2) + time * 0.0038);
+      const crossWave = Math.cos((nx * 2.8 - ny * 1.7) - time * 0.0028);
 
-      const ridgeA = gaussian(nx, ny, 0.2, 0.34, 0.28, 0.22);
-      const ridgeB = gaussian(nx, ny, 0.54 + Math.sin(time * 0.01) * 0.02, 0.56, 0.34, 0.26);
-      const ridgeC = gaussian(nx, ny, 0.84, 0.44 + Math.cos(time * 0.008) * 0.015, 0.24, 0.22);
-      const ridgeD = gaussian(nx, ny, 0.66, 0.8, 0.38, 0.18);
+      const horizontalEnvelope = smoothstep(0.02, 0.18, ny) * (1 - smoothstep(0.84, 0.99, ny));
+      const centerLift = smoothstep(0.02, 0.95, 1 - Math.abs(nx - 0.56) * 1.18) * 0.06;
+      const edgeFalloff = smoothstep(0.01, 0.9, 1 - Math.abs(nx - 0.5) * 1.56) * 0.04;
 
-      const broadMass = ridgeA * 0.54 + ridgeB * 0.72 + ridgeC * 0.48 + ridgeD * 0.4;
-      const banding = waveA * 0.16 + waveB * 0.13 + waveC * 0.11 + waveD * 0.09;
+      const field =
+        0.18 +
+        horizontalEnvelope * 0.16 +
+        bandA * 0.12 +
+        bandB * 0.1 +
+        bandC * 0.08 +
+        bandD * 0.06 +
+        longWave * 0.05 +
+        crossWave * 0.03 +
+        centerLift +
+        edgeFalloff;
 
-      const distanceX = (nx - 0.52) / 1.12;
-      const distanceY = (ny - 0.5) / 1.08;
+      const distanceX = (nx - 0.5) / 1.18;
+      const distanceY = (ny - 0.5) / 1.12;
       const vignette = clamp(1 - Math.sqrt(distanceX * distanceX + distanceY * distanceY), 0, 1);
 
-      const horizonBias = smoothstep(0.04, 0.92, 1 - Math.abs(ny - 0.55) * 1.25) * 0.24;
-      const floor = 0.18;
-      const value = floor + broadMass * 0.82 + banding * 0.72 + horizonBias;
-      return clamp(value + smoothstep(0.02, 0.98, vignette) * 0.16, 0, 1);
+      const value = field + smoothstep(0.02, 0.98, vignette) * 0.08;
+      return clamp(value, 0, 1);
     }
 
     function toneIndex(field, x, y) {
       const threshold = (bayer4[y % 4][x % 4] + 0.5) / 16 - 0.5;
-      const quantized = field * 3.05 + threshold * 0.38;
+      const quantized = field * 3.3 + threshold * 0.5;
       let index = Math.round(quantized);
       index = clamp(index, 0, palette.length - 2);
 
-      if (field > 0.985 && ((x + y) % 17 === 0 || bayer4[y % 4][x % 4] === 0)) {
+      if (field > 0.975 && ((x + y) % 11 === 0 || bayer4[y % 4][x % 4] === 0)) {
         index = palette.length - 1;
       }
 
