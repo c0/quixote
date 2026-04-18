@@ -9,9 +9,12 @@ struct CachedEntry: Codable {
     var durationMs: Int
     var costUSD: Double
     var cosineSimilarity: Double
+    var rouge1: Double?
+    var rouge2: Double?
+    var rougeL: Double?
     var cachedAt: Date
 
-    // Backward-compatible decode: old entries have no cosineSimilarity field
+    // Backward-compatible decode: old entries have no analytics fields
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         responseText = try c.decode(String.self, forKey: .responseText)
@@ -19,16 +22,24 @@ struct CachedEntry: Codable {
         durationMs = try c.decode(Int.self, forKey: .durationMs)
         costUSD = try c.decode(Double.self, forKey: .costUSD)
         cosineSimilarity = try c.decodeIfPresent(Double.self, forKey: .cosineSimilarity) ?? 0.0
+        rouge1 = try c.decodeIfPresent(Double.self, forKey: .rouge1)
+        rouge2 = try c.decodeIfPresent(Double.self, forKey: .rouge2)
+        rougeL = try c.decodeIfPresent(Double.self, forKey: .rougeL)
         cachedAt = try c.decode(Date.self, forKey: .cachedAt)
     }
 
     init(responseText: String, tokenUsage: TokenUsage, durationMs: Int,
-         costUSD: Double, cosineSimilarity: Double, cachedAt: Date) {
+         costUSD: Double, cosineSimilarity: Double,
+         rouge1: Double? = nil, rouge2: Double? = nil, rougeL: Double? = nil,
+         cachedAt: Date) {
         self.responseText = responseText
         self.tokenUsage = tokenUsage
         self.durationMs = durationMs
         self.costUSD = costUSD
         self.cosineSimilarity = cosineSimilarity
+        self.rouge1 = rouge1
+        self.rouge2 = rouge2
+        self.rougeL = rougeL
         self.cachedAt = cachedAt
     }
 }

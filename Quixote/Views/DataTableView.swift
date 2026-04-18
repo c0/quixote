@@ -158,6 +158,8 @@ struct DataTableView: View {
             row: row,
             columns: viewModel.columns,
             resultColumns: rowColumns,
+            showCosineSimilarity: settings.showCosineSimilarity,
+            showRougeMetrics: settings.showRougeMetrics,
             getResult: { column in
                 results.result(for: row.id, column: column)
             },
@@ -254,6 +256,8 @@ struct DataRowView: View {
     let row: Row
     let columns: [ColumnDef]
     let resultColumns: [ResultsViewModel.ResultColumn]
+    let showCosineSimilarity: Bool
+    let showRougeMetrics: Bool
     let getResult: (ResultsViewModel.ResultColumn) -> PromptResult?
     var onRetry: ((ResultsViewModel.ResultColumn) -> Void)? = nil
 
@@ -276,6 +280,8 @@ struct DataRowView: View {
             ForEach(resultColumns) { col in
                 ResultCell(
                     result: getResult(col),
+                    showCosineSimilarity: showCosineSimilarity,
+                    showRougeMetrics: showRougeMetrics,
                     onRetry: onRetry.map { fn in { fn(col) } }
                 )
                 .padding(.horizontal, 10)
@@ -344,6 +350,8 @@ private struct SourceCell: View {
 
 struct ResultCell: View {
     let result: PromptResult?
+    let showCosineSimilarity: Bool
+    let showRougeMetrics: Bool
     var onRetry: (() -> Void)? = nil
 
     var body: some View {
@@ -371,10 +379,8 @@ struct ResultCell: View {
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                if let similarity = result?.cosineSimilarity {
-                    Text(String(format: "SIM %.3f", similarity))
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(Color.quixoteTextSecondary)
+                if showCosineSimilarity || showRougeMetrics {
+                    metricBadges
                 }
             }
 
@@ -397,6 +403,31 @@ struct ResultCell: View {
                 .font(.system(size: 12))
                 .foregroundStyle(Color.quixoteTextSecondary)
         }
+    }
+
+    @ViewBuilder
+    private var metricBadges: some View {
+        HStack(spacing: 8) {
+            if showCosineSimilarity, let similarity = result?.cosineSimilarity {
+                metricBadge(label: "SIM", value: similarity)
+            }
+            if showRougeMetrics, let rouge1 = result?.rouge1 {
+                metricBadge(label: "R1", value: rouge1)
+            }
+            if showRougeMetrics, let rouge2 = result?.rouge2 {
+                metricBadge(label: "R2", value: rouge2)
+            }
+            if showRougeMetrics, let rougeL = result?.rougeL {
+                metricBadge(label: "RL", value: rougeL)
+            }
+        }
+        .lineLimit(1)
+    }
+
+    private func metricBadge(label: String, value: Double) -> some View {
+        Text("\(label) \(String(format: "%.3f", value))")
+            .font(.system(size: 10, design: .monospaced))
+            .foregroundStyle(Color.quixoteTextSecondary)
     }
 }
 

@@ -148,6 +148,8 @@ struct MainWindow: View {
             table: table,
             results: processing.results,
             resultColumns: resultsVM.columns,
+            showCosineSimilarity: settings.showCosineSimilarity,
+            showRougeMetrics: settings.showRougeMetrics,
             suggestedName: file.displayName
         )
     }

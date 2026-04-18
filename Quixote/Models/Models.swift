@@ -329,6 +329,9 @@ struct PromptResult: Identifiable, Codable, Equatable {
     var durationMs: Int?
     var retryCount: Int = 0
     var cosineSimilarity: Double?
+    var rouge1: Double?
+    var rouge2: Double?
+    var rougeL: Double?
 
     init(runID: UUID, rowID: UUID, promptID: UUID, modelID: String, modelConfigID: UUID? = nil) {
         self.id = UUID()

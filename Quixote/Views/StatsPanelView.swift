@@ -5,6 +5,8 @@ struct StatsPanelView: View {
     let selectedPromptID: UUID?
     let showExtrapolation: Bool
     let extrapolationScale: ExtrapolationScale
+    let showCosineSimilarity: Bool
+    let showRougeMetrics: Bool
 
     var body: some View {
         if !visibleStats.isEmpty {
@@ -24,7 +26,9 @@ struct StatsPanelView: View {
                             StatSummaryCard(
                                 stats: stat,
                                 showExtrapolation: showExtrapolation,
-                                extrapolationScale: extrapolationScale
+                                extrapolationScale: extrapolationScale,
+                                showCosineSimilarity: showCosineSimilarity,
+                                showRougeMetrics: showRougeMetrics
                             )
                         }
                     }
@@ -48,6 +52,8 @@ private struct StatSummaryCard: View {
     let stats: StatsViewModel.ModelStats
     let showExtrapolation: Bool
     let extrapolationScale: ExtrapolationScale
+    let showCosineSimilarity: Bool
+    let showRougeMetrics: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -60,7 +66,14 @@ private struct StatSummaryCard: View {
                 SummaryMetric(label: tokensLabel, value: formatNumber(displayTokens))
                 SummaryMetric(label: "Median", value: String(format: "%.2fs", stats.medianDurationSec))
                 SummaryMetric(label: "Progress", value: "\(stats.completedRows)/\(stats.totalRows)")
-                SummaryMetric(label: "Sim", value: formatSimilarity(stats.medianCosineSimilarity))
+                if showCosineSimilarity {
+                    SummaryMetric(label: "Sim", value: formatScore(stats.medianCosineSimilarity))
+                }
+                if showRougeMetrics {
+                    SummaryMetric(label: "R1", value: formatScore(stats.medianRouge1))
+                    SummaryMetric(label: "R2", value: formatScore(stats.medianRouge2))
+                    SummaryMetric(label: "RL", value: formatScore(stats.medianRougeL))
+                }
             }
         }
         .padding(.horizontal, 12)
@@ -81,7 +94,7 @@ private struct StatSummaryCard: View {
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
-    private func formatSimilarity(_ value: Double) -> String {
+    private func formatScore(_ value: Double) -> String {
         guard value > 0 else { return "—" }
         return String(format: "%.3f", value)
     }
