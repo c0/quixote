@@ -7,6 +7,8 @@ private let kRateLimitKey       = "quixote.rateLimit"
 private let kMaxRetriesKey          = "quixote.maxRetries"
 private let kShowExtrapolationKey   = "quixote.showExtrapolation"
 private let kExtrapolationScaleKey  = "quixote.extrapolationScale"
+private let kShowCosineSimilarityKey = "quixote.showCosineSimilarity"
+private let kShowRougeMetricsKey     = "quixote.showRougeMetrics"
 // Legacy key written by CP-3 RunControlsView — migrated to Keychain on first launch
 private let kLegacyAPIKey       = "quixote.openai.apiKey"
 
@@ -40,6 +42,16 @@ final class SettingsViewModel: ObservableObject {
         guard let raw = UserDefaults.standard.string(forKey: "quixote.extrapolationScale"),
               let scale = ExtrapolationScale(rawValue: raw) else { return .oneK }
         return scale
+    }()
+
+    @Published var showCosineSimilarity: Bool = {
+        if UserDefaults.standard.object(forKey: kShowCosineSimilarityKey) == nil { return true }
+        return UserDefaults.standard.bool(forKey: kShowCosineSimilarityKey)
+    }()
+
+    @Published var showRougeMetrics: Bool = {
+        if UserDefaults.standard.object(forKey: kShowRougeMetricsKey) == nil { return true }
+        return UserDefaults.standard.bool(forKey: kShowRougeMetricsKey)
     }()
 
     @Published var isValidatingKey = false
@@ -147,6 +159,16 @@ final class SettingsViewModel: ObservableObject {
     func saveExtrapolationScale(_ value: ExtrapolationScale) {
         extrapolationScale = value
         UserDefaults.standard.set(value.rawValue, forKey: kExtrapolationScaleKey)
+    }
+
+    func saveShowCosineSimilarity(_ value: Bool) {
+        showCosineSimilarity = value
+        UserDefaults.standard.set(value, forKey: kShowCosineSimilarityKey)
+    }
+
+    func saveShowRougeMetrics(_ value: Bool) {
+        showRougeMetrics = value
+        UserDefaults.standard.set(value, forKey: kShowRougeMetricsKey)
     }
 
     // MARK: - Cache

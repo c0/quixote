@@ -10,12 +10,16 @@ final class ExportViewModel: ObservableObject {
         table: ParsedTable,
         results: [String: PromptResult],
         resultColumns: [ResultsViewModel.ResultColumn],
+        showCosineSimilarity: Bool,
+        showRougeMetrics: Bool,
         suggestedName: String
     ) {
         let csv = buildCSV(
             table: table,
             results: results,
-            resultColumns: resultColumns
+            resultColumns: resultColumns,
+            showCosineSimilarity: showCosineSimilarity,
+            showRougeMetrics: showRougeMetrics
         )
 
         let panel = NSSavePanel()
@@ -40,16 +44,27 @@ final class ExportViewModel: ObservableObject {
     private func buildCSV(
         table: ParsedTable,
         results: [String: PromptResult],
-        resultColumns: [ResultsViewModel.ResultColumn]
+        resultColumns: [ResultsViewModel.ResultColumn],
+        showCosineSimilarity: Bool,
+        showRougeMetrics: Bool
     ) -> String {
         var headerFields = table.columns.map { $0.name }
         for col in resultColumns {
             headerFields += [
                 "\(col.header) — Output",
                 "\(col.header) — Duration ms",
-                "\(col.header) — Tokens",
-                "\(col.header) — Cosine Similarity",
+                "\(col.header) — Tokens"
             ]
+            if showCosineSimilarity {
+                headerFields.append("\(col.header) — Cosine Similarity")
+            }
+            if showRougeMetrics {
+                headerFields += [
+                    "\(col.header) — ROUGE-1",
+                    "\(col.header) — ROUGE-2",
+                    "\(col.header) — ROUGE-L"
+                ]
+            }
         }
         var lines = [headerFields.map(escape).joined(separator: ",")]
 
@@ -63,9 +78,22 @@ final class ExportViewModel: ObservableObject {
                     fields.append(r.responseText ?? "")
                     fields.append(r.durationMs.map(String.init) ?? "")
                     fields.append(r.tokenUsage.map { String($0.total) } ?? "")
-                    fields.append(r.cosineSimilarity.map { String(format: "%.6f", $0) } ?? "")
+                    if showCosineSimilarity {
+                        fields.append(r.cosineSimilarity.map { String(format: "%.6f", $0) } ?? "")
+                    }
+                    if showRougeMetrics {
+                        fields.append(r.rouge1.map { String(format: "%.6f", $0) } ?? "")
+                        fields.append(r.rouge2.map { String(format: "%.6f", $0) } ?? "")
+                        fields.append(r.rougeL.map { String(format: "%.6f", $0) } ?? "")
+                    }
                 } else {
-                    fields += ["", "", "", ""]
+                    fields += ["", "", ""]
+                    if showCosineSimilarity {
+                        fields.append("")
+                    }
+                    if showRougeMetrics {
+                        fields += ["", "", ""]
+                    }
                 }
             }
 

@@ -5,6 +5,13 @@ private let kKeychainOpenAIKey = "openai-api-key"
 
 @MainActor
 final class ProcessingViewModel: ObservableObject {
+    private struct AnalyticsScores {
+        let cosineSimilarity: Double
+        let rouge1: Double
+        let rouge2: Double
+        let rougeL: Double
+    }
+
     struct PersistedCompletedResultsStore: Codable {
         var resultsByFileID: [UUID: [String: PromptResult]]
     }
@@ -325,6 +332,9 @@ final class ProcessingViewModel: ObservableObject {
                         durationMs: result.durationMs ?? 0,
                         costUSD: result.costUSD ?? 0,
                         cosineSimilarity: result.cosineSimilarity ?? 0,
+                        rouge1: result.rouge1,
+                        rouge2: result.rouge2,
+                        rougeL: result.rougeL,
                         cachedAt: Date()
                     ),
                     for: key)
@@ -553,6 +563,9 @@ final class ProcessingViewModel: ObservableObject {
                 result.durationMs = entry.durationMs
                 result.costUSD = entry.costUSD
                 result.cosineSimilarity = entry.cosineSimilarity
+                result.rouge1 = entry.rouge1
+                result.rouge2 = entry.rouge2
+                result.rougeL = entry.rougeL
                 result.status = .completed
                 updateResult(result)
             } else {
@@ -621,6 +634,9 @@ final class ProcessingViewModel: ObservableObject {
                                 durationMs: result.durationMs ?? 0,
                                 costUSD: result.costUSD ?? 0,
                                 cosineSimilarity: result.cosineSimilarity ?? 0,
+                                rouge1: result.rouge1,
+                                rouge2: result.rouge2,
+                                rougeL: result.rougeL,
                                 cachedAt: Date()),
                             for: key)
                     }
@@ -650,26 +666,109 @@ final class ProcessingViewModel: ObservableObject {
         }
     }
 
-    /// Bag-of-words cosine similarity between two strings. Returns 0–1.
-    private static func cosineSimilarity(_ a: String, _ b: String) -> Double {
-        func tokenize(_ s: String) -> [String: Int] {
-            var freq: [String: Int] = [:]
-            let words = s.lowercased()
-                .components(separatedBy: .alphanumerics.inverted)
-                .filter { !$0.isEmpty }
-            for w in words { freq[w, default: 0] += 1 }
-            return freq
+    private static func analyticsScores(reference: String, candidate: String) -> AnalyticsScores {
+        let referenceTokens = tokenize(reference)
+        let candidateTokens = tokenize(candidate)
+
+        guard !referenceTokens.isEmpty, !candidateTokens.isEmpty else {
+            return AnalyticsScores(cosineSimilarity: 0, rouge1: 0, rouge2: 0, rougeL: 0)
         }
-        let va = tokenize(a)
-        let vb = tokenize(b)
-        guard !va.isEmpty, !vb.isEmpty else { return 0 }
-        let dot = va.reduce(0.0) { acc, pair in
-            acc + Double(pair.value) * Double(vb[pair.key] ?? 0)
+
+        return AnalyticsScores(
+            cosineSimilarity: cosineSimilarity(referenceTokens, candidateTokens),
+            rouge1: rougeN(referenceTokens, candidateTokens, n: 1),
+            rouge2: rougeN(referenceTokens, candidateTokens, n: 2),
+            rougeL: rougeL(referenceTokens, candidateTokens)
+        )
+    }
+
+    private static func tokenize(_ text: String) -> [String] {
+        text.lowercased()
+            .components(separatedBy: .alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+    }
+
+    /// Bag-of-words cosine similarity between two token sequences. Returns 0–1.
+    private static func cosineSimilarity(_ reference: [String], _ candidate: [String]) -> Double {
+        let referenceFreq = frequencies(reference)
+        let candidateFreq = frequencies(candidate)
+        let dot = referenceFreq.reduce(0.0) { acc, pair in
+            acc + Double(pair.value) * Double(candidateFreq[pair.key] ?? 0)
         }
-        let magA = sqrt(va.values.reduce(0.0) { $0 + Double($1 * $1) })
-        let magB = sqrt(vb.values.reduce(0.0) { $0 + Double($1 * $1) })
+        let magA = sqrt(referenceFreq.values.reduce(0.0) { $0 + Double($1 * $1) })
+        let magB = sqrt(candidateFreq.values.reduce(0.0) { $0 + Double($1 * $1) })
         guard magA > 0, magB > 0 else { return 0 }
         return dot / (magA * magB)
+    }
+
+    private static func rougeN(_ reference: [String], _ candidate: [String], n: Int) -> Double {
+        let referenceGrams = ngramFrequencies(reference, n: n)
+        let candidateGrams = ngramFrequencies(candidate, n: n)
+        guard !referenceGrams.isEmpty, !candidateGrams.isEmpty else { return 0 }
+
+        let overlap = referenceGrams.reduce(0) { acc, pair in
+            acc + min(pair.value, candidateGrams[pair.key] ?? 0)
+        }
+        return f1(
+            overlap: overlap,
+            referenceCount: referenceGrams.values.reduce(0, +),
+            candidateCount: candidateGrams.values.reduce(0, +)
+        )
+    }
+
+    private static func rougeL(_ reference: [String], _ candidate: [String]) -> Double {
+        let lcsCount = longestCommonSubsequenceLength(reference, candidate)
+        return f1(
+            overlap: lcsCount,
+            referenceCount: reference.count,
+            candidateCount: candidate.count
+        )
+    }
+
+    private static func frequencies(_ tokens: [String]) -> [String: Int] {
+        var freq: [String: Int] = [:]
+        for token in tokens {
+            freq[token, default: 0] += 1
+        }
+        return freq
+    }
+
+    private static func ngramFrequencies(_ tokens: [String], n: Int) -> [String: Int] {
+        guard tokens.count >= n else { return [:] }
+        var freq: [String: Int] = [:]
+        for index in 0...(tokens.count - n) {
+            let gram = tokens[index..<(index + n)].joined(separator: "\u{1F}")
+            freq[gram, default: 0] += 1
+        }
+        return freq
+    }
+
+    private static func longestCommonSubsequenceLength(_ a: [String], _ b: [String]) -> Int {
+        guard !a.isEmpty, !b.isEmpty else { return 0 }
+        var previous = Array(repeating: 0, count: b.count + 1)
+        var current = Array(repeating: 0, count: b.count + 1)
+
+        for i in 1...a.count {
+            for j in 1...b.count {
+                if a[i - 1] == b[j - 1] {
+                    current[j] = previous[j - 1] + 1
+                } else {
+                    current[j] = max(previous[j], current[j - 1])
+                }
+            }
+            swap(&previous, &current)
+            current = Array(repeating: 0, count: b.count + 1)
+        }
+
+        return previous[b.count]
+    }
+
+    private static func f1(overlap: Int, referenceCount: Int, candidateCount: Int) -> Double {
+        guard overlap > 0, referenceCount > 0, candidateCount > 0 else { return 0 }
+        let precision = Double(overlap) / Double(candidateCount)
+        let recall = Double(overlap) / Double(referenceCount)
+        guard precision + recall > 0 else { return 0 }
+        return (2 * precision * recall) / (precision + recall)
     }
 
     private static func callService(
@@ -706,7 +805,11 @@ final class ProcessingViewModel: ObservableObject {
                     inputTokens: response.tokenUsage.input,
                     outputTokens: response.tokenUsage.output
                 )
-                result.cosineSimilarity = cosineSimilarity(prompt, response.text)
+                let analytics = analyticsScores(reference: prompt, candidate: response.text)
+                result.cosineSimilarity = analytics.cosineSimilarity
+                result.rouge1 = analytics.rouge1
+                result.rouge2 = analytics.rouge2
+                result.rougeL = analytics.rougeL
                 result.status = .completed
                 return result
             } catch is CancellationError {

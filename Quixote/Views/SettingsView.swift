@@ -127,6 +127,24 @@ struct SettingsView: View {
                     .pickerStyle(.segmented)
                 }
             }
+
+            Section("Analytics") {
+                Toggle(
+                    "Show cosine similarity",
+                    isOn: Binding(
+                        get: { viewModel.showCosineSimilarity },
+                        set: { viewModel.saveShowCosineSimilarity($0) }
+                    )
+                )
+
+                Toggle(
+                    "Show ROUGE metrics",
+                    isOn: Binding(
+                        get: { viewModel.showRougeMetrics },
+                        set: { viewModel.saveShowRougeMetrics($0) }
+                    )
+                )
+            }
         }
         .formStyle(.grouped)
         .padding(.vertical, 8)
