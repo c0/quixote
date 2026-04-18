@@ -15,9 +15,16 @@ private enum DataTableMetrics {
 struct DataTableView: View {
     @ObservedObject var viewModel: DataPreviewViewModel
     @ObservedObject var results: ResultsViewModel
+    @ObservedObject var processing: ProcessingViewModel
+    @ObservedObject var settings: SettingsViewModel
     let selectedPromptID: UUID?
     let datasetName: String
     let datasetSubtitle: String
+    let selectedPrompt: Prompt?
+    let prompts: [Prompt]
+    let rows: [Row]
+    let columns: [ColumnDef]
+    let modelConfigs: [ResolvedFileModelConfig]
     let canExport: Bool
     let onExport: () -> Void
     var onRetry: ((UUID, UUID, UUID) -> Void)? = nil
@@ -25,8 +32,8 @@ struct DataTableView: View {
     var body: some View {
         VStack(spacing: 0) {
             paneHeader
-                .padding(.horizontal, 18)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
 
             QuixoteRowDivider()
 
@@ -45,10 +52,10 @@ struct DataTableView: View {
     }
 
     private var paneHeader: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(datasetName)
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(Color.quixoteTextPrimary)
 
                 Text(datasetSubtitle.uppercased())
@@ -58,6 +65,16 @@ struct DataTableView: View {
             }
 
             Spacer()
+
+            RunActionControls(
+                processing: processing,
+                settings: settings,
+                selectedPrompt: selectedPrompt,
+                prompts: prompts,
+                rows: rows,
+                columns: columns,
+                modelConfigs: modelConfigs
+            )
 
             Button {
                 onExport()

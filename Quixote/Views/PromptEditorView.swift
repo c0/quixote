@@ -23,7 +23,7 @@ struct PromptEditorView: View {
         VStack(spacing: 0) {
             tabStrip
                 .padding(.horizontal, QuixoteSpacing.paneInset)
-                .padding(.vertical, 14)
+                .padding(.vertical, 10)
 
             QuixoteRowDivider()
 
@@ -44,16 +44,16 @@ struct PromptEditorView: View {
     }
 
     private var tabStrip: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     ForEach(promptList.prompts) { prompt in
-                        HStack(spacing: 10) {
+                        HStack(spacing: 8) {
                             Button {
                                 promptList.selectPrompt(prompt.id)
                             } label: {
                                 Text(prompt.name)
-                                    .font(.system(size: 14, weight: prompt.id == promptList.selectedPromptID ? .bold : .medium))
+                                    .font(.system(size: 12, weight: prompt.id == promptList.selectedPromptID ? .bold : .medium))
                                     .foregroundStyle(prompt.id == promptList.selectedPromptID ? Color.quixoteTextPrimary : Color.quixoteTextSecondary)
                                     .lineLimit(1)
                             }
@@ -63,15 +63,15 @@ struct PromptEditorView: View {
                                 promptList.deletePrompt(id: prompt.id)
                             } label: {
                                 Image(systemName: "xmark")
-                                    .font(.system(size: 10, weight: .semibold))
+                                    .font(.system(size: 9, weight: .semibold))
                                     .foregroundStyle(Color.quixoteTextSecondary)
                             }
                             .buttonStyle(.plain)
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
                         .background(
-                            Capsule(style: .continuous)
+                            RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                                 .fill(prompt.id == promptList.selectedPromptID ? Color.quixoteSelection : Color.clear)
                         )
                     }
@@ -82,7 +82,7 @@ struct PromptEditorView: View {
                 promptList.addPrompt()
             } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(Color.quixoteTextSecondary)
             }
             .buttonStyle(.plain)
@@ -97,12 +97,13 @@ struct PromptEditorView: View {
                 systemMessageSection
                 promptSection
             }
-            .padding(QuixoteSpacing.paneInset)
+            .padding(.horizontal, QuixoteSpacing.paneInset)
+            .padding(.vertical, 14)
         }
     }
 
     private var modelSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 QuixoteSectionLabel(text: "Model")
                 Spacer()
@@ -125,7 +126,7 @@ struct PromptEditorView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
                 ForEach(resolvedModelConfigs) { config in
                     ModelConfigCard(
                         config: config,
@@ -147,10 +148,10 @@ struct PromptEditorView: View {
     }
 
     private var variablesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             QuixoteSectionLabel(text: "Variables")
 
-            QuixoteFlowLayout(spacing: 10, rowSpacing: 10) {
+            QuixoteFlowLayout(spacing: 8, rowSpacing: 8) {
                 ForEach(columns) { column in
                     Button {
                         viewModel.insertToken(column.name)
@@ -166,7 +167,7 @@ struct PromptEditorView: View {
     }
 
     private var systemMessageSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             QuixoteSectionLabel(text: "System Message")
             editorCard(
                 text: Binding(
@@ -175,12 +176,12 @@ struct PromptEditorView: View {
                 ),
                 placeholder: "Describe desired model behavior (tone, tool usage, response style)"
             )
-            .frame(height: 190)
+            .frame(height: 160)
         }
     }
 
     private var promptSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 QuixoteSectionLabel(text: "Prompt")
                 Spacer()
@@ -189,7 +190,7 @@ struct PromptEditorView: View {
                     Text("Preview").tag(EditorMode.preview)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 150)
+                .frame(width: 132)
                 .colorScheme(.dark)
             }
 
@@ -204,7 +205,7 @@ struct PromptEditorView: View {
                     ),
                     placeholder: "Summarized in 3 bullet points:\n{{body_html}}"
                 )
-                .frame(minHeight: 320)
+                .frame(minHeight: 280)
             }
         }
     }
@@ -215,7 +216,7 @@ struct PromptEditorView: View {
                 .font(.system(size: 14, design: .monospaced))
                 .foregroundStyle(viewModel.previewText.isEmpty ? Color.quixoteTextMuted : Color.quixoteTextPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(18)
+                .padding(14)
         }
         .background(
             RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
@@ -240,15 +241,15 @@ struct PromptEditorView: View {
                 .scrollContentBackground(.hidden)
                 .font(.system(size: 14, design: .monospaced))
                 .foregroundStyle(Color.quixoteTextPrimary)
-                .padding(14)
+                .padding(10)
                 .background(Color.clear)
 
             if text.wrappedValue.isEmpty {
                 Text(placeholder)
                     .font(.system(size: 14))
                     .foregroundStyle(Color.quixoteTextMuted)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 20)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 14)
                     .allowsHitTesting(false)
             }
         }
@@ -385,13 +386,13 @@ private struct ModelConfigCard: View {
     @State private var showModelPicker = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
                 Button {
                     showModelPicker = true
                 } label: {
                     Text(config.displayName)
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(Color.quixoteTextPrimary)
                         .lineLimit(1)
                 }
@@ -409,7 +410,7 @@ private struct ModelConfigCard: View {
 
                 Spacer()
 
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     Button {
                         isExpanded.toggle()
                     } label: {
@@ -431,7 +432,7 @@ private struct ModelConfigCard: View {
                 }
             }
 
-            HStack(spacing: 18) {
+            HStack(spacing: 14) {
                 SummaryMetric(title: "Temp", value: Self.decimalString(config.parameters.temperature))
                 SummaryMetric(title: "Top P", value: Self.decimalString(config.parameters.topP))
                 SummaryMetric(title: "Max Tokens", value: config.parameters.maxTokens.map(String.init) ?? "Auto")
@@ -441,7 +442,7 @@ private struct ModelConfigCard: View {
             }
 
             if isExpanded {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 10) {
                     ParameterSliderRow(
                         title: "Temp",
                         value: config.parameters.temperature,
@@ -483,7 +484,7 @@ private struct ModelConfigCard: View {
                 }
             }
         }
-        .padding(18)
+        .padding(14)
         .background(
             RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                 .fill(Color.quixoteCard)
@@ -540,13 +541,13 @@ private struct ReasoningLevelRow: View {
                         .font(.system(size: 10, weight: .bold))
                 }
                 .foregroundStyle(Color.quixoteTextPrimary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                         .fill(Color.quixotePanel)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                                 .stroke(Color.quixoteDivider, lineWidth: 1)
                         )
                 )
@@ -579,14 +580,14 @@ private struct MaxTokensRow: View {
                 .multilineTextAlignment(.trailing)
                 .focused($isFocused)
                 .foregroundStyle(Color.quixoteTextPrimary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
                 .frame(width: 96)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                         .fill(Color.quixotePanel)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                                 .stroke(Color.quixoteDivider, lineWidth: 1)
                         )
                 )
@@ -632,7 +633,7 @@ private struct ParameterSliderRow: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(title)
                     .font(.system(size: 12, weight: .medium))
@@ -646,14 +647,14 @@ private struct ParameterSliderRow: View {
                     .multilineTextAlignment(.trailing)
                     .focused($isFocused)
                     .foregroundStyle(Color.quixoteTextPrimary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
                     .frame(width: 70)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                             .fill(Color.quixotePanel)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                                     .stroke(Color.quixoteDivider, lineWidth: 1)
                             )
                     )

@@ -14,46 +14,41 @@ struct MainWindow: View {
     @State private var showFileChangedAlert = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            HSplitView {
-                SidebarView(workspace: workspace)
-                    .frame(minWidth: 220, idealWidth: 220, maxWidth: 240)
+        HSplitView {
+            SidebarView(workspace: workspace)
+                .frame(minWidth: 220, idealWidth: 220, maxWidth: 240)
 
-                PromptEditorView(
-                    viewModel: promptEditor,
-                    promptList: promptList,
-                    settings: settings,
-                    modelConfigs: fileModelConfigs,
-                    columns: dataPreview.columns
-                )
-                .frame(minWidth: 400, idealWidth: 440, maxWidth: 500)
+            PromptEditorView(
+                viewModel: promptEditor,
+                promptList: promptList,
+                settings: settings,
+                modelConfigs: fileModelConfigs,
+                columns: dataPreview.columns
+            )
+            .frame(minWidth: 400, idealWidth: 440, maxWidth: 500)
 
-                DataTableView(
-                    viewModel: dataPreview,
-                    results: resultsVM,
-                    selectedPromptID: promptList.selectedPromptID,
-                    datasetName: workspace.selectedFile?.displayName ?? "Quixote",
-                    datasetSubtitle: subtitleText.isEmpty ? "No dataset loaded" : subtitleText,
-                    canExport: canExport,
-                    onExport: triggerExport,
-                    onRetry: { rowID, promptID, modelConfigID in
-                        processing.retryResult(rowID: rowID, promptID: promptID, modelConfigID: modelConfigID)
-                    }
-                )
-                .frame(minWidth: 580, maxWidth: .infinity)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            RunControlsView(
+            DataTableView(
+                viewModel: dataPreview,
+                results: resultsVM,
                 processing: processing,
                 settings: settings,
+                selectedPromptID: promptList.selectedPromptID,
+                datasetName: workspace.selectedFile?.displayName ?? "Quixote",
+                datasetSubtitle: subtitleText.isEmpty ? "No dataset loaded" : subtitleText,
                 selectedPrompt: promptList.selectedPrompt,
                 prompts: promptList.prompts,
                 rows: dataPreview.allRows,
                 columns: dataPreview.columns,
-                modelConfigs: resolvedModelConfigs
+                modelConfigs: resolvedModelConfigs,
+                canExport: canExport,
+                onExport: triggerExport,
+                onRetry: { rowID, promptID, modelConfigID in
+                    processing.retryResult(rowID: rowID, promptID: promptID, modelConfigID: modelConfigID)
+                }
             )
+            .frame(minWidth: 580, maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.quixoteAppBackground)
         .preferredColorScheme(.dark)
         .frame(minWidth: 1240, minHeight: 760)

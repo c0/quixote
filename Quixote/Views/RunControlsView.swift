@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct RunControlsView: View {
+struct RunActionControls: View {
     @ObservedObject var processing: ProcessingViewModel
     @ObservedObject var settings: SettingsViewModel
     let selectedPrompt: Prompt?
@@ -50,8 +50,6 @@ struct RunControlsView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Spacer(minLength: 12)
-
             if apiKey.isEmpty {
                 Button {
                     NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
@@ -65,19 +63,13 @@ struct RunControlsView: View {
 
             actionCluster
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.quixotePanel)
-        .overlay(alignment: .top) {
-            QuixoteRowDivider()
-        }
     }
 
     @ViewBuilder
     private var actionCluster: some View {
         switch processing.runState {
         case .running:
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Button("PAUSE") {
                     processing.pause()
                 }
@@ -89,7 +81,7 @@ struct RunControlsView: View {
                 .buttonStyle(QuixoteSecondaryButtonStyle())
             }
         case .paused:
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Button("RESUME") {
                     processing.resume()
                 }
@@ -101,7 +93,7 @@ struct RunControlsView: View {
                 .buttonStyle(QuixoteSecondaryButtonStyle())
             }
         default:
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 if !processing.isActive && processing.hasFailedResults {
                     Button("RETRY FAILED") {
                         processing.retryFailed(
@@ -133,26 +125,26 @@ struct RunControlsView: View {
     }
 
     private var splitRunButton: some View {
-        let caretSegmentWidth: CGFloat = 48
+        let caretSegmentWidth: CGFloat = 34
 
         return HStack(spacing: 0) {
             Button(action: runAction) {
                 Label("RUN", systemImage: "play")
-                    .font(.system(size: 13, weight: .bold))
-                    .tracking(1.2)
+                    .font(.system(size: 12, weight: .bold))
+                    .tracking(1.0)
                     .foregroundStyle(Color.white)
-                    .frame(minWidth: 92)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 13)
+                    .frame(minWidth: 72)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
             ZStack {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(Color.white)
-                    .frame(width: caretSegmentWidth, height: 46)
+                    .frame(width: caretSegmentWidth, height: 32)
 
                 Menu {
                     Picker("Rows", selection: $rowLimit) {
@@ -164,8 +156,8 @@ struct RunControlsView: View {
                 } label: {
                     Color.clear
                 }
-                .frame(width: caretSegmentWidth, height: 46)
-                .frame(width: caretSegmentWidth, height: 46)
+                .frame(width: caretSegmentWidth, height: 32)
+                .frame(width: caretSegmentWidth, height: 32)
                 .contentShape(Rectangle())
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
@@ -182,7 +174,7 @@ struct RunControlsView: View {
                         Rectangle()
                             .fill(Color.white.opacity(0.10))
                             .frame(width: 1)
-                            .padding(.vertical, 12)
+                            .padding(.vertical, 8)
                             .offset(x: -caretSegmentWidth)
                     }
                 }
