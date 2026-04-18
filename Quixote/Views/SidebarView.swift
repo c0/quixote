@@ -7,13 +7,13 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             header
                 .padding(.horizontal, QuixoteSpacing.shell)
-                .padding(.top, 18)
-                .padding(.bottom, 14)
+                .padding(.top, 12)
+                .padding(.bottom, 10)
 
             QuixoteRowDivider()
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
+                LazyVStack(alignment: .leading, spacing: 6) {
                     ForEach(workspace.files) { file in
                         sidebarRow(for: file)
                             .contextMenu {
@@ -23,8 +23,8 @@ struct SidebarView: View {
                             }
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 14)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 10)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -32,15 +32,15 @@ struct SidebarView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 10) {
             Image("SidebarLogo")
                 .resizable()
                 .interpolation(.high)
-                .frame(width: 28, height: 28)
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .frame(width: 24, height: 24)
+                .clipShape(RoundedRectangle(cornerRadius: QuixoteSpacing.smallRadius, style: .continuous))
 
             Text("Quixote")
-                .font(.system(size: 17, weight: .bold))
+                .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(Color.quixoteTextPrimary)
 
             Spacer(minLength: 0)
@@ -49,11 +49,11 @@ struct SidebarView: View {
                 workspace.openFilePicker()
             } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(Color.quixoteTextSecondary)
-                    .frame(width: 28, height: 28)
+                    .frame(width: 24, height: 24)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                             .fill(Color.quixotePanelRaised)
                     )
             }
@@ -66,15 +66,15 @@ struct SidebarView: View {
         Button {
             workspace.selectedFileID = file.id
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 Image(systemName: iconName(for: file))
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(file.isAvailable ? Color.quixoteTextSecondary : Color.quixoteOrange)
                     .frame(width: 16)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(file.displayName)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(file.isAvailable ? Color.quixoteTextPrimary : Color.quixoteTextSecondary)
                         .lineLimit(1)
 
@@ -89,13 +89,13 @@ struct SidebarView: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                     .fill(file.id == workspace.selectedFileID ? Color.quixoteSelection : Color.clear)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                             .stroke(file.id == workspace.selectedFileID ? Color.quixoteDivider : Color.clear, lineWidth: 1)
                     )
             )

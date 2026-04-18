@@ -22,8 +22,8 @@ enum QuixoteSpacing {
     static let paneInset: CGFloat = 18
     static let sectionGap: CGFloat = 18
     static let controlGap: CGFloat = 10
-    static let cornerRadius: CGFloat = 14
-    static let smallRadius: CGFloat = 10
+    static let cornerRadius: CGFloat = 6
+    static let smallRadius: CGFloat = 4
 }
 
 struct QuixoteSectionLabel: View {
@@ -56,11 +56,11 @@ struct QuixoteRowDivider: View {
 struct QuixotePrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .bold))
-            .tracking(1.2)
+            .font(.system(size: 12, weight: .bold))
+            .tracking(1.0)
             .foregroundStyle(Color.white)
-            .padding(.horizontal, 22)
-            .padding(.vertical, 13)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                     .fill(Color.quixoteBlue.opacity(configuration.isPressed ? 0.85 : 1))
@@ -71,11 +71,11 @@ struct QuixotePrimaryButtonStyle: ButtonStyle {
 struct QuixoteSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .bold))
-            .tracking(1.1)
+            .font(.system(size: 12, weight: .bold))
+            .tracking(1.0)
             .foregroundStyle(Color.quixoteTextPrimary.opacity(configuration.isPressed ? 0.85 : 1))
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                     .fill(Color.quixotePanelRaised)
@@ -96,7 +96,7 @@ struct QuixoteChip: View {
     var fill: Color = .quixoteSelection
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Text(text)
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .foregroundStyle(tint)
@@ -110,13 +110,13 @@ struct QuixoteChip: View {
                     .foregroundStyle(Color.quixoteTextSecondary)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
         .background(
-            Capsule(style: .continuous)
+            RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                 .fill(fill)
                 .overlay(
-                    Capsule(style: .continuous)
+                    RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                         .stroke(Color.quixoteDivider, lineWidth: 1)
                 )
         )
