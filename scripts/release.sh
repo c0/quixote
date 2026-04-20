@@ -11,6 +11,7 @@ VERSION_FILES=(
   "site/public/appcast.xml"
 )
 RELEASE_COMMIT_CREATED=0
+HAS_XCPRETTY=0
 
 cleanup_on_error() {
   local exit_code=$?
@@ -47,11 +48,14 @@ require_cmd gh
 require_cmd ruby
 require_cmd sed
 require_cmd xcodegen
-require_cmd xcpretty
 require_cmd xcodebuild
 require_cmd xcrun
 require_cmd hdiutil
 require_cmd osascript
+
+if command -v xcpretty >/dev/null 2>&1; then
+  HAS_XCPRETTY=1
+fi
 
 if ! gh auth status >/dev/null 2>&1; then
   echo "ERROR: gh CLI is not authenticated. Run: gh auth login"
@@ -169,15 +173,26 @@ xcodegen generate
 # ── 4. xcodebuild archive ────────────────────────────────────────────────────
 
 echo "▶ Archiving..."
-xcodebuild archive \
-  -project Quixote.xcodeproj \
-  -scheme Quixote \
-  -configuration Release \
-  -archivePath "$ARCHIVE_PATH" \
-  CODE_SIGN_IDENTITY="$SIGNING_IDENTITY_NAME" \
-  DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-  CODE_SIGN_STYLE=Manual \
-  | xcpretty 2>/dev/null || true
+if [ "$HAS_XCPRETTY" -eq 1 ]; then
+  xcodebuild archive \
+    -project Quixote.xcodeproj \
+    -scheme Quixote \
+    -configuration Release \
+    -archivePath "$ARCHIVE_PATH" \
+    CODE_SIGN_IDENTITY="$SIGNING_IDENTITY_NAME" \
+    DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+    CODE_SIGN_STYLE=Manual \
+    | xcpretty 2>/dev/null
+else
+  xcodebuild archive \
+    -project Quixote.xcodeproj \
+    -scheme Quixote \
+    -configuration Release \
+    -archivePath "$ARCHIVE_PATH" \
+    CODE_SIGN_IDENTITY="$SIGNING_IDENTITY_NAME" \
+    DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+    CODE_SIGN_STYLE=Manual
+fi
 
 if [ ! -d "$ARCHIVE_PATH" ]; then
   echo "ERROR: Archive not found at $ARCHIVE_PATH"
