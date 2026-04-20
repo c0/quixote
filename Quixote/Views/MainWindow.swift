@@ -30,6 +30,7 @@ struct MainWindow: View {
             DataTableView(
                 viewModel: dataPreview,
                 results: resultsVM,
+                statsVM: statsVM,
                 processing: processing,
                 settings: settings,
                 selectedPromptID: promptList.selectedPromptID,
@@ -88,6 +89,9 @@ struct MainWindow: View {
             refreshDerivedViewModels()
         }
         .onChange(of: processing.results) {
+            refreshDerivedViewModels()
+        }
+        .onChange(of: processing.runState) {
             refreshDerivedViewModels()
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
@@ -205,7 +209,9 @@ struct MainWindow: View {
             results: processing.results,
             prompts: promptList.prompts,
             modelConfigs: resolvedModelConfigs,
-            totalRows: dataPreview.allRows.count
+            rows: dataPreview.allRows,
+            runState: processing.runState,
+            runStartedAt: processing.runStartedAt
         )
     }
 

@@ -48,6 +48,7 @@ final class ProcessingViewModel: ObservableObject {
     @Published var runState: RunState = .idle
     // Results keyed by composite "\(promptID)-\(rowID)-\(modelConfigID)"
     @Published var results: [String: PromptResult] = [:]
+    @Published private(set) var runStartedAt: Date?
 
     private var runTask: Task<Void, Never>?
     private var pauseContinuation: CheckedContinuation<Void, Never>?
@@ -164,6 +165,7 @@ final class ProcessingViewModel: ObservableObject {
         }
         clearSavedState()
         let total = prompts.count * rows.count * modelConfigs.count
+        runStartedAt = Date()
         runState = .running(completed: 0, total: total)
 
         let service = OpenAIService(apiKey: apiKey)
@@ -205,9 +207,11 @@ final class ProcessingViewModel: ObservableObject {
         for (key, var result) in results {
             if result.status == .pending || result.status == .inProgress {
                 result.status = .cancelled
+                result.finishedAt = Date()
                 results[key] = result
             }
         }
+        runStartedAt = nil
         runState = .idle
         clearSavedState()
         persistCompletedResultsForActiveFile()
@@ -217,6 +221,7 @@ final class ProcessingViewModel: ObservableObject {
         results = [:]
         runContext = nil
         isRestoredFromDisk = false
+        runStartedAt = nil
         runState = .idle
         clearSavedState()
         persistCompletedResultsForActiveFile()
@@ -226,6 +231,7 @@ final class ProcessingViewModel: ObservableObject {
         results = [:]
         runContext = nil
         isRestoredFromDisk = false
+        runStartedAt = nil
         runState = .idle
         clearSavedState()
     }
@@ -239,6 +245,7 @@ final class ProcessingViewModel: ObservableObject {
         guard !isActive else { return }
         runContext = nil
         isRestoredFromDisk = false
+        runStartedAt = nil
         results = persistedCompletedResultsByFileID[fileID] ?? [:]
         if results.isEmpty {
             runState = .idle
@@ -252,6 +259,7 @@ final class ProcessingViewModel: ObservableObject {
         scheduleCompletedResultsSave()
         if activeFileID == fileID, !isActive {
             results = [:]
+            runStartedAt = nil
             runState = .idle
         }
     }
@@ -279,6 +287,7 @@ final class ProcessingViewModel: ObservableObject {
 
         guard !promptScopedWorkItems.isEmpty else { return }
 
+        runStartedAt = Date()
         runState = .running(completed: 0, total: promptScopedWorkItems.count)
 
         runTask = Task {
@@ -286,6 +295,7 @@ final class ProcessingViewModel: ObservableObject {
                                    service: service, maxRetries: maxRetries)
             if Task.isCancelled { return }
             if case .running(_, let total) = runState {
+                runStartedAt = nil
                 runState = .completed(total)
                 clearSavedState()
             }
@@ -358,6 +368,7 @@ final class ProcessingViewModel: ObservableObject {
         }
 
         guard !remainingItems.isEmpty else {
+            runStartedAt = nil
             runState = .completed(total)
             clearSavedState()
             return
@@ -382,6 +393,7 @@ final class ProcessingViewModel: ObservableObject {
         )
         activeFileID = ctx.prompts.first?.fileID
 
+        runStartedAt = Date()
         runState = .running(completed: completedSoFar, total: total)
         let service = OpenAIService(apiKey: apiKey)
         let columns = ctx.columns
@@ -393,6 +405,7 @@ final class ProcessingViewModel: ObservableObject {
             if Task.isCancelled { return }
             switch runState {
             case .running(_, let t), .paused(_, let t):
+                runStartedAt = nil
                 runState = .completed(t)
                 clearSavedState()
             default:
@@ -430,6 +443,7 @@ final class ProcessingViewModel: ObservableObject {
         activeFileID = snapshot.prompts.first?.fileID
         results = snapshot.results
         isRestoredFromDisk = true
+        runStartedAt = Date()
         runState = .paused(completed: snapshot.completedCount, total: snapshot.totalCount)
     }
 
@@ -522,6 +536,7 @@ final class ProcessingViewModel: ObservableObject {
         if Task.isCancelled { return }
         switch runState {
         case .running(_, let total), .paused(_, let total):
+            runStartedAt = nil
             runState = .completed(total)
             clearSavedState()
         default:
@@ -562,6 +577,7 @@ final class ProcessingViewModel: ObservableObject {
                 result.tokenUsage = entry.tokenUsage
                 result.durationMs = entry.durationMs
                 result.costUSD = entry.costUSD
+                result.finishedAt = Date()
                 result.cosineSimilarity = entry.cosineSimilarity
                 result.rouge1 = entry.rouge1
                 result.rouge2 = entry.rouge2
@@ -805,6 +821,7 @@ final class ProcessingViewModel: ObservableObject {
                     inputTokens: response.tokenUsage.input,
                     outputTokens: response.tokenUsage.output
                 )
+                result.finishedAt = Date()
                 let analytics = analyticsScores(reference: prompt, candidate: response.text)
                 result.cosineSimilarity = analytics.cosineSimilarity
                 result.rouge1 = analytics.rouge1
@@ -813,6 +830,7 @@ final class ProcessingViewModel: ObservableObject {
                 result.status = .completed
                 return result
             } catch is CancellationError {
+                result.finishedAt = Date()
                 result.status = .cancelled
                 return result
             } catch {
@@ -822,6 +840,7 @@ final class ProcessingViewModel: ObservableObject {
                     continue
                 }
                 result.responseText = error.localizedDescription
+                result.finishedAt = Date()
                 result.status = .failed
                 return result
             }
