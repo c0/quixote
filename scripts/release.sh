@@ -129,7 +129,7 @@ if [ ! -f site/package-lock.json ]; then
   exit 1
 fi
 
-SUPUBLICEDKEY="$(ruby -e 'require \"yaml\"; puts YAML.load_file(\"project.yml\").dig(\"targets\", \"Quixote\", \"info\", \"properties\", \"SUPublicEDKey\")')"
+SUPUBLICEDKEY="$(ruby -e "require 'yaml'; puts YAML.load_file('project.yml').dig('targets', 'Quixote', 'info', 'properties', 'SUPublicEDKey')")"
 if [ -z "$SUPUBLICEDKEY" ] || [ "$SUPUBLICEDKEY" = "REPLACE_WITH_YOUR_PUBLIC_ED_KEY" ]; then
   echo "ERROR: SUPublicEDKey in project.yml is not configured."
   exit 1
