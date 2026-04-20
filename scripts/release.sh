@@ -4,6 +4,31 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+VERSION_FILES=(
+  "project.yml"
+  "Quixote.xcodeproj/project.pbxproj"
+  "site/src/pages/index.astro"
+  "site/public/appcast.xml"
+)
+RELEASE_COMMIT_CREATED=0
+
+cleanup_on_error() {
+  local exit_code=$?
+  if [ "$exit_code" -ne 0 ] && [ "$RELEASE_COMMIT_CREATED" -eq 0 ]; then
+    git restore --source=HEAD -- "${VERSION_FILES[@]}" 2>/dev/null || true
+  fi
+  exit "$exit_code"
+}
+
+trap cleanup_on_error ERR
+
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "ERROR: required command not found: $1"
+    exit 1
+  fi
+}
+
 # ── 1. Load .env and validate environment ────────────────────────────────────
 
 if [ ! -f .env ]; then
@@ -16,10 +41,20 @@ source .env
 : "${APPLE_TEAM_ID:?ERROR: APPLE_TEAM_ID not set in .env}"
 : "${APPLE_ID:?ERROR: APPLE_ID not set in .env}"
 : "${SIGNING_IDENTITY_NAME:?ERROR: SIGNING_IDENTITY_NAME not set in .env}"
+: "${SPARKLE_PRIVATE_KEY_PATH:?ERROR: SPARKLE_PRIVATE_KEY_PATH not set in .env}"
 
-# Verify gh CLI is available
-if ! command -v gh &>/dev/null; then
-  echo "ERROR: gh CLI not found. Install with: brew install gh && gh auth login"
+require_cmd gh
+require_cmd ruby
+require_cmd sed
+require_cmd xcodegen
+require_cmd xcpretty
+require_cmd xcodebuild
+require_cmd xcrun
+require_cmd hdiutil
+require_cmd osascript
+
+if ! gh auth status >/dev/null 2>&1; then
+  echo "ERROR: gh CLI is not authenticated. Run: gh auth login"
   exit 1
 fi
 
@@ -67,6 +102,11 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 
+if git rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
+  echo "ERROR: Tag v${VERSION} already exists."
+  exit 1
+fi
+
 echo ""
 echo "▶ Releasing v${VERSION}"
 echo ""
@@ -96,9 +136,14 @@ if ! grep -q "^## \\[$VERSION\\]" CHANGELOG.md; then
   exit 1
 fi
 
-: "${SPARKLE_PRIVATE_KEY_PATH:?ERROR: SPARKLE_PRIVATE_KEY_PATH not set in .env}"
 if [ ! -f "$SPARKLE_PRIVATE_KEY_PATH" ]; then
   echo "ERROR: SPARKLE_PRIVATE_KEY_PATH does not point to a file: $SPARKLE_PRIVATE_KEY_PATH"
+  exit 1
+fi
+
+GENERATE_APPCAST="$(find ~/Library/Developer/Xcode/DerivedData -path "*/artifacts/sparkle/Sparkle/bin/generate_appcast" 2>/dev/null | head -1)"
+if [ -z "$GENERATE_APPCAST" ]; then
+  echo "ERROR: generate_appcast not found in Xcode DerivedData. Build the project in Xcode first to resolve Sparkle package."
   exit 1
 fi
 
@@ -227,12 +272,6 @@ APPCAST_DIR="$REPO_ROOT/site/public"
 mkdir -p "$APPCAST_DIR"
 find "$BUILD_DIR" -maxdepth 1 -name "*.dmg" ! -name "$DMG_NAME" -delete
 
-GENERATE_APPCAST="$(find ~/Library/Developer/Xcode/DerivedData -path "*/artifacts/sparkle/Sparkle/bin/generate_appcast" 2>/dev/null | head -1)"
-if [ -z "$GENERATE_APPCAST" ]; then
-  echo "ERROR: generate_appcast not found in Xcode DerivedData. Build the project in Xcode first to resolve Sparkle package."
-  exit 1
-fi
-
 "$GENERATE_APPCAST" \
   --ed-key-file "$SPARKLE_PRIVATE_KEY_PATH" \
   --download-url-prefix "https://github.com/${REPO_SLUG}/releases/download/v${VERSION}/" \
@@ -242,8 +281,12 @@ fi
 
 git add "$APPCAST_PATH" project.yml Quixote.xcodeproj/project.pbxproj site/src/pages/index.astro
 git commit -m "chore: update appcast for v${VERSION}"
+RELEASE_COMMIT_CREATED=1
 
 # ── 9. Tag and publish release ───────────────────────────────────────────────
+
+echo "▶ Pushing release commit to main..."
+git push origin main
 
 echo "▶ Tagging v${VERSION}..."
 git tag "v${VERSION}"
@@ -256,8 +299,6 @@ NOTES="$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{
 gh release create "v${VERSION}" "$DMG_PATH" \
   --title "v${VERSION}" \
   --notes "$NOTES"
-
-git push origin main
 
 echo ""
 echo "✓ Released v${VERSION}"
