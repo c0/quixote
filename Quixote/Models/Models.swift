@@ -328,6 +328,7 @@ struct PromptResult: Identifiable, Codable, Equatable {
     var costUSD: Double?
     var durationMs: Int?
     var retryCount: Int = 0
+    var finishedAt: Date?
     var cosineSimilarity: Double?
     var rouge1: Double?
     var rouge2: Double?

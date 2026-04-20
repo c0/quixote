@@ -15,6 +15,7 @@ private enum DataTableMetrics {
 struct DataTableView: View {
     @ObservedObject var viewModel: DataPreviewViewModel
     @ObservedObject var results: ResultsViewModel
+    @ObservedObject var statsVM: StatsViewModel
     @ObservedObject var processing: ProcessingViewModel
     @ObservedObject var settings: SettingsViewModel
     let selectedPromptID: UUID?
@@ -115,6 +116,18 @@ struct DataTableView: View {
             if viewModel.pageCount > 1 {
                 PaginationBar(viewModel: viewModel)
             }
+
+            StatsPanelView(
+                statsVM: statsVM,
+                processing: processing,
+                settings: settings,
+                onRetryFailed: {
+                    processing.retryFailed(
+                        concurrency: settings.concurrency,
+                        rateLimit: Double(settings.rateLimit)
+                    )
+                }
+            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }

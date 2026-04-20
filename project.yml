@@ -27,12 +27,12 @@ targets:
         PRODUCT_NAME: "Quixote"
         PRODUCT_BUNDLE_IDENTIFIER: com.c0.quixote
         SWIFT_VERSION: "5.0"
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: BH93JMP63R
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         ENABLE_HARDENED_RUNTIME: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       configs:
         Release:
           CODE_SIGN_STYLE: Manual
