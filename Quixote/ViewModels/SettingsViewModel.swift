@@ -130,7 +130,8 @@ final class SettingsViewModel: ObservableObject {
     }
 
     private func updateAvailableModels(_ models: [ModelConfig]) {
-        availableModels = models.isEmpty ? ModelConfig.builtIn : models
+        let eligibleModels = ModelConfig.eligibleTextModels(models)
+        availableModels = eligibleModels.isEmpty ? ModelConfig.builtIn : eligibleModels
         groupedModels = ModelConfig.grouped(availableModels)
     }
 

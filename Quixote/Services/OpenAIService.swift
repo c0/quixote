@@ -133,8 +133,7 @@ struct OpenAIService: LLMService {
 
         let list = try JSONDecoder().decode(OpenAIModelListResponse.self, from: data)
 
-        return list.data
-            .filter { Self.isChatModel($0.id) }
+        let models = list.data
             .map { entry in
                 ModelConfig(
                     id: entry.id,
@@ -144,18 +143,10 @@ struct OpenAIService: LLMService {
                     supportedReasoningLevels: ModelConfig.supportedReasoningLevels(for: entry.id)
                 )
             }
-            .sorted { $0.created ?? 0 > $1.created ?? 0 }
+        return ModelConfig.eligibleTextModels(models)
     }
 
     // MARK: - Model filtering & display
-
-    /// Filter to chat-capable models (GPT family, o-series reasoning models)
-    private static func isChatModel(_ id: String) -> Bool {
-        let chatPrefixes = ["gpt-4", "gpt-3.5", "gpt-5", "chatgpt", "o1", "o3", "o4"]
-        return chatPrefixes.contains { id.hasPrefix($0) }
-            && !id.contains("instruct")
-            && !id.contains("base")
-    }
 
     /// Convert API model ID to human-readable display name
     private static func displayName(for id: String) -> String {

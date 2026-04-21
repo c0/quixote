@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 private enum StatsDrawerSection: String, CaseIterable, Identifiable {
@@ -13,6 +14,8 @@ private enum StatsDrawerSection: String, CaseIterable, Identifiable {
 }
 
 struct StatsPanelView: View {
+    private static let drawerHeight: CGFloat = 420
+
     @ObservedObject var statsVM: StatsViewModel
     @ObservedObject var processing: ProcessingViewModel
     @ObservedObject var settings: SettingsViewModel
@@ -36,20 +39,25 @@ struct StatsPanelView: View {
     }
 
     private var summaryRail: some View {
-        HStack(spacing: 0) {
-            summaryButton(.progress) { progressSummary }
-            railDivider
-            summaryButton(.throughput) { throughputSummary }
-            railDivider
-            summaryButton(.latency) { latencySummary }
-            railDivider
-            summaryButton(.tokens) { tokensSummary }
-            railDivider
-            summaryButton(.cost) { costSummary }
-            railDivider
-            summaryButton(.similarity) { similaritySummary }
-            railDivider
-            summaryButton(.errors) { errorsSummary }
+        GeometryReader { proxy in
+            let dividerWidth = CGFloat(6)
+            let contentWidth = max(0, proxy.size.width - dividerWidth)
+
+            HStack(spacing: 0) {
+                summaryButton(.progress, width: contentWidth * 0.17, horizontalPadding: 10) { progressSummary }
+                railDivider
+                summaryButton(.throughput, width: contentWidth * 0.14) { throughputSummary }
+                railDivider
+                summaryButton(.latency, width: contentWidth * 0.18) { latencySummary }
+                railDivider
+                summaryButton(.tokens, width: contentWidth * 0.15) { tokensSummary }
+                railDivider
+                summaryButton(.cost, width: contentWidth * 0.12) { costSummary }
+                railDivider
+                summaryButton(.similarity, width: contentWidth * 0.14) { similaritySummary }
+                railDivider
+                summaryButton(.errors, width: contentWidth * 0.10) { errorsSummary }
+            }
         }
         .frame(height: 44)
         .background(Color.quixotePanelRaised)
@@ -62,53 +70,59 @@ struct StatsPanelView: View {
 
             switch section {
             case .progress:
-                StatsTableSection(
-                    title: "Progress",
-                    headers: ["Prompt", "Model", "Completed", "Failed", "Total", "% Complete"],
-                    rows: statsVM.modelStats.map {
-                        [
-                            .text($0.promptName),
-                            .text($0.modelDisplayName),
-                            .number(Double($0.completedRows), decimals: 0),
-                            .number(Double($0.failedRows), decimals: 0),
-                            .number(Double($0.totalRows), decimals: 0),
-                            .number($0.totalRows > 0 ? Double($0.completedRows) / Double($0.totalRows) * 100 : nil)
-                        ]
-                    },
-                    numericColumns: [2, 3, 4, 5]
-                )
+                paddedDrawerSection {
+                    StatsTableSection(
+                        title: "Progress",
+                        headers: ["Prompt", "Model", "Completed", "Failed", "Total", "% Complete"],
+                        rows: statsVM.modelStats.map {
+                            [
+                                .text($0.promptName),
+                                .text($0.modelDisplayName),
+                                .number(Double($0.completedRows), decimals: 0),
+                                .number(Double($0.failedRows), decimals: 0),
+                                .number(Double($0.totalRows), decimals: 0),
+                                .number($0.totalRows > 0 ? Double($0.completedRows) / Double($0.totalRows) * 100 : nil)
+                            ]
+                        },
+                        numericColumns: [2, 3, 4, 5]
+                    )
+                }
             case .throughput:
-                StatsTableSection(
-                    title: "Throughput",
-                    headers: ["Prompt", "Model", "Completed", "Elapsed", "Current Rows/s", "Lifetime Avg Rows/s"],
-                    rows: statsVM.modelStats.map {
-                        [
-                            .text($0.promptName),
-                            .text($0.modelDisplayName),
-                            .number(Double($0.completedRows), decimals: 0),
-                            .number($0.elapsedSeconds),
-                            .number($0.currentRowsPerSecond),
-                            .number($0.lifetimeAverageRowsPerSecond)
-                        ]
-                    },
-                    numericColumns: [2, 3, 4, 5]
-                )
+                paddedDrawerSection {
+                    StatsTableSection(
+                        title: "Throughput",
+                        headers: ["Prompt", "Model", "Completed", "Elapsed", "Current Rows/s", "Lifetime Avg Rows/s"],
+                        rows: statsVM.modelStats.map {
+                            [
+                                .text($0.promptName),
+                                .text($0.modelDisplayName),
+                                .number(Double($0.completedRows), decimals: 0),
+                                .number($0.elapsedSeconds),
+                                .number($0.currentRowsPerSecond),
+                                .number($0.lifetimeAverageRowsPerSecond)
+                            ]
+                        },
+                        numericColumns: [2, 3, 4, 5]
+                    )
+                }
             case .latency:
-                StatsTableSection(
-                    title: "Latency",
-                    headers: ["Prompt", "Model", "Rows", "P50 ms", "P90 ms", "P99 ms"],
-                    rows: statsVM.modelStats.map {
-                        [
-                            .text($0.promptName),
-                            .text($0.modelDisplayName),
-                            .number(Double($0.completedRows), decimals: 0),
-                            .number($0.p50LatencyMs),
-                            .number($0.p90LatencyMs),
-                            .number($0.p99LatencyMs)
-                        ]
-                    },
-                    numericColumns: [2, 3, 4, 5]
-                )
+                paddedDrawerSection {
+                    StatsTableSection(
+                        title: "Latency",
+                        headers: ["Prompt", "Model", "Rows", "P50 ms", "P90 ms", "P99 ms"],
+                        rows: statsVM.modelStats.map {
+                            [
+                                .text($0.promptName),
+                                .text($0.modelDisplayName),
+                                .number(Double($0.completedRows), decimals: 0),
+                                .number($0.p50LatencyMs),
+                                .number($0.p90LatencyMs),
+                                .number($0.p99LatencyMs)
+                            ]
+                        },
+                        numericColumns: [2, 3, 4, 5]
+                    )
+                }
             case .tokens:
                 splitSection(
                     title: "Tokens",
@@ -198,16 +212,20 @@ struct StatsPanelView: View {
                     )
                 )
             case .similarity:
-                StatsTableSection(
-                    title: "Similarity",
-                    headers: similarityHeaders,
-                    rows: similarityRows,
-                    numericColumns: similarityNumericColumns
-                )
+                paddedDrawerSection {
+                    StatsTableSection(
+                        title: "Similarity",
+                        headers: similarityHeaderItems,
+                        rows: similarityRows,
+                        numericColumns: similarityNumericColumns
+                    )
+                }
             case .errors:
                 errorSection
             }
         }
+        .frame(height: Self.drawerHeight, alignment: .top)
+        .clipped()
         .background(Color.quixotePanel)
     }
 
@@ -215,24 +233,33 @@ struct StatsPanelView: View {
         HStack(spacing: 10) {
             statusDot
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(statusLabel)
                     .font(Self.monoFont(size: 11, weight: .semibold))
                     .tracking(2.0)
                     .foregroundStyle(statusColor)
+                    .lineLimit(1)
 
-                HStack(spacing: 10) {
-                    Text("\(Self.fullNumber(statsVM.overview.completedItems, decimals: 0)) / \(Self.fullNumber(statsVM.overview.totalItems, decimals: 0))")
-                        .font(Self.monoFont(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.quixoteTextPrimary)
-                    ThinProgressBar(progress: statsVM.overview.progress, fill: statusProgressColor)
-                        .frame(width: 120)
-                    Text(Self.percent(statsVM.overview.progress * 100))
-                        .font(Self.monoFont(size: 11))
-                        .foregroundStyle(Color.quixoteTextSecondary)
-                }
+                ThinProgressBar(progress: statsVM.overview.progress, fill: statusProgressColor)
+                    .frame(maxWidth: .infinity)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: 8)
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(Self.fullNumber(statsVM.overview.completedItems, decimals: 0)) / \(Self.fullNumber(statsVM.overview.totalItems, decimals: 0))")
+                    .font(Self.monoFont(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.quixoteTextPrimary)
+                    .lineLimit(1)
+
+                Text(Self.percent(statsVM.overview.progress * 100))
+                    .font(Self.monoFont(size: 11))
+                    .foregroundStyle(Color.quixoteTextSecondary)
+                    .lineLimit(1)
             }
         }
+        .frame(height: 44, alignment: .center)
     }
 
     private var throughputSummary: some View {
@@ -251,7 +278,7 @@ struct StatsPanelView: View {
                 unit: "MS"
             )
             SparklineView(data: statsVM.overview.latencySeries)
-                .frame(width: 56, height: 16)
+                .frame(width: 80, height: 16)
         }
     }
 
@@ -352,17 +379,32 @@ struct StatsPanelView: View {
         .padding(.vertical, 14)
     }
 
-    private func summaryButton<Content: View>(_ section: StatsDrawerSection, @ViewBuilder content: () -> Content) -> some View {
-        Button {
-            expandedSection = expandedSection == section ? nil : section
-        } label: {
+    private func paddedDrawerSection<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+    }
+
+    private func summaryButton<Content: View>(
+        _ section: StatsDrawerSection,
+        width: CGFloat,
+        horizontalPadding: CGFloat = 14,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        ZStack {
             content()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                .padding(.horizontal, 14)
+                .padding(.horizontal, horizontalPadding)
                 .background(expandedSection == section ? Color.white.opacity(0.03) : Color.clear)
+
+            StatsSummaryHitTarget {
+                expandedSection = expandedSection == section ? nil : section
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityLabel(section.rawValue.capitalized)
         }
+        .frame(width: width)
         .contentShape(Rectangle())
-        .buttonStyle(.plain)
     }
 
     private var railDivider: some View {
@@ -434,12 +476,35 @@ struct StatsPanelView: View {
     }
 
     private var similarityHeaders: [String] {
+        similarityHeaderItems.map(\.title)
+    }
+
+    private var similarityHeaderItems: [StatsTableHeader] {
         var headers = ["Prompt", "Model", "Rows"]
+            .map { StatsTableHeader(title: $0) }
         if settings.showCosineSimilarity {
-            headers.append("Median Cosine")
+            headers.append(
+                StatsTableHeader(
+                    title: "Median Cosine",
+                    help: "Median bag-of-words cosine similarity between expanded prompt/reference text and model response, from 0-1. Higher means more token overlap and directional similarity."
+                )
+            )
         }
         if settings.showRougeMetrics {
-            headers += ["Median ROUGE-1", "Median ROUGE-2", "Median ROUGE-L"]
+            headers += [
+                StatsTableHeader(
+                    title: "Median ROUGE-1",
+                    help: "Median unigram overlap F1 between prompt/reference text and response, from 0-1. Higher means more single-word overlap."
+                ),
+                StatsTableHeader(
+                    title: "Median ROUGE-2",
+                    help: "Median bigram overlap F1 between prompt/reference text and response, from 0-1. Higher means more two-word phrase overlap."
+                ),
+                StatsTableHeader(
+                    title: "Median ROUGE-L",
+                    help: "Median longest-common-subsequence F1 between prompt/reference text and response, from 0-1. Higher means more sequence-level overlap."
+                )
+            ]
         }
         return headers
     }
@@ -743,11 +808,81 @@ private struct StatsBorderButtonStyle: ButtonStyle {
     }
 }
 
+// SwiftUI Buttons can visually fill a stats nav cell while still only hitting
+// their intrinsic label area. This transparent AppKit button guarantees that
+// the entire hosted rect is the click target.
+private struct StatsSummaryHitTarget: NSViewRepresentable {
+    let action: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(frame: .zero)
+        button.title = ""
+        button.isBordered = false
+        button.bezelStyle = .shadowlessSquare
+        button.setButtonType(.momentaryChange)
+        button.focusRingType = .none
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.performAction(_:))
+        button.wantsLayer = true
+        button.layer?.backgroundColor = NSColor.clear.cgColor
+        return button
+    }
+
+    func updateNSView(_ button: NSButton, context: Context) {
+        context.coordinator.action = action
+    }
+
+    final class Coordinator: NSObject {
+        var action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        @objc func performAction(_ sender: NSButton) {
+            action()
+        }
+    }
+}
+
+private struct StatsTableHeader: Equatable {
+    let title: String
+    var help: String? = nil
+}
+
 private struct StatsTableSection: View {
     let title: String
-    let headers: [String]
+    let headers: [StatsTableHeader]
     let rows: [[StatsCellValue]]
     let numericColumns: Set<Int>
+
+    init(
+        title: String,
+        headers: [String],
+        rows: [[StatsCellValue]],
+        numericColumns: Set<Int>
+    ) {
+        self.title = title
+        self.headers = headers.map { StatsTableHeader(title: $0) }
+        self.rows = rows
+        self.numericColumns = numericColumns
+    }
+
+    init(
+        title: String,
+        headers: [StatsTableHeader],
+        rows: [[StatsCellValue]],
+        numericColumns: Set<Int>
+    ) {
+        self.title = title
+        self.headers = headers
+        self.rows = rows
+        self.numericColumns = numericColumns
+    }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -762,7 +897,7 @@ private struct StatsTableSection: View {
                         .frame(maxWidth: .infinity, minHeight: 112, alignment: .center)
                 } else {
                     GeometryReader { proxy in
-                        ScrollView(.horizontal, showsIndicators: false) {
+                        ScrollView([.horizontal, .vertical], showsIndicators: true) {
                             VStack(spacing: 0) {
                                 headerRow
                                 ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
@@ -770,8 +905,9 @@ private struct StatsTableSection: View {
                                 }
                             }
                             .frame(minWidth: max(860, proxy.size.width), alignment: .leading)
+                            .frame(minHeight: proxy.size.height, alignment: .topLeading)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
                     .frame(minHeight: 0, maxHeight: .infinity)
                 }
@@ -783,10 +919,7 @@ private struct StatsTableSection: View {
     private var headerRow: some View {
         HStack(spacing: 0) {
             ForEach(Array(headers.enumerated()), id: \.offset) { index, header in
-                Text(header.uppercased())
-                    .font(.custom("JetBrains Mono", size: 10).weight(.semibold))
-                    .tracking(1.4)
-                    .foregroundStyle(Color.quixoteTextSecondary)
+                headerCell(header)
                     .frame(maxWidth: .infinity, alignment: numericColumns.contains(index) ? .trailing : .leading)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
@@ -794,6 +927,23 @@ private struct StatsTableSection: View {
         }
         .background(Color.quixotePanelRaised)
         .overlay(alignment: .bottom) { QuixoteRowDivider() }
+    }
+
+    private func headerCell(_ header: StatsTableHeader) -> some View {
+        HStack(spacing: 5) {
+            Text(header.title.uppercased())
+                .lineLimit(1)
+
+            if let help = header.help {
+                Image(systemName: "info.circle")
+                    .font(.custom("JetBrains Mono", size: 9).weight(.semibold))
+                    .foregroundStyle(Color.quixoteTextMuted)
+                    .help(help)
+            }
+        }
+        .font(.custom("JetBrains Mono", size: 10).weight(.semibold))
+        .tracking(1.4)
+        .foregroundStyle(Color.quixoteTextSecondary)
     }
 
     private func dataRow(_ row: [StatsCellValue], striped: Bool) -> some View {

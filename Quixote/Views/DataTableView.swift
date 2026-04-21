@@ -124,7 +124,8 @@ struct DataTableView: View {
                 onRetryFailed: {
                     processing.retryFailed(
                         concurrency: settings.concurrency,
-                        rateLimit: Double(settings.rateLimit)
+                        rateLimit: Double(settings.rateLimit),
+                        promptID: selectedPromptID
                     )
                 }
             )

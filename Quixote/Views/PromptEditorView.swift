@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct PromptEditorView: View {
@@ -14,9 +15,14 @@ struct PromptEditorView: View {
 
     @State private var editorMode: EditorMode = .write
     @State private var showAddModelPicker = false
+    @State private var hiddenVariableColumnIDs: Set<UUID> = []
 
     private var resolvedModelConfigs: [ResolvedFileModelConfig] {
         modelConfigs.resolvedConfigs(using: settings.availableModels)
+    }
+
+    private var visibleVariableColumns: [ColumnDef] {
+        columns.filter { !hiddenVariableColumnIDs.contains($0.id) }
     }
 
     var body: some View {
@@ -41,6 +47,13 @@ struct PromptEditorView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.quixotePanelRaised)
+        .onChange(of: columns) { _, newColumns in
+            hiddenVariableColumnIDs.formIntersection(Set(newColumns.map(\.id)))
+            viewModel.updatePreviewColumns(visibleVariableColumns)
+        }
+        .onChange(of: hiddenVariableColumnIDs) { _, _ in
+            viewModel.updatePreviewColumns(visibleVariableColumns)
+        }
     }
 
     private var tabStrip: some View {
@@ -49,15 +62,10 @@ struct PromptEditorView: View {
                 HStack(spacing: 8) {
                     ForEach(promptList.prompts) { prompt in
                         HStack(spacing: 8) {
-                            Button {
-                                promptList.selectPrompt(prompt.id)
-                            } label: {
-                                Text(prompt.name)
-                                    .font(.system(size: 12, weight: prompt.id == promptList.selectedPromptID ? .bold : .medium))
-                                    .foregroundStyle(prompt.id == promptList.selectedPromptID ? Color.quixoteTextPrimary : Color.quixoteTextSecondary)
-                                    .lineLimit(1)
-                            }
-                            .buttonStyle(.plain)
+                            Text(prompt.name)
+                                .font(.system(size: 12, weight: prompt.id == promptList.selectedPromptID ? .bold : .medium))
+                                .foregroundStyle(prompt.id == promptList.selectedPromptID ? Color.quixoteTextPrimary : Color.quixoteTextSecondary)
+                                .lineLimit(1)
 
                             Button {
                                 promptList.deletePrompt(id: prompt.id)
@@ -65,11 +73,16 @@ struct PromptEditorView: View {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 9, weight: .semibold))
                                     .foregroundStyle(Color.quixoteTextSecondary)
+                                    .frame(width: 16, height: 16)
                             }
                             .buttonStyle(.plain)
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            promptList.selectPrompt(prompt.id)
+                        }
                         .background(
                             RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                                 .fill(prompt.id == promptList.selectedPromptID ? Color.quixoteSelection : Color.clear)
@@ -152,13 +165,17 @@ struct PromptEditorView: View {
             QuixoteSectionLabel(text: "Variables")
 
             QuixoteFlowLayout(spacing: 8, rowSpacing: 8) {
-                ForEach(columns) { column in
-                    Button {
-                        viewModel.insertToken(column.name)
-                    } label: {
-                        QuixoteChip(text: column.name, actionIcon: "xmark")
-                    }
-                    .buttonStyle(.plain)
+                ForEach(visibleVariableColumns) { column in
+                    VariableTokenChip(
+                        text: column.name,
+                        onInsert: {
+                            viewModel.insertToken(column.name)
+                        },
+                        onRemove: {
+                            viewModel.removeToken(column.name)
+                            hiddenVariableColumnIDs.insert(column.id)
+                        }
+                    )
                 }
 
                 QuixoteChip(text: "Add", actionIcon: nil, tint: .quixoteTextSecondary, fill: .quixotePanel)
@@ -252,6 +269,95 @@ struct PromptEditorView: View {
                     .padding(.vertical, 14)
                     .allowsHitTesting(false)
             }
+        }
+    }
+}
+
+private struct VariableTokenChip: View {
+    private static let maxTextWidth: CGFloat = 220
+    private static let removeWidth: CGFloat = 28
+
+    let text: String
+    let onInsert: () -> Void
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button(action: onInsert) {
+                Text(text)
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color.quixoteTextPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: Self.maxTextWidth, alignment: .leading)
+                    .padding(.leading, 9)
+                    .padding(.trailing, 6)
+                    .frame(height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            ZStack {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.quixoteTextSecondary)
+
+                VariableRemoveHitTarget(action: onRemove)
+                    .frame(width: Self.removeWidth, height: 28)
+                    .accessibilityLabel("Remove variable from prompt")
+            }
+            .frame(width: Self.removeWidth, height: 28)
+            .contentShape(Rectangle())
+        }
+        .background(
+            RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
+                .fill(Color.quixoteSelection)
+                .overlay(
+                    RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
+                        .stroke(Color.quixoteDivider, lineWidth: 1)
+                )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous))
+    }
+}
+
+// Same full-rect hit-target workaround as the run caret: the visible x segment
+// must own the entire right side so clicks there never fall through to insert.
+private struct VariableRemoveHitTarget: NSViewRepresentable {
+    let action: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(frame: .zero)
+        button.title = ""
+        button.isBordered = false
+        button.bezelStyle = .shadowlessSquare
+        button.setButtonType(.momentaryChange)
+        button.focusRingType = .none
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.performAction(_:))
+        button.wantsLayer = true
+        button.layer?.backgroundColor = NSColor.clear.cgColor
+        return button
+    }
+
+    func updateNSView(_ button: NSButton, context: Context) {
+        context.coordinator.action = action
+        button.toolTip = "Remove variable from prompt"
+    }
+
+    final class Coordinator: NSObject {
+        var action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        @objc func performAction(_ sender: NSButton) {
+            action()
         }
     }
 }
