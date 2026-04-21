@@ -45,8 +45,8 @@ enum InterpolationEngine {
     }
 
     /// Preview: expands using the first row of a table, or returns template unchanged if table is empty.
-    static func preview(template: String, table: ParsedTable) -> String {
+    static func preview(template: String, table: ParsedTable, columns: [ColumnDef]? = nil) -> String {
         guard let row = table.rows.first else { return template }
-        return expand(template: template, row: row, columns: table.columns)
+        return expand(template: template, row: row, columns: columns ?? table.columns)
     }
 }

@@ -254,6 +254,71 @@ final class ProcessingViewModel: ObservableObject {
         }
     }
 
+    func hydrateCachedCompletedResults(
+        prompts: [Prompt],
+        rows: [Row],
+        columns: [ColumnDef],
+        modelConfigs: [ResolvedFileModelConfig]
+    ) {
+        guard !isActive, !prompts.isEmpty, !rows.isEmpty, !modelConfigs.isEmpty else { return }
+        activeFileID = prompts.first?.fileID
+
+        let cache = ResponseCache.shared
+        var hydratedResults = results
+
+        for prompt in prompts {
+            for row in rows {
+                let expanded = InterpolationEngine.expand(
+                    template: prompt.template,
+                    row: row,
+                    columns: columns
+                )
+
+                for modelConfig in modelConfigs {
+                    let compositeKey = resultKey(
+                        promptID: prompt.id,
+                        rowID: row.id,
+                        modelConfigID: modelConfig.id
+                    )
+                    if hydratedResults[compositeKey]?.status == .completed {
+                        continue
+                    }
+
+                    let cacheKey = ResponseCache.cacheKey(
+                        expandedPrompt: expanded,
+                        systemMessage: prompt.systemMessage,
+                        modelID: modelConfig.modelID,
+                        params: modelConfig.parameters
+                    )
+                    guard let entry = cache.entry(for: cacheKey) else { continue }
+
+                    var result = PromptResult(
+                        runID: UUID(),
+                        rowID: row.id,
+                        promptID: prompt.id,
+                        modelID: modelConfig.modelID,
+                        modelConfigID: modelConfig.id
+                    )
+                    result.responseText = entry.responseText
+                    result.tokenUsage = entry.tokenUsage
+                    result.durationMs = entry.durationMs
+                    result.costUSD = entry.costUSD
+                    result.finishedAt = entry.cachedAt
+                    result.cosineSimilarity = entry.cosineSimilarity
+                    result.rouge1 = entry.rouge1
+                    result.rouge2 = entry.rouge2
+                    result.rougeL = entry.rougeL
+                    result.status = .completed
+                    hydratedResults[compositeKey] = result
+                }
+            }
+        }
+
+        guard hydratedResults != results else { return }
+        results = hydratedResults
+        persistCompletedResultsForActiveFile()
+    }
+
     func clearPersistedCompletedResults(for fileID: UUID) {
         persistedCompletedResultsByFileID.removeValue(forKey: fileID)
         scheduleCompletedResultsSave()
@@ -264,7 +329,7 @@ final class ProcessingViewModel: ObservableObject {
         }
     }
 
-    func retryFailed(concurrency: Int, rateLimit: Double) {
+    func retryFailed(concurrency: Int, rateLimit: Double, promptID: UUID? = nil) {
         guard let ctx = runContext, !isActive else { return }
 
         maxConcurrency = max(1, concurrency)
@@ -276,7 +341,9 @@ final class ProcessingViewModel: ObservableObject {
 
         let promptsByID = Dictionary(uniqueKeysWithValues: ctx.prompts.map { ($0.id, $0) })
         let promptScopedWorkItems = results.values
-            .filter { $0.status == .failed }
+            .filter { result in
+                result.status == .failed && (promptID == nil || result.promptID == promptID)
+            }
             .compactMap { result -> (Prompt, Row, ResolvedFileModelConfig)? in
                 guard let prompt = promptsByID[result.promptID],
                       let row = ctx.rows.first(where: { $0.id == result.rowID }),

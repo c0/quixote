@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 // MARK: - FileType
@@ -79,9 +80,45 @@ struct Row: Identifiable, Codable, Equatable {
     var values: [String: String]
 
     init(index: Int, values: [String: String]) {
-        self.id = UUID()
+        self.id = Self.stableID(index: index, values: values)
         self.index = index
         self.values = values
+    }
+
+    private static func stableID(index: Int, values: [String: String]) -> UUID {
+        struct StableRowPayload: Encodable {
+            let version: Int
+            let index: Int
+            let values: [StringPair]
+        }
+
+        struct StringPair: Encodable {
+            let key: String
+            let value: String
+        }
+
+        let payload = StableRowPayload(
+            version: 1,
+            index: index,
+            values: values
+                .map { StringPair(key: $0.key, value: $0.value) }
+                .sorted { lhs, rhs in
+                    if lhs.key != rhs.key { return lhs.key < rhs.key }
+                    return lhs.value < rhs.value
+                }
+        )
+
+        let data = (try? JSONEncoder().encode(payload)) ?? "\(index)|\(values)".data(using: .utf8) ?? Data()
+        var bytes = Array(SHA256.hash(data: data).prefix(16))
+        bytes[6] = (bytes[6] & 0x0f) | 0x50
+        bytes[8] = (bytes[8] & 0x3f) | 0x80
+
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
     }
 }
 
@@ -164,12 +201,15 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
     var created: Int?     // Unix timestamp from API; nil for builtIn
     var supportedReasoningLevels: [ReasoningEffort] = []
 
-    static let builtIn: [ModelConfig] = [
+    static let builtIn: [ModelConfig] = sortedForSelection([
+        ModelConfig(id: "gpt-5.4",      displayName: "GPT-5.4",       provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
+        ModelConfig(id: "gpt-5",        displayName: "GPT-5",         provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
+        ModelConfig(id: "gpt-5-mini",   displayName: "GPT-5 mini",    provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
         ModelConfig(id: "gpt-4o",       displayName: "GPT-4o",        provider: .openAI, supportedReasoningLevels: []),
         ModelConfig(id: "gpt-4o-mini",  displayName: "GPT-4o mini",   provider: .openAI, supportedReasoningLevels: []),
         ModelConfig(id: "gpt-4-turbo",  displayName: "GPT-4 Turbo",   provider: .openAI, supportedReasoningLevels: []),
         ModelConfig(id: "gpt-3.5-turbo",displayName: "GPT-3.5 Turbo", provider: .openAI, supportedReasoningLevels: []),
-    ]
+    ])
 
     // MARK: - Family grouping
 
@@ -237,18 +277,80 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
         return base
     }
 
-    /// Group models by family, sort families alphabetically, within each family sort by created desc
+    /// Whether this model should appear in text/chat model selection.
+    static func isEligibleTextModelID(_ id: String) -> Bool {
+        let lower = id.lowercased()
+        guard lower.hasPrefix("gpt-") || lower.hasPrefix("chatgpt") else { return false }
+        guard !lower.hasPrefix("o") else { return false }
+
+        let excludedFragments = [
+            "audio",
+            "dall",
+            "image",
+            "img",
+            "realtime",
+            "speech",
+            "tts",
+            "transcrib",
+            "voice",
+            "whisper"
+        ]
+        guard !excludedFragments.contains(where: { lower.contains($0) }) else { return false }
+
+        return !lower.contains("instruct") && !lower.contains("base")
+    }
+
+    static func eligibleTextModels(_ models: [ModelConfig]) -> [ModelConfig] {
+        sortedForSelection(models.filter { isEligibleTextModelID($0.id) })
+    }
+
+    static func sortedForSelection(_ models: [ModelConfig]) -> [ModelConfig] {
+        models.sorted { lhs, rhs in
+            let lhsRank = versionRank(for: lhs.family)
+            let rhsRank = versionRank(for: rhs.family)
+            if lhsRank != rhsRank { return lhsRank.lexicographicallyPrecedes(rhsRank) == false }
+
+            let lhsCreated = lhs.created ?? 0
+            let rhsCreated = rhs.created ?? 0
+            if lhsCreated != rhsCreated { return lhsCreated > rhsCreated }
+
+            return lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending
+        }
+    }
+
+    /// Group models by family, newest/highest model versions first.
     static func grouped(_ models: [ModelConfig]) -> [(family: String, models: [ModelConfig])] {
-        let groups = Dictionary(grouping: models, by: { $0.family })
+        let groups = Dictionary(grouping: eligibleTextModels(models), by: { $0.family })
         return groups
-            .map { (family: $0.key, models: $0.value.sorted { ($0.created ?? 0) > ($1.created ?? 0) }) }
-            .sorted { $0.family.localizedStandardCompare($1.family) == .orderedAscending }
+            .map { (family: $0.key, models: sortedForSelection($0.value)) }
+            .sorted { lhs, rhs in
+                let lhsRank = versionRank(for: lhs.family)
+                let rhsRank = versionRank(for: rhs.family)
+                if lhsRank != rhsRank { return lhsRank.lexicographicallyPrecedes(rhsRank) == false }
+                return lhs.family.localizedStandardCompare(rhs.family) == .orderedAscending
+            }
     }
 
     static func supportedReasoningLevels(for id: String) -> [ReasoningEffort] {
         let prefixes = ["o1", "o3", "o4", "gpt-5"]
         guard prefixes.contains(where: { id.hasPrefix($0) }) else { return [] }
         return [.low, .medium, .high]
+    }
+
+    private static func versionRank(for id: String) -> [Int] {
+        let lower = id.lowercased()
+        guard let range = lower.range(of: #"(?:gpt|chatgpt)-(\d+(?:\.\d+)*)"#, options: .regularExpression) else {
+            return [0]
+        }
+
+        let matched = String(lower[range])
+        guard let versionRange = matched.range(of: #"\d+(?:\.\d+)*"#, options: .regularExpression) else {
+            return [0]
+        }
+
+        return matched[versionRange]
+            .split(separator: ".")
+            .map { Int($0) ?? 0 }
     }
 }
 

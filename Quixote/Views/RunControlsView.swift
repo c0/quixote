@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct RunActionControls: View {
@@ -144,26 +145,13 @@ struct RunActionControls: View {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(Color.white)
-                    .frame(width: caretSegmentWidth, height: 32)
 
-                Menu {
-                    Picker("Rows", selection: $rowLimit) {
-                        Text("All rows").tag(RowLimit.all)
-                        Text("First 10").tag(RowLimit.first(10))
-                        Text("First 50").tag(RowLimit.first(50))
-                        Text("First 100").tag(RowLimit.first(100))
-                    }
-                } label: {
-                    Color.clear
-                }
-                .frame(width: caretSegmentWidth, height: 32)
-                .frame(width: caretSegmentWidth, height: 32)
-                .contentShape(Rectangle())
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .buttonStyle(.plain)
-                .accessibilityLabel("Row limit")
+                RowLimitMenuHitTarget(selection: $rowLimit, isEnabled: canRun)
+                    .frame(width: caretSegmentWidth, height: 32)
+                    .accessibilityLabel("Row limit")
             }
+            .frame(width: caretSegmentWidth, height: 32)
+            .contentShape(Rectangle())
         }
         .background(
             RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
@@ -187,6 +175,77 @@ struct RunActionControls: View {
         .disabled(!canRun)
         .opacity(canRun ? 1 : 0.5)
         .accessibilityElement(children: .contain)
+    }
+}
+
+// SwiftUI Menu hit testing can collapse to the label's intrinsic content even
+// when the visible segment is larger. Host an AppKit control when the whole
+// painted rect must be clickable.
+private struct RowLimitMenuHitTarget: NSViewRepresentable {
+    @Binding var selection: RowLimit
+    let isEnabled: Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(selection: $selection)
+    }
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(frame: .zero)
+        button.title = ""
+        button.isBordered = false
+        button.bezelStyle = .shadowlessSquare
+        button.setButtonType(.momentaryChange)
+        button.focusRingType = .none
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.showMenu(_:))
+        button.wantsLayer = true
+        button.layer?.backgroundColor = NSColor.clear.cgColor
+        return button
+    }
+
+    func updateNSView(_ button: NSButton, context: Context) {
+        context.coordinator.selection = $selection
+        button.isEnabled = isEnabled
+        button.toolTip = "Row limit"
+    }
+
+    final class Coordinator: NSObject {
+        var selection: Binding<RowLimit>
+
+        init(selection: Binding<RowLimit>) {
+            self.selection = selection
+        }
+
+        @objc func showMenu(_ sender: NSButton) {
+            let menu = NSMenu()
+            addItem("All rows", tag: 0, to: menu)
+            addItem("First 10", tag: 10, to: menu)
+            addItem("First 50", tag: 50, to: menu)
+            addItem("First 100", tag: 100, to: menu)
+
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.minY - 2), in: sender)
+        }
+
+        private func addItem(_ title: String, tag: Int, to menu: NSMenu) {
+            let item = NSMenuItem(title: title, action: #selector(selectRowLimit(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = tag
+            item.state = selection.wrappedValue == rowLimit(for: tag) ? .on : .off
+            menu.addItem(item)
+        }
+
+        @objc private func selectRowLimit(_ sender: NSMenuItem) {
+            selection.wrappedValue = rowLimit(for: sender.tag)
+        }
+
+        private func rowLimit(for tag: Int) -> RowLimit {
+            switch tag {
+            case 10, 50, 100:
+                return .first(tag)
+            default:
+                return .all
+            }
+        }
     }
 }
 

@@ -83,6 +83,7 @@ struct MainWindow: View {
         }
         .onChange(of: promptList.selectedPromptID) {
             syncPromptEditor()
+            refreshDerivedViewModels()
         }
         .onChange(of: promptList.prompts) {
             syncPromptEditor()
@@ -191,15 +192,29 @@ struct MainWindow: View {
             legacyParameters: legacyParameters
         )
         processing.loadPersistedCompletedResults(for: file.id)
+        processing.hydrateCachedCompletedResults(
+            prompts: promptList.prompts,
+            rows: dataPreview.allRows,
+            columns: dataPreview.columns,
+            modelConfigs: resolvedModelConfigs
+        )
         syncPromptEditor()
         refreshDerivedViewModels()
     }
 
     private func syncPromptEditor() {
-        promptEditor.load(prompt: promptList.selectedPrompt, table: workspace.selectedFile.map { workspace.parsedTable(for: $0) } ?? .empty)
+        let table = workspace.selectedFile.map { workspace.parsedTable(for: $0) } ?? .empty
+        promptEditor.load(prompt: promptList.selectedPrompt, table: table, previewColumns: dataPreview.columns)
     }
 
     private func refreshDerivedViewModels() {
+        let statsPrompts: [Prompt]
+        if let selectedPrompt = promptList.selectedPrompt {
+            statsPrompts = [selectedPrompt]
+        } else {
+            statsPrompts = promptList.prompts
+        }
+
         resultsVM.update(
             results: processing.results,
             prompts: promptList.prompts,
@@ -207,7 +222,7 @@ struct MainWindow: View {
         )
         statsVM.update(
             results: processing.results,
-            prompts: promptList.prompts,
+            prompts: statsPrompts,
             modelConfigs: resolvedModelConfigs,
             rows: dataPreview.allRows,
             runState: processing.runState,

@@ -8,10 +8,17 @@ final class PromptEditorViewModel: ObservableObject {
     var onPromptUpdated: ((Prompt) -> Void)?
 
     private var table: ParsedTable = .empty
+    private var previewColumns: [ColumnDef]?
 
-    func load(prompt: Prompt?, table: ParsedTable) {
+    func load(prompt: Prompt?, table: ParsedTable, previewColumns: [ColumnDef]? = nil) {
         self.prompt = prompt
         self.table = table
+        self.previewColumns = previewColumns
+        refreshPreview()
+    }
+
+    func updatePreviewColumns(_ columns: [ColumnDef]) {
+        previewColumns = columns
         refreshPreview()
     }
 
@@ -19,6 +26,7 @@ final class PromptEditorViewModel: ObservableObject {
         prompt = nil
         previewText = ""
         table = .empty
+        previewColumns = nil
     }
 
     func updateTemplate(_ text: String) {
@@ -55,13 +63,48 @@ final class PromptEditorViewModel: ObservableObject {
         onPromptUpdated?(prompt)
     }
 
+    func removeToken(_ columnName: String) {
+        guard var prompt else { return }
+        let token = "{{\(columnName)}}"
+        guard let range = prompt.template.range(of: token, options: .backwards) else { return }
+        if let lineRange = removableVariableLineRange(containing: range, in: prompt.template, token: token) {
+            prompt.template.removeSubrange(lineRange)
+        } else {
+            prompt.template.removeSubrange(range)
+        }
+        prompt.updatedAt = Date()
+        self.prompt = prompt
+        refreshPreview()
+        onPromptUpdated?(prompt)
+    }
+
     var previewRow: Row? { table.rows.first }
+
+    private func removableVariableLineRange(
+        containing tokenRange: Range<String.Index>,
+        in template: String,
+        token: String
+    ) -> Range<String.Index>? {
+        let lineRange = template.lineRange(for: tokenRange)
+        let line = String(template[lineRange])
+        guard line.filter({ $0 == "{" }).count == 2,
+              line.filter({ $0 == "}" }).count == 2 else {
+            return nil
+        }
+
+        let remainder = line.replacingOccurrences(of: token, with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard remainder.isEmpty || remainder.hasSuffix(":") else {
+            return nil
+        }
+        return lineRange
+    }
 
     private func refreshPreview() {
         guard let prompt else {
             previewText = ""
             return
         }
-        previewText = InterpolationEngine.preview(template: prompt.template, table: table)
+        previewText = InterpolationEngine.preview(template: prompt.template, table: table, columns: previewColumns)
     }
 }

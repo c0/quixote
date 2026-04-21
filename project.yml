@@ -22,6 +22,8 @@ targets:
     platform: macOS
     sources:
       - Quixote/
+      - path: assets/app.icon
+        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: "Quixote"
@@ -32,7 +34,7 @@ targets:
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "2"
         ENABLE_HARDENED_RUNTIME: YES
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_APPICON_NAME: app
       configs:
         Release:
           CODE_SIGN_STYLE: Manual
@@ -49,6 +51,7 @@ targets:
         LSMinimumSystemVersion: "14.0"
         NSPrincipalClass: NSApplication
         NSHighResolutionCapable: true
+        NSHumanReadableCopyright: "Copyright © 2026 Caleb Wright. All rights reserved."
         SUFeedURL: "https://c0.github.io/quixote/appcast.xml"
         SUPublicEDKey: "w54moWKzPLbV7kXiRz0jAOueJglfLBhuuigk5hAYIBs="
         CFBundleURLTypes:
