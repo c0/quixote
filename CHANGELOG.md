@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-04-21
+
+### Fixed
+- Restored cached result hydration on app launch so previous completed runs appear without starting another run.
+- Improved stats drawer spacing, sizing, table alignment, and metric header help text.
+- Fixed custom control hit targets for the run menu, stats navigation, prompt tabs, and variable pills.
+- Kept removed variable pills in sync with prompt preview output.
+- Updated About panel copyright metadata.
+
 ## [1.0.0] - 2026-04-20
 
 ### Added
