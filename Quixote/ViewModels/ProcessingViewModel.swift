@@ -1,7 +1,5 @@
-import Foundation
 import AppKit
-
-private let kKeychainOpenAIKey = "openai-api-key"
+import Foundation
 
 @MainActor
 final class ProcessingViewModel: ObservableObject {
@@ -335,7 +333,10 @@ final class ProcessingViewModel: ObservableObject {
         maxConcurrency = max(1, concurrency)
         rateLimiter = RateLimiter(requestsPerSecond: max(1, rateLimit))
 
-        let service = OpenAIService(apiKey: ctx.apiKey)
+        let apiKey = ctx.apiKey.isEmpty ? readAPIKeyForUserAction() : ctx.apiKey
+        guard let apiKey else { return }
+
+        let service = OpenAIService(apiKey: apiKey)
         let columns = ctx.columns
         let maxRetries = ctx.maxRetries
 
@@ -383,7 +384,10 @@ final class ProcessingViewModel: ObservableObject {
 
         let expandedPrompt = InterpolationEngine.expand(
             template: prompt.template, row: row, columns: ctx.columns)
-        let service = OpenAIService(apiKey: ctx.apiKey)
+        let apiKey = ctx.apiKey.isEmpty ? readAPIKeyForUserAction() : ctx.apiKey
+        guard let apiKey else { return }
+
+        let service = OpenAIService(apiKey: apiKey)
         let maxRetries = ctx.maxRetries
 
         Task {
@@ -447,11 +451,7 @@ final class ProcessingViewModel: ObservableObject {
         maxConcurrency = max(1, concurrency == 0 ? 2 : concurrency)
         rateLimiter = RateLimiter(requestsPerSecond: max(1, Double(rateLimit == 0 ? 5 : rateLimit)))
 
-        let apiKey = KeychainHelper.read(for: kKeychainOpenAIKey) ?? ""
-        guard !apiKey.isEmpty else {
-            runState = .failed("No API key — set one in Settings to resume")
-            return
-        }
+        guard let apiKey = readAPIKeyForUserAction() else { return }
 
         // Update runContext with fresh apiKey
         runContext = RunContext(
@@ -502,16 +502,25 @@ final class ProcessingViewModel: ObservableObject {
         guard let data = try? Data(contentsOf: Self.persistenceURL),
               let snapshot = try? JSONDecoder().decode(QueueSnapshot.self, from: data) else { return }
 
-        let apiKey = KeychainHelper.read(for: kKeychainOpenAIKey) ?? ""
         runContext = RunContext(
             prompts: snapshot.prompts, rows: snapshot.rows, columns: snapshot.columns,
-            modelConfigs: snapshot.modelConfigs, apiKey: apiKey, maxRetries: snapshot.maxRetries
+            modelConfigs: snapshot.modelConfigs, apiKey: "", maxRetries: snapshot.maxRetries
         )
         activeFileID = snapshot.prompts.first?.fileID
         results = snapshot.results
         isRestoredFromDisk = true
         runStartedAt = Date()
         runState = .paused(completed: snapshot.completedCount, total: snapshot.totalCount)
+    }
+
+    private func readAPIKeyForUserAction() -> String? {
+        do {
+            return try KeychainHelper.readOpenAIKey()
+        } catch {
+            runStartedAt = nil
+            runState = .failed(error.localizedDescription)
+            return nil
+        }
     }
 
     private func scheduleSave() {
