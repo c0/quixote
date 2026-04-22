@@ -12,6 +12,8 @@ VERSION_FILES=(
 )
 RELEASE_COMMIT_CREATED=0
 HAS_XCPRETTY=0
+AUTO_CHANGELOG="${AUTO_CHANGELOG:-1}"
+WAIT_FOR_PAGES="${WAIT_FOR_PAGES:-1}"
 
 cleanup_on_error() {
   local exit_code=$?
@@ -28,6 +30,120 @@ require_cmd() {
     echo "ERROR: required command not found: $1"
     exit 1
   fi
+}
+
+ensure_clean_tree() {
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "ERROR: Working tree is not clean. Commit or stash changes first."
+    exit 1
+  fi
+}
+
+prepare_changelog_section() {
+  local version="$1"
+
+  if grep -q "^## \\[$version\\]" CHANGELOG.md; then
+    return
+  fi
+
+  if [ "$AUTO_CHANGELOG" != "1" ]; then
+    echo "ERROR: CHANGELOG.md is missing a section for version $version."
+    exit 1
+  fi
+
+  ensure_clean_tree
+
+  local release_date last_tag range notes
+  release_date="$(date +%F)"
+  last_tag="$(git tag -l 'v*' | sort -V | tail -1)"
+  if [ -n "$last_tag" ]; then
+    range="${last_tag}..HEAD"
+  else
+    range="HEAD"
+  fi
+
+  notes="$(git log --reverse --pretty=format:'- %s' "$range")"
+  if [ -z "$notes" ]; then
+    notes="- Release v${version}."
+  fi
+
+  echo "▶ Adding CHANGELOG.md section for v${version}..."
+  VERSION="$version" RELEASE_DATE="$release_date" CHANGELOG_NOTES="$notes" ruby -0pi -e '
+    version = ENV.fetch("VERSION")
+    release_date = ENV.fetch("RELEASE_DATE")
+    notes = ENV.fetch("CHANGELOG_NOTES")
+    section = "## [#{version}] - #{release_date}\n\n### Changed\n#{notes}\n\n"
+    unless $_.sub!(/^## \[Unreleased\]\n\n/, "## [Unreleased]\n\n#{section}")
+      abort "ERROR: CHANGELOG.md is missing an Unreleased section."
+    end
+  ' CHANGELOG.md
+
+  git add CHANGELOG.md
+  git commit -m "docs: prepare changelog for v${version}"
+}
+
+verify_published_release() {
+  local version="$1"
+  local dmg_name="$2"
+  local main_sha origin_sha tag_sha asset_url run_id
+
+  echo "▶ Verifying published release..."
+
+  main_sha="$(git rev-parse main)"
+  origin_sha="$(git rev-parse origin/main)"
+  tag_sha="$(git rev-parse "v${version}^{commit}")"
+
+  if [ "$main_sha" != "$origin_sha" ]; then
+    echo "ERROR: origin/main does not match local main."
+    echo "  main:        $main_sha"
+    echo "  origin/main: $origin_sha"
+    exit 1
+  fi
+
+  if [ "$main_sha" != "$tag_sha" ]; then
+    echo "ERROR: v${version} does not point at main."
+    echo "  main: $main_sha"
+    echo "  tag:  $tag_sha"
+    exit 1
+  fi
+
+  asset_url="$(gh release view "v${version}" --json assets --jq ".assets[] | select(.name == \"${dmg_name}\") | .url")"
+  if [ -z "$asset_url" ]; then
+    echo "ERROR: GitHub Release v${version} is missing asset ${dmg_name}."
+    exit 1
+  fi
+
+  if [ "$WAIT_FOR_PAGES" != "1" ]; then
+    echo "  Pages deploy wait skipped."
+    return
+  fi
+
+  if [ ! -f ".github/workflows/deploy-site.yml" ]; then
+    echo "  No deploy-site workflow found; skipping Pages verification."
+    return
+  fi
+
+  echo "▶ Waiting for Pages deploy..."
+  for _ in 1 2 3 4 5 6; do
+    run_id="$(gh run list \
+      --workflow deploy-site.yml \
+      --branch main \
+      --limit 10 \
+      --json databaseId,headSha \
+      --jq ".[] | select(.headSha == \"${main_sha}\") | .databaseId" \
+      | head -1)"
+    if [ -n "$run_id" ]; then
+      break
+    fi
+    sleep 5
+  done
+
+  if [ -z "$run_id" ]; then
+    echo "ERROR: Could not find Pages deploy run for $main_sha."
+    exit 1
+  fi
+
+  gh run watch "$run_id" --exit-status
 }
 
 # ── 1. Load .env and validate environment ────────────────────────────────────
@@ -66,12 +182,6 @@ fi
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 if [ "$CURRENT_BRANCH" != "main" ]; then
   echo "ERROR: Must be on main branch (currently on '$CURRENT_BRANCH')."
-  exit 1
-fi
-
-# Working tree must be clean
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "ERROR: Working tree is not clean. Commit or stash changes first."
   exit 1
 fi
 
@@ -115,6 +225,8 @@ echo ""
 echo "▶ Releasing v${VERSION}"
 echo ""
 
+ensure_clean_tree
+
 BUILD_DIR="$REPO_ROOT/build"
 ARCHIVE_PATH="$BUILD_DIR/Quixote.xcarchive"
 EXPORT_DIR="$BUILD_DIR/export"
@@ -135,11 +247,6 @@ if [ -z "$SUPUBLICEDKEY" ] || [ "$SUPUBLICEDKEY" = "REPLACE_WITH_YOUR_PUBLIC_ED_
   exit 1
 fi
 
-if ! grep -q "^## \\[$VERSION\\]" CHANGELOG.md; then
-  echo "ERROR: CHANGELOG.md is missing a section for version $VERSION."
-  exit 1
-fi
-
 if [ ! -f "$SPARKLE_PRIVATE_KEY_PATH" ]; then
   echo "ERROR: SPARKLE_PRIVATE_KEY_PATH does not point to a file: $SPARKLE_PRIVATE_KEY_PATH"
   exit 1
@@ -150,6 +257,9 @@ if [ -z "$GENERATE_APPCAST" ]; then
   echo "ERROR: generate_appcast not found in Xcode DerivedData. Build the project in Xcode first to resolve Sparkle package."
   exit 1
 fi
+
+prepare_changelog_section "$VERSION"
+ensure_clean_tree
 
 mkdir -p "$BUILD_DIR"
 rm -rf "$ARCHIVE_PATH" "$EXPORT_DIR" "$DMG_PATH"
@@ -314,6 +424,8 @@ NOTES="$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{
 gh release create "v${VERSION}" "$DMG_PATH" \
   --title "v${VERSION}" \
   --notes "$NOTES"
+
+verify_published_release "$VERSION" "$DMG_NAME"
 
 echo ""
 echo "✓ Released v${VERSION}"
