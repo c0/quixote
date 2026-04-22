@@ -202,13 +202,21 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
     var supportedReasoningLevels: [ReasoningEffort] = []
 
     static let builtIn: [ModelConfig] = sortedForSelection([
-        ModelConfig(id: "gpt-5.4",      displayName: "GPT-5.4",       provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
-        ModelConfig(id: "gpt-5",        displayName: "GPT-5",         provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
-        ModelConfig(id: "gpt-5-mini",   displayName: "GPT-5 mini",    provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
-        ModelConfig(id: "gpt-4o",       displayName: "GPT-4o",        provider: .openAI, supportedReasoningLevels: []),
-        ModelConfig(id: "gpt-4o-mini",  displayName: "GPT-4o mini",   provider: .openAI, supportedReasoningLevels: []),
-        ModelConfig(id: "gpt-4-turbo",  displayName: "GPT-4 Turbo",   provider: .openAI, supportedReasoningLevels: []),
-        ModelConfig(id: "gpt-3.5-turbo",displayName: "GPT-3.5 Turbo", provider: .openAI, supportedReasoningLevels: []),
+        ModelConfig(id: "gpt-5.4",       displayName: "GPT-5.4",       provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
+        ModelConfig(id: "gpt-5.4-mini",  displayName: "GPT-5.4 mini",  provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
+        ModelConfig(id: "gpt-5.4-nano",  displayName: "GPT-5.4 nano",  provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
+        ModelConfig(id: "gpt-5.4-pro",   displayName: "GPT-5.4 pro",   provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
+        ModelConfig(id: "gpt-5",         displayName: "GPT-5",         provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
+        ModelConfig(id: "gpt-5-mini",    displayName: "GPT-5 mini",    provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
+        ModelConfig(id: "gpt-5-nano",    displayName: "GPT-5 nano",    provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
+        ModelConfig(id: "gpt-5-pro",     displayName: "GPT-5 pro",     provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
+        ModelConfig(id: "gpt-4.1",       displayName: "GPT-4.1",       provider: .openAI, supportedReasoningLevels: []),
+        ModelConfig(id: "gpt-4.1-mini",  displayName: "GPT-4.1 mini",  provider: .openAI, supportedReasoningLevels: []),
+        ModelConfig(id: "gpt-4.1-nano",  displayName: "GPT-4.1 nano",  provider: .openAI, supportedReasoningLevels: []),
+        ModelConfig(id: "gpt-4o",        displayName: "GPT-4o",        provider: .openAI, supportedReasoningLevels: []),
+        ModelConfig(id: "gpt-4o-mini",   displayName: "GPT-4o mini",   provider: .openAI, supportedReasoningLevels: []),
+        ModelConfig(id: "gpt-4-turbo",   displayName: "GPT-4 Turbo",   provider: .openAI, supportedReasoningLevels: []),
+        ModelConfig(id: "gpt-3.5-turbo", displayName: "GPT-3.5 Turbo", provider: .openAI, supportedReasoningLevels: []),
     ])
 
     // MARK: - Family grouping
@@ -241,10 +249,17 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
         "gpt-4o-mini":   ModelPricing(input: 0.15,  output: 0.60),
         "gpt-4-turbo":   ModelPricing(input: 10.00, output: 30.00),
         "gpt-4":         ModelPricing(input: 30.00, output: 60.00),
+        "gpt-4.1":       ModelPricing(input: 2.00,  output: 8.00),
+        "gpt-4.1-mini":  ModelPricing(input: 0.40,  output: 1.60),
+        "gpt-4.1-nano":  ModelPricing(input: 0.10,  output: 0.40),
         "gpt-3.5-turbo": ModelPricing(input: 0.50,  output: 1.50),
-        "gpt-5":         ModelPricing(input: 10.00, output: 30.00),
-        "gpt-5.4":       ModelPricing(input: 5.00,  output: 15.00),
-        "gpt-5-mini":    ModelPricing(input: 1.50,  output: 6.00),
+        "gpt-5":         ModelPricing(input: 1.25,  output: 10.00),
+        "gpt-5-mini":    ModelPricing(input: 0.25,  output: 2.00),
+        "gpt-5-nano":    ModelPricing(input: 0.05,  output: 0.40),
+        "gpt-5-pro":     ModelPricing(input: 15.00, output: 120.00),
+        "gpt-5.4":       ModelPricing(input: 2.50,  output: 15.00),
+        "gpt-5.4-mini":  ModelPricing(input: 0.75,  output: 4.50),
+        "gpt-5.4-nano":  ModelPricing(input: 0.20,  output: 1.25),
         "o1":            ModelPricing(input: 15.00, output: 60.00),
         "o1-mini":       ModelPricing(input: 3.00,  output: 12.00),
         "o1-pro":        ModelPricing(input: 150.00, output: 600.00),
@@ -268,7 +283,7 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
             base = String(base[base.startIndex..<range.lowerBound])
         }
         // Strip qualifiers
-        let qualifiers = ["-mini", "-turbo", "-preview"]
+        let qualifiers = ["-mini", "-nano", "-pro", "-turbo", "-preview"]
         for q in qualifiers {
             if base.hasSuffix(q) {
                 base = String(base.dropLast(q.count))
