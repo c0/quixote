@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-04-21
+
+### Changed
+- Store API keys in local macOS Keychain only, with reads limited to explicit user actions.
+- Simplified the Settings API key field around a native secure input, masked preview, and OpenAI test action.
+
 ## [1.0.1] - 2026-04-21
 
 ### Fixed
