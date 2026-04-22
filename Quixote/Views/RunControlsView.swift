@@ -20,10 +20,6 @@ struct RunActionControls: View {
         }
     }
 
-    private var apiKey: String {
-        settings.openAIKey.trimmingCharacters(in: .whitespaces)
-    }
-
     private var runnablePrompts: [Prompt] {
         prompts.filter { !$0.template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
@@ -42,7 +38,7 @@ struct RunActionControls: View {
     }
 
     private var canRun: Bool {
-        !apiKey.isEmpty
+        settings.hasSavedAPIKey
             && !promptsToRun.isEmpty
             && !rows.isEmpty
             && !modelConfigs.isEmpty
@@ -51,7 +47,7 @@ struct RunActionControls: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            if apiKey.isEmpty {
+            if !settings.hasSavedAPIKey {
                 Button {
                     NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 } label: {
@@ -112,6 +108,15 @@ struct RunActionControls: View {
 
     private var runAction: () -> Void {
         {
+            let apiKey: String
+            do {
+                apiKey = try settings.apiKeyForUserAction()
+            } catch {
+                settings.keyValidationResult = .invalid(error.localizedDescription)
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                return
+            }
+
             processing.startRun(
                 prompts: promptsToRun,
                 rows: rowsToProcess,

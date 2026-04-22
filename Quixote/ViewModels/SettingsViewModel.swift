@@ -1,7 +1,5 @@
-import Foundation
 import SwiftUI
 
-private let kKeychainOpenAIKey  = "openai-api-key"
 private let kConcurrencyKey     = "quixote.concurrency"
 private let kRateLimitKey       = "quixote.rateLimit"
 private let kMaxRetriesKey          = "quixote.maxRetries"
@@ -9,8 +7,8 @@ private let kShowExtrapolationKey   = "quixote.showExtrapolation"
 private let kExtrapolationScaleKey  = "quixote.extrapolationScale"
 private let kShowCosineSimilarityKey = "quixote.showCosineSimilarity"
 private let kShowRougeMetricsKey     = "quixote.showRougeMetrics"
-// Legacy key written by CP-3 RunControlsView — migrated to Keychain on first launch
-private let kLegacyAPIKey       = "quixote.openai.apiKey"
+private let kHasSavedOpenAIKey = "quixote.hasSavedOpenAIKey"
+private let kLegacyPlaintextAPIKey = "quixote.openai.apiKey"
 
 extension Notification.Name {
     static let quixoteAPIKeyDidChange = Notification.Name("quixoteAPIKeyDidChange")
@@ -56,34 +54,50 @@ final class SettingsViewModel: ObservableObject {
 
     @Published var isValidatingKey = false
     @Published var keyValidationResult: KeyValidationResult? = nil
+    @Published var hasSavedAPIKey: Bool = UserDefaults.standard.bool(forKey: kHasSavedOpenAIKey)
 
     @Published var availableModels: [ModelConfig] = ModelConfig.builtIn
     @Published var groupedModels: [(family: String, models: [ModelConfig])] = ModelConfig.grouped(ModelConfig.builtIn)
 
     init() {
-        migrateLegacyKeyIfNeeded()
-        openAIKey = KeychainHelper.read(for: kKeychainOpenAIKey) ?? ""
+        UserDefaults.standard.removeObject(forKey: kLegacyPlaintextAPIKey)
         observeKeyChanges()
-        if !openAIKey.isEmpty {
-            refreshModels()
-        }
     }
 
     // MARK: - Key management
 
-    func saveKey() {
-        let trimmed = openAIKey.trimmingCharacters(in: .whitespaces)
-        if trimmed.isEmpty {
-            KeychainHelper.delete(for: kKeychainOpenAIKey)
-        } else {
-            KeychainHelper.save(trimmed, for: kKeychainOpenAIKey)
+    @discardableResult
+    func saveKey() -> Bool {
+        let trimmed = openAIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            if trimmed.isEmpty {
+                if !hasSavedAPIKey {
+                    try KeychainHelper.deleteOpenAIKey()
+                    setHasSavedAPIKey(false)
+                }
+            } else {
+                try KeychainHelper.saveOpenAIKey(trimmed)
+                setHasSavedAPIKey(true)
+                openAIKey = ""
+            }
+            keyValidationResult = nil
+            NotificationCenter.default.post(name: .quixoteAPIKeyDidChange, object: nil)
+            return true
+        } catch {
+            keyValidationResult = .invalid(error.localizedDescription)
+            return false
         }
-        keyValidationResult = nil
-        NotificationCenter.default.post(name: .quixoteAPIKeyDidChange, object: nil)
     }
 
     func validateKey() {
-        let trimmed = openAIKey.trimmingCharacters(in: .whitespaces)
+        let trimmed: String
+        do {
+            trimmed = try apiKeyForUserAction(preferUnsavedInput: true)
+        } catch {
+            keyValidationResult = .invalid(error.localizedDescription)
+            return
+        }
+
         guard !trimmed.isEmpty else {
             keyValidationResult = .invalid("Enter an API key first")
             return
@@ -98,7 +112,9 @@ final class SettingsViewModel: ObservableObject {
                 request.setValue("Bearer \(trimmed)", forHTTPHeaderField: "Authorization")
                 let (_, response) = try await URLSession.shared.data(for: request)
                 if let http = response as? HTTPURLResponse, http.statusCode == 200 {
-                    saveKey()
+                    if !openAIKey.trimmingCharacters(in: .whitespaces).isEmpty {
+                        _ = saveKey()
+                    }
                     keyValidationResult = .valid
                     // Parse model list from the validation response
                     if let models = try? await OpenAIService.fetchModels(apiKey: trimmed) {
@@ -108,7 +124,9 @@ final class SettingsViewModel: ObservableObject {
                     keyValidationResult = .invalid("Invalid API key")
                 } else {
                     keyValidationResult = .invalid("Unexpected response — key saved anyway")
-                    saveKey()
+                    if !openAIKey.trimmingCharacters(in: .whitespaces).isEmpty {
+                        _ = saveKey()
+                    }
                 }
             } catch {
                 keyValidationResult = .invalid("Network error: \(error.localizedDescription)")
@@ -119,14 +137,22 @@ final class SettingsViewModel: ObservableObject {
     // MARK: - Model list
 
     func refreshModels() {
-        let trimmed = openAIKey.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
+        let trimmed: String
+        do {
+            trimmed = try apiKeyForUserAction(preferUnsavedInput: true)
+        } catch {
+            return
+        }
 
         Task {
             if let models = try? await OpenAIService.fetchModels(apiKey: trimmed) {
                 updateAvailableModels(models)
             }
         }
+    }
+
+    func markKeyFieldEdited() {
+        keyValidationResult = nil
     }
 
     private func updateAvailableModels(_ models: [ModelConfig]) {
@@ -186,22 +212,21 @@ final class SettingsViewModel: ObservableObject {
         ) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                let newKey = KeychainHelper.read(for: kKeychainOpenAIKey) ?? ""
-                self.openAIKey = newKey
-                if !newKey.isEmpty {
-                    self.refreshModels()
-                }
+                self.hasSavedAPIKey = UserDefaults.standard.bool(forKey: kHasSavedOpenAIKey)
             }
         }
     }
 
-    // MARK: - Migration
+    func apiKeyForUserAction(preferUnsavedInput: Bool = false) throws -> String {
+        let typed = openAIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if preferUnsavedInput, !typed.isEmpty {
+            return typed
+        }
+        return try KeychainHelper.readOpenAIKey()
+    }
 
-    private func migrateLegacyKeyIfNeeded() {
-        guard let legacy = UserDefaults.standard.string(forKey: kLegacyAPIKey),
-              !legacy.isEmpty,
-              KeychainHelper.read(for: kKeychainOpenAIKey) == nil else { return }
-        KeychainHelper.save(legacy, for: kKeychainOpenAIKey)
-        UserDefaults.standard.removeObject(forKey: kLegacyAPIKey)
+    private func setHasSavedAPIKey(_ hasSaved: Bool) {
+        hasSavedAPIKey = hasSaved
+        UserDefaults.standard.set(hasSaved, forKey: kHasSavedOpenAIKey)
     }
 }

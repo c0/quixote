@@ -3,8 +3,31 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var viewModel: SettingsViewModel
 
-    @State private var showKey = false
+    @State private var isKeyVisible = false
     @ObservedObject private var cache = ResponseCache.shared
+
+    private var maskedKeyPreview: String {
+        let key = viewModel.openAIKey
+        let visiblePrefix = 6
+        let visibleSuffix = 4
+
+        guard key.count >= visiblePrefix + visibleSuffix + 1 else {
+            return String(repeating: "•", count: key.count)
+        }
+
+        let maskCount = key.count - visiblePrefix - visibleSuffix
+        return "\(key.prefix(visiblePrefix))\(String(repeating: "•", count: maskCount))\(key.suffix(visibleSuffix))"
+    }
+
+    private var keyBinding: Binding<String> {
+        Binding(
+            get: { viewModel.openAIKey },
+            set: { newValue in
+                viewModel.openAIKey = newValue
+                viewModel.markKeyFieldEdited()
+            }
+        )
+    }
 
     var body: some View {
         TabView {
@@ -22,27 +45,37 @@ struct SettingsView: View {
             Section("API Keys") {
                 HStack(spacing: 6) {
                     Group {
-                        if showKey {
-                            TextField("sk-…", text: $viewModel.openAIKey)
+                        if isKeyVisible {
+                            TextField(text: keyBinding, prompt: Text("sk-...")) {
+                                EmptyView()
+                            }
                         } else {
-                            SecureField("sk-…", text: $viewModel.openAIKey)
+                            SecureField(text: keyBinding, prompt: Text("sk-...")) {
+                                EmptyView()
+                            }
                         }
                     }
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
-                    .onChange(of: viewModel.openAIKey) {
-                        viewModel.keyValidationResult = nil
-                    }
+                    .lineLimit(1)
+                    .frame(minWidth: 180, maxWidth: .infinity)
 
                     Button {
-                        showKey.toggle()
+                        isKeyVisible.toggle()
                     } label: {
-                        Image(systemName: showKey ? "eye.slash" : "eye")
+                        Image(systemName: isKeyVisible ? "eye.slash" : "eye")
+                            .frame(width: 20, height: 20)
                     }
                     .buttonStyle(.plain)
-                    .help(showKey ? "Hide key" : "Show key")
+                    .help(isKeyVisible ? "Hide sensitive data" : "Show full key")
 
                     Divider().frame(height: 20)
+
+                    Button("Save") {
+                        viewModel.saveKey()
+                    }
+                    .disabled(viewModel.isValidatingKey)
+                    .frame(width: 54)
 
                     Button {
                         viewModel.validateKey()
@@ -50,11 +83,28 @@ struct SettingsView: View {
                         if viewModel.isValidatingKey {
                             ProgressView().controlSize(.small)
                         } else {
-                            Text("Validate")
+                            Text("Test")
                         }
                     }
                     .disabled(viewModel.isValidatingKey)
                     .frame(width: 72)
+                    .help("Test this API key against OpenAI")
+                }
+
+                if !viewModel.openAIKey.isEmpty && !isKeyVisible {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Partial Preview")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        Text(maskedKeyPreview)
+                            .font(.system(.body, design: .monospaced))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.primary.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .textSelection(.enabled)
+                    }
                 }
 
                 validationFeedback
@@ -156,7 +206,7 @@ struct SettingsView: View {
         case .none:
             EmptyView()
         case .valid:
-            Label("Key saved to Keychain", systemImage: "checkmark.circle.fill")
+            Label("API Key valid", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
                 .font(.caption)
         case .invalid(let msg):
