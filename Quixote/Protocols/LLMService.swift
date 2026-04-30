@@ -4,6 +4,7 @@ struct LLMResponse {
     var text: String
     var tokenUsage: TokenUsage
     var durationMs: Int
+    var rawResponse: String?
 }
 
 enum LLMServiceError: LocalizedError {

@@ -440,6 +440,7 @@ struct PromptResult: Identifiable, Codable, Equatable {
     var modelID: String
     var modelConfigID: UUID?
     var responseText: String?
+    var rawResponse: String?
     var status: ResultStatus
     var tokenUsage: TokenUsage?
     var costUSD: Double?
