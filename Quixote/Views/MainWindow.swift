@@ -51,6 +51,7 @@ struct MainWindow: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.quixoteAppBackground)
+        .background(WindowTitleConfigurator())
         .preferredColorScheme(.dark)
         .frame(minWidth: 1240, minHeight: 760)
         .onAppear {
@@ -250,5 +251,27 @@ struct MainWindow: View {
             handled = true
         }
         return handled
+    }
+}
+
+private struct WindowTitleConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            configureWindow(for: view)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            configureWindow(for: nsView)
+        }
+    }
+
+    private func configureWindow(for view: NSView) {
+        guard let window = view.window else { return }
+        window.title = ""
+        window.titleVisibility = .hidden
     }
 }
