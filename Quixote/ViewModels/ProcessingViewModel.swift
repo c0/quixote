@@ -891,6 +891,7 @@ final class ProcessingViewModel: ObservableObject {
                     model: modelConfig.model,
                     params: params)
                 result.responseText = response.text
+                result.rawResponse = response.rawResponse
                 result.tokenUsage = response.tokenUsage
                 result.durationMs = response.durationMs
                 result.costUSD = modelConfig.model.costFor(

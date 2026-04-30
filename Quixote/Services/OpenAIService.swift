@@ -86,6 +86,8 @@ struct OpenAIService: LLMService {
             throw LLMServiceError.serverError(http.statusCode, body)
         }
 
+        let rawResponse = Self.prettyPrintedJSONString(from: data)
+
         guard
             let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let choices = json["choices"] as? [[String: Any]],
@@ -107,7 +109,7 @@ struct OpenAIService: LLMService {
             usage = TokenUsage(input: 0, output: 0, total: 0)
         }
 
-        return LLMResponse(text: content, tokenUsage: usage, durationMs: durationMs)
+        return LLMResponse(text: content, tokenUsage: usage, durationMs: durationMs, rawResponse: rawResponse)
     }
 
     // MARK: - Fetch available models
@@ -193,5 +195,15 @@ struct OpenAIService: LLMService {
             return "\(baseName) (\(dateSuffix))"
         }
         return baseName
+    }
+
+    private static func prettyPrintedJSONString(from data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data),
+              JSONSerialization.isValidJSONObject(object),
+              let prettyData = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
+              let pretty = String(data: prettyData, encoding: .utf8) else {
+            return String(data: data, encoding: .utf8)
+        }
+        return pretty
     }
 }
