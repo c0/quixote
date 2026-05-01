@@ -124,7 +124,7 @@ struct SettingsView: View {
                             get: { viewModel.rateLimit },
                             set: { viewModel.saveRateLimit($0) }
                         ),
-                        in: 1...20
+                        in: 1...100
                     )
                     .labelsHidden()
                     .controlSize(.small)

@@ -63,9 +63,9 @@ final class SettingsViewModel: ObservableObject {
     @Published private(set) var apiKeyUIState: APIKeyUIState = .blank
 
     @Published var concurrency: Int = UserDefaults.standard.integer(forKey: kConcurrencyKey) == 0
-        ? 2 : UserDefaults.standard.integer(forKey: kConcurrencyKey)
+        ? 10 : UserDefaults.standard.integer(forKey: kConcurrencyKey)
     @Published var rateLimit: Int = UserDefaults.standard.integer(forKey: kRateLimitKey) == 0
-        ? 5 : UserDefaults.standard.integer(forKey: kRateLimitKey)
+        ? 10 : UserDefaults.standard.integer(forKey: kRateLimitKey)
     @Published var maxRetries: Int = {
         if UserDefaults.standard.object(forKey: kMaxRetriesKey) == nil { return 3 }
         return UserDefaults.standard.integer(forKey: kMaxRetriesKey)
