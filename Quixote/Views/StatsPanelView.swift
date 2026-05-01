@@ -8,7 +8,6 @@ private enum StatsDrawerSection: String, CaseIterable, Identifiable {
     case tokens
     case cost
     case similarity
-    case errors
 
     var id: String { rawValue }
 }
@@ -42,21 +41,29 @@ struct StatsPanelView: View {
         GeometryReader { proxy in
             let dividerWidth = CGFloat(6)
             let contentWidth = max(0, proxy.size.width - dividerWidth)
+            let completeWidth = contentWidth * 0.20
+            let costWidth = contentWidth * 0.10
+            let tokensWidth = contentWidth * 0.14
+            let similarityWidth = contentWidth * 0.10
+            let remainingWidth = max(
+                0,
+                contentWidth - completeWidth - tokensWidth - costWidth - similarityWidth
+            )
+            let throughputWidth = remainingWidth / 2
+            let latencyWidth = remainingWidth / 2
 
             HStack(spacing: 0) {
-                summaryButton(.progress, width: contentWidth * 0.17, horizontalPadding: 10) { progressSummary }
+                summaryButton(.progress, width: completeWidth, horizontalPadding: 10) { progressSummary }
                 railDivider
-                summaryButton(.throughput, width: contentWidth * 0.14) { throughputSummary }
+                summaryButton(.throughput, width: throughputWidth) { throughputSummary }
                 railDivider
-                summaryButton(.latency, width: contentWidth * 0.18) { latencySummary }
+                summaryButton(.latency, width: latencyWidth) { latencySummary }
                 railDivider
-                summaryButton(.tokens, width: contentWidth * 0.15) { tokensSummary }
+                summaryButton(.tokens, width: tokensWidth) { tokensSummary }
                 railDivider
-                summaryButton(.cost, width: contentWidth * 0.12) { costSummary }
+                summaryButton(.cost, width: costWidth) { costSummary }
                 railDivider
-                summaryButton(.similarity, width: contentWidth * 0.14) { similaritySummary }
-                railDivider
-                summaryButton(.errors, width: contentWidth * 0.10) { errorsSummary }
+                summaryButton(.similarity, width: similarityWidth) { similaritySummary }
             }
         }
         .frame(height: 44)
@@ -71,21 +78,27 @@ struct StatsPanelView: View {
             switch section {
             case .progress:
                 paddedDrawerSection {
-                    StatsTableSection(
-                        title: "Progress",
-                        headers: ["Prompt", "Model", "Completed", "Failed", "Total", "% Complete"],
-                        rows: statsVM.modelStats.map {
-                            [
-                                .text($0.promptName),
-                                .text($0.modelDisplayName),
-                                .number(Double($0.completedRows), decimals: 0),
-                                .number(Double($0.failedRows), decimals: 0),
-                                .number(Double($0.totalRows), decimals: 0),
-                                .number($0.totalRows > 0 ? Double($0.completedRows) / Double($0.totalRows) * 100 : nil)
-                            ]
-                        },
-                        numericColumns: [2, 3, 4, 5]
-                    )
+                    VStack(spacing: 14) {
+                        StatsTableSection(
+                            title: "Progress",
+                            headers: ["Prompt", "Model", "Completed", "Failed", "Total", "% Complete"],
+                            rows: statsVM.modelStats.map {
+                                [
+                                    .text($0.promptName),
+                                    .text($0.modelDisplayName),
+                                    .number(Double($0.completedRows), decimals: 0),
+                                    .number(Double($0.failedRows), decimals: 0),
+                                    .number(Double($0.totalRows), decimals: 0),
+                                    .number($0.totalRows > 0 ? Double($0.completedRows) / Double($0.totalRows) * 100 : nil)
+                                ]
+                            },
+                            numericColumns: [2, 3, 4, 5]
+                        )
+
+                        if statsVM.overview.failedItems > 0 {
+                            errorSection
+                        }
+                    }
                 }
             case .throughput:
                 paddedDrawerSection {
@@ -220,8 +233,6 @@ struct StatsPanelView: View {
                         numericColumns: similarityNumericColumns
                     )
                 }
-            case .errors:
-                errorSection
             }
         }
         .frame(height: Self.drawerHeight, alignment: .top)
@@ -253,21 +264,32 @@ struct StatsPanelView: View {
                     .foregroundStyle(Color.quixoteTextPrimary)
                     .lineLimit(1)
 
-                Text(Self.percent(statsVM.overview.progress * 100))
-                    .font(Self.monoFont(size: 11))
-                    .foregroundStyle(Color.quixoteTextSecondary)
-                    .lineLimit(1)
+                if statsVM.overview.failedItems > 0 {
+                    Text("FAILED \(Self.fullNumber(statsVM.overview.failedItems, decimals: 0))")
+                        .font(Self.monoFont(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.quixoteRed)
+                        .lineLimit(1)
+                } else {
+                    Text(Self.percent(statsVM.overview.progress * 100))
+                        .font(Self.monoFont(size: 11))
+                        .foregroundStyle(Color.quixoteTextSecondary)
+                        .lineLimit(1)
+                }
             }
         }
         .frame(height: 44, alignment: .center)
     }
 
     private var throughputSummary: some View {
-        SummaryMetricStack(
-            label: "Throughput",
-            value: statsVM.overview.throughputRowsPerSecond.map(Self.rate) ?? "-",
-            unit: "ROWS/S"
-        )
+        HStack(spacing: 8) {
+            SummaryMetricStack(
+                label: "Throughput",
+                value: statsVM.overview.throughputRowsPerSecond.map(Self.rate) ?? "-",
+                unit: "ROWS/S"
+            )
+            SparklineView(data: statsVM.overview.throughputSeries)
+                .frame(width: 80, height: 16)
+        }
     }
 
     private var latencySummary: some View {
@@ -300,14 +322,6 @@ struct StatsPanelView: View {
         SummaryMetricStack(
             label: "Similarity",
             value: similaritySummaryValue
-        )
-    }
-
-    private var errorsSummary: some View {
-        SummaryMetricStack(
-            label: "Failed",
-            value: Self.fullNumber(statsVM.overview.failedItems, decimals: 0),
-            tone: statsVM.overview.failedItems > 0 ? .quixoteRed : .quixoteTextPrimary
         )
     }
 
