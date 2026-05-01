@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Quixote — Typography</title>
+  <link rel="stylesheet" href="../colors_and_type.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; background: var(--qx-app-bg); min-height: 100vh; }
+    body { padding: 32px; color: var(--qx-fg-1); }
+    .wrap { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+    .title { font-size: 18px; margin: 0; }
+    .caption { font-family: var(--qx-font-mono); color: var(--qx-fg-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; margin-top: 4px; }
+    .row { display: grid; grid-template-columns: 220px 1fr; gap: 24px; padding: 18px 0; border-top: 1px solid var(--qx-divider); align-items: baseline; }
+    .label { font-family: var(--qx-font-mono); font-size: 11px; color: var(--qx-fg-2); text-transform: uppercase; letter-spacing: 0.18em; }
+    .sub { color: var(--qx-fg-3); font-size: 10.5px; margin-top: 4px; display: block; }
+    .sample-wrap { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .families { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 4px; }
+    .fam-card { border: 1px solid var(--qx-divider); border-radius: 6px; padding: 16px; }
+    .fam-label { font-family: var(--qx-font-mono); font-size: 10px; color: var(--qx-fg-3); text-transform: uppercase; letter-spacing: 0.18em; }
+    .fam-name { font-size: 22px; font-weight: 600; margin-top: 8px; color: var(--qx-fg-1); }
+    .fam-meta { font-family: var(--qx-font-mono); font-size: 11px; color: var(--qx-fg-2); margin-top: 6px; }
+    .fam-spec { font-size: 28px; letter-spacing: -0.01em; margin-top: 14px; color: var(--qx-fg-1); }
+    .mono .fam-name, .mono .fam-spec { font-family: var(--qx-font-mono); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <h1 class="title">Typography</h1>
+      <div class="caption">Two families · tight scale · uppercase + tracked is the defining move</div>
+    </div>
+
+    <div class="families">
+      <div class="fam-card">
+        <div class="fam-label">Sans · UI &amp; marketing</div>
+        <div class="fam-name">Inter Tight</div>
+        <div class="fam-meta">Substitute for system SF Pro</div>
+        <div class="fam-spec">AaGg 0123456789</div>
+      </div>
+      <div class="fam-card mono">
+        <div class="fam-label">Mono · data &amp; meta</div>
+        <div class="fam-name">JetBrains Mono</div>
+        <div class="fam-meta">Substitute for system SF Mono</div>
+        <div class="fam-spec">AaGg 0123456789</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="row">
+        <div class="label">H1<span class="sub">Hero · sans 700 · -0.04em</span></div>
+        <div class="sample-wrap">
+          <h1 style="font-size:clamp(2.8rem,7vw,4.4rem); letter-spacing:-0.04em; line-height:0.96; font-weight:700; margin:0;">Data Quixote</h1>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="label">H2<span class="sub">Pane header · sans 700 · 18/1.3</span></div>
+        <div class="sample-wrap">
+          <h2 style="font-size:18px; font-weight:700; margin:0;">products-xs</h2>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="label">H3<span class="sub">Card title · sans 700 · 16/1.3</span></div>
+        <div class="sample-wrap">
+          <h3 style="font-size:16px; font-weight:700; margin:0;">gpt-4.1</h3>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="label">H4<span class="sub">Brand / active tab · sans 700 · 15</span></div>
+        <div class="sample-wrap">
+          <h4 style="font-size:15px; font-weight:700; margin:0;">Quixote</h4>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="label">Section label<span class="sub">sans 600 · 12 · 0.2em · UPPER</span></div>
+        <div class="sample-wrap">
+          <span class="qx-section-label">System Message</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="label">Table header<span class="sub">mono 600 · 11 · 0.1em · UPPER</span></div>
+        <div class="sample-wrap">
+          <span class="qx-table-header">COST_PER_ITEM &nbsp; INCLUDED_UNIT &nbsp; VARIANT_SKU</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="label">Meta<span class="sub">mono 500 · 11 · 0.18em · UPPER</span></div>
+        <div class="sample-wrap">
+          <span class="qx-meta">12 rows · 24 columns</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="label">Body<span class="sub">sans 400 · 12/1.5</span></div>
+        <div class="sample-wrap">
+          <p style="max-width:540px; color: var(--qx-fg-1);">Describe desired model behavior (tone, tool usage, response style). Quixote substitutes column values into the prompt for every row.</p>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="label">Code<span class="sub">mono 400 · 14 editor / 11 cell</span></div>
+        <div class="sample-wrap">
+          <pre style="font-family: var(--qx-font-mono); font-size:14px; margin:0; color: var(--qx-fg-1); background: var(--qx-card); border: 1px solid var(--qx-divider); border-radius:6px; padding:12px;">Summarized in 3 bullet points:
+{{body_html}}</pre>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="label">Button<span class="sub">sans 700 · 12 · 0.08em · UPPER</span></div>
+        <div class="sample-wrap">
+          <span class="qx-button-label" style="color: var(--qx-fg-1);">Run · Download · Cancel</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

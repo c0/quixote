@@ -1,0 +1,234 @@
+/* ============================================================
+   Quixote Design System — Colors & Type
+   Source of truth: quixote-swift/Quixote/Views/QuixoteTheme.swift
+                    quixote-swift/site/src/layouts/Layout.astro
+   ============================================================ */
+
+:root {
+  /* ---------- SURFACES (app shell, dark mode — the canonical product surface) ---------- */
+  --qx-app-bg:            rgb(23, 23, 26);       /* #17171A  — full-window canvas */
+  --qx-panel:             rgb(33, 33, 36);       /* #212124  — left sidebar / right table pane */
+  --qx-panel-raised:      rgb(41, 41, 43);       /* #29292B  — prompt editor pane / hover rows */
+  --qx-card:              rgb(28, 28, 31);       /* #1C1C1F  — text-area card, model config card */
+  --qx-selection:         rgb(56, 56, 61);       /* #38383D  — active tab pill / selected row / chip */
+
+  /* ---------- SITE SURFACES (marketing site, deeper black + blur panels) ---------- */
+  --qx-site-bg:           #030405;
+  --qx-site-panel:        rgba(10, 12, 16, 0.72);
+  --qx-site-panel-strong: rgba(14, 17, 22, 0.86);
+
+  /* ---------- TEXT (dark surfaces) ---------- */
+  --qx-fg-1:              rgb(242, 242, 245);    /* primary — titles, body on dark */
+  --qx-fg-2:              rgb(143, 151, 173);    /* secondary — section labels, chrome icons */
+  --qx-fg-3:              rgb(110, 115, 130);    /* muted — placeholder, row index, meta */
+  --qx-fg-site-1:         #f3f5f8;
+  --qx-fg-site-2:         #aeb6c2;
+  --qx-fg-site-3:         #727b87;
+
+  /* ---------- BORDERS & DIVIDERS ---------- */
+  --qx-divider:           rgba(255, 255, 255, 0.08);
+  --qx-divider-strong:    rgba(255, 255, 255, 0.10);
+
+  /* ---------- ACCENT / SEMANTIC ---------- */
+  --qx-blue:              rgb(48, 107, 240);     /* #306BF0 — the ONE primary CTA color */
+  --qx-blue-muted:        rgb(71, 140, 255);     /* #478CFF — interactive boolean/link in tables */
+  --qx-green:             rgb(56, 219, 122);     /* #38DB7A — model online / success dot */
+  --qx-red:               rgb(212,  41,  69);    /* #D42945 — destructive / failed row */
+  --qx-orange:            rgb(242, 158,  59);    /* #F29E3B — warning / file unavailable */
+
+  /* ---------- RADII ---------- */
+  --qx-radius-xs:         2px;
+  --qx-radius-sm:         4px;    /* chips, tiny controls */
+  --qx-radius-md:         6px;    /* cards, buttons, panels — MOST things */
+  --qx-radius-lg:         10px;   /* marketing site cards */
+  --qx-radius-pill:       999px;  /* site buttons */
+
+  /* ---------- SPACING (Quixote uses a tight 2/4/6/8/10/12/14/18 scale) ---------- */
+  --qx-space-1:           2px;
+  --qx-space-2:           4px;
+  --qx-space-3:           6px;
+  --qx-space-4:           8px;
+  --qx-space-5:           10px;
+  --qx-space-6:           12px;
+  --qx-space-7:           14px;   /* shell padding */
+  --qx-space-8:           18px;   /* pane inset / section gap */
+  --qx-space-10:          24px;
+
+  /* ---------- SHADOWS ---------- */
+  --qx-shadow-site:       0 24px 80px rgba(0, 0, 0, 0.45);
+  --qx-shadow-hero-logo:  0 18px 38px rgba(0, 0, 0, 0.40);
+
+  /* ---------- TYPOGRAPHY — families ---------- */
+  /* App is native SwiftUI → system sans. Site uses SF Pro stack. Web substitute: Inter Tight.
+     Mono is SF Mono-adjacent. Web substitute: JetBrains Mono. */
+  --qx-font-sans: "Inter Tight", "SF Pro Display", "SF Pro Text", system-ui,
+                  -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --qx-font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Menlo",
+                  "Consolas", monospace;
+
+  /* ---------- TYPOGRAPHY — semantic roles ---------- */
+
+  /* h1 — marketing hero: "Data Quixote" */
+  --qx-h1-family:  var(--qx-font-sans);
+  --qx-h1-size:    clamp(2.8rem, 7vw, 4.4rem);
+  --qx-h1-weight:  700;
+  --qx-h1-track:   -0.04em;
+  --qx-h1-lh:      0.96;
+
+  /* h2 — pane header dataset name "products-xs" */
+  --qx-h2-family:  var(--qx-font-sans);
+  --qx-h2-size:    18px;
+  --qx-h2-weight:  700;
+  --qx-h2-track:   -0.01em;
+  --qx-h2-lh:      1.3;
+
+  /* h3 — model card title "gpt-4.1" */
+  --qx-h3-family:  var(--qx-font-sans);
+  --qx-h3-size:    16px;
+  --qx-h3-weight:  700;
+  --qx-h3-track:   0;
+  --qx-h3-lh:      1.3;
+
+  /* h4 — sidebar brand "Quixote" / tab active label */
+  --qx-h4-family:  var(--qx-font-sans);
+  --qx-h4-size:    15px;
+  --qx-h4-weight:  700;
+  --qx-h4-track:   0;
+  --qx-h4-lh:      1.4;
+
+  /* section-label — uppercase, spaced: "MODEL", "VARIABLES", "SYSTEM MESSAGE"
+     THE defining typographic mark of the product */
+  --qx-section-family: var(--qx-font-sans);
+  --qx-section-size:   12px;
+  --qx-section-weight: 600;
+  --qx-section-track:  0.2em;         /* 2.4px at 12 */
+  --qx-section-case:   uppercase;
+
+  /* table-header — monospace, uppercase, spaced: "COST_PER_ITEM", "INCLUDED_UNIT" */
+  --qx-table-header-family: var(--qx-font-mono);
+  --qx-table-header-size:   11px;
+  --qx-table-header-weight: 600;
+  --qx-table-header-track:  0.1em;
+  --qx-table-header-case:   uppercase;
+
+  /* meta — dataset subtitle "12 ROWS · 24 COLUMNS", sidebar status */
+  --qx-meta-family: var(--qx-font-mono);
+  --qx-meta-size:   11px;
+  --qx-meta-weight: 500;
+  --qx-meta-track:  0.18em;
+  --qx-meta-case:   uppercase;
+
+  /* sidebar-row — file name in sidebar */
+  --qx-sidebar-family: var(--qx-font-sans);
+  --qx-sidebar-size:   12px;
+  --qx-sidebar-weight: 600;
+
+  /* body — default UI text */
+  --qx-body-family: var(--qx-font-sans);
+  --qx-body-size:   12px;
+  --qx-body-weight: 400;
+  --qx-body-lh:     1.5;
+
+  /* code — editor textarea content, table cell data, chip label */
+  --qx-code-family: var(--qx-font-mono);
+  --qx-code-size:   14px;              /* text editors */
+  --qx-code-cell-size: 11px;           /* table cells */
+  --qx-code-weight: 400;
+
+  /* button — uppercase, bold, tracked: "RUN", "DOWNLOAD", "PAUSE" */
+  --qx-button-family: var(--qx-font-sans);
+  --qx-button-size:   12px;
+  --qx-button-weight: 700;
+  --qx-button-track:  0.08em;          /* ~1px at 12 */
+  --qx-button-case:   uppercase;
+}
+
+/* ============================================================
+   Base element styles — semantic roles applied
+   ============================================================ */
+
+html, body {
+  background: var(--qx-app-bg);
+  color: var(--qx-fg-1);
+  font-family: var(--qx-font-sans);
+  font-size: var(--qx-body-size);
+  line-height: var(--qx-body-lh);
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+}
+
+h1 {
+  font-family: var(--qx-h1-family);
+  font-size: var(--qx-h1-size);
+  font-weight: var(--qx-h1-weight);
+  letter-spacing: var(--qx-h1-track);
+  line-height: var(--qx-h1-lh);
+  color: var(--qx-fg-1);
+  margin: 0;
+}
+h2 {
+  font-family: var(--qx-h2-family);
+  font-size: var(--qx-h2-size);
+  font-weight: var(--qx-h2-weight);
+  letter-spacing: var(--qx-h2-track);
+  line-height: var(--qx-h2-lh);
+  color: var(--qx-fg-1);
+  margin: 0;
+}
+h3 {
+  font-family: var(--qx-h3-family);
+  font-size: var(--qx-h3-size);
+  font-weight: var(--qx-h3-weight);
+  line-height: var(--qx-h3-lh);
+  color: var(--qx-fg-1);
+  margin: 0;
+}
+h4 {
+  font-family: var(--qx-h4-family);
+  font-size: var(--qx-h4-size);
+  font-weight: var(--qx-h4-weight);
+  line-height: var(--qx-h4-lh);
+  color: var(--qx-fg-1);
+  margin: 0;
+}
+p { margin: 0; }
+
+/* Reusable utility classes — use these in components */
+.qx-section-label {
+  font-family: var(--qx-section-family);
+  font-size:   var(--qx-section-size);
+  font-weight: var(--qx-section-weight);
+  letter-spacing: var(--qx-section-track);
+  text-transform: var(--qx-section-case);
+  color: var(--qx-fg-2);
+}
+.qx-table-header {
+  font-family: var(--qx-table-header-family);
+  font-size:   var(--qx-table-header-size);
+  font-weight: var(--qx-table-header-weight);
+  letter-spacing: var(--qx-table-header-track);
+  text-transform: var(--qx-table-header-case);
+  color: var(--qx-fg-2);
+}
+.qx-meta {
+  font-family: var(--qx-meta-family);
+  font-size:   var(--qx-meta-size);
+  font-weight: var(--qx-meta-weight);
+  letter-spacing: var(--qx-meta-track);
+  text-transform: var(--qx-meta-case);
+  color: var(--qx-fg-2);
+}
+.qx-code,
+.qx-mono {
+  font-family: var(--qx-font-mono);
+}
+.qx-button-label {
+  font-family: var(--qx-button-family);
+  font-size:   var(--qx-button-size);
+  font-weight: var(--qx-button-weight);
+  letter-spacing: var(--qx-button-track);
+  text-transform: var(--qx-button-case);
+}
+
+/* Google Fonts import — place in <head> OR include separately */
+/* @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap'); */
