@@ -11,15 +11,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct QuixoteApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject private var settings = SettingsViewModel()
     private let updaterController: SPUStandardUpdaterController
 
     init() {
         updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     }
 
-    var body: some Scene {
+        var body: some Scene {
         WindowGroup {
-            MainWindow()
+            MainWindow(settings: settings)
         }
         .commands {
             CommandGroup(replacing: .newItem) {
@@ -42,7 +43,7 @@ struct QuixoteApp: App {
         }
 
         Settings {
-            SettingsView(viewModel: SettingsViewModel())
+            SettingsView(viewModel: settings)
         }
     }
 }

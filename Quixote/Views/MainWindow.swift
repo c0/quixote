@@ -9,9 +9,13 @@ struct MainWindow: View {
     @StateObject private var resultsVM = ResultsViewModel()
     @StateObject private var statsVM = StatsViewModel()
     @StateObject private var exportVM = ExportViewModel()
-    @StateObject private var settings = SettingsViewModel()
+    @ObservedObject private var settings: SettingsViewModel
     @StateObject private var fileModelConfigs = FileModelConfigsViewModel()
     @State private var showFileChangedAlert = false
+
+    init(settings: SettingsViewModel) {
+        self._settings = ObservedObject(wrappedValue: settings)
+    }
 
     var body: some View {
         HSplitView {
