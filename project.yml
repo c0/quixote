@@ -53,7 +53,7 @@ targets:
         NSHighResolutionCapable: true
         NSHumanReadableCopyright: "Copyright © 2026 Caleb Wright. All rights reserved."
         SUFeedURL: "https://c0.github.io/quixote/appcast.xml"
-        SUPublicEDKey: "w54moWKzPLbV7kXiRz0jAOueJglfLBhuuigk5hAYIBs="
+        SUPublicEDKey: "mOqmS1/jRRiLCjWyLnh/i2bwNj5MlxBm/4Ie2EPTN+E="
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - quixote
