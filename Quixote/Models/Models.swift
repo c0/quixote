@@ -432,6 +432,11 @@ struct ProcessingRun: Identifiable, Codable {
 
 // MARK: - PromptResult
 
+enum TimingSource: String, Codable, Equatable {
+    case live
+    case cached
+}
+
 struct PromptResult: Identifiable, Codable, Equatable {
     let id: UUID
     var runID: UUID
@@ -447,6 +452,9 @@ struct PromptResult: Identifiable, Codable, Equatable {
     var durationMs: Int?
     var retryCount: Int = 0
     var finishedAt: Date?
+    var timingSource: TimingSource = .live
+    var timingCohortID: UUID?
+    var timingFinishedAt: Date?
     var cosineSimilarity: Double?
     var rouge1: Double?
     var rouge2: Double?

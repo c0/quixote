@@ -302,6 +302,9 @@ final class ProcessingViewModel: ObservableObject {
                     result.durationMs = entry.durationMs
                     result.costUSD = entry.costUSD
                     result.finishedAt = entry.cachedAt
+                    result.timingSource = .cached
+                    result.timingCohortID = entry.timingCohortID
+                    result.timingFinishedAt = entry.timingFinishedAt ?? entry.cachedAt
                     result.cosineSimilarity = entry.cosineSimilarity
                     result.rouge1 = entry.rouge1
                     result.rouge2 = entry.rouge2
@@ -416,7 +419,9 @@ final class ProcessingViewModel: ObservableObject {
                         rouge1: result.rouge1,
                         rouge2: result.rouge2,
                         rougeL: result.rougeL,
-                        cachedAt: Date()
+                        cachedAt: Date(),
+                        timingCohortID: result.timingCohortID,
+                        timingFinishedAt: result.timingFinishedAt ?? result.finishedAt
                     ),
                     for: key)
             }
@@ -654,6 +659,9 @@ final class ProcessingViewModel: ObservableObject {
                 result.durationMs = entry.durationMs
                 result.costUSD = entry.costUSD
                 result.finishedAt = Date()
+                result.timingSource = .cached
+                result.timingCohortID = entry.timingCohortID
+                result.timingFinishedAt = entry.timingFinishedAt ?? entry.cachedAt
                 result.cosineSimilarity = entry.cosineSimilarity
                 result.rouge1 = entry.rouge1
                 result.rouge2 = entry.rouge2
@@ -729,7 +737,9 @@ final class ProcessingViewModel: ObservableObject {
                                 rouge1: result.rouge1,
                                 rouge2: result.rouge2,
                                 rougeL: result.rougeL,
-                                cachedAt: Date()),
+                                cachedAt: Date(),
+                                timingCohortID: result.timingCohortID,
+                                timingFinishedAt: result.timingFinishedAt ?? result.finishedAt),
                             for: key)
                     }
                 }
@@ -881,6 +891,8 @@ final class ProcessingViewModel: ObservableObject {
             modelID: modelConfig.modelID,
             modelConfigID: modelConfig.id)
         result.status = .inProgress
+        result.timingSource = .live
+        result.timingCohortID = runID
 
         var attempt = 0
         while true {
@@ -899,6 +911,7 @@ final class ProcessingViewModel: ObservableObject {
                     outputTokens: response.tokenUsage.output
                 )
                 result.finishedAt = Date()
+                result.timingFinishedAt = result.finishedAt
                 let analytics = analyticsScores(reference: prompt, candidate: response.text)
                 result.cosineSimilarity = analytics.cosineSimilarity
                 result.rouge1 = analytics.rouge1

@@ -13,6 +13,8 @@ struct CachedEntry: Codable {
     var rouge2: Double?
     var rougeL: Double?
     var cachedAt: Date
+    var timingCohortID: UUID?
+    var timingFinishedAt: Date?
 
     // Backward-compatible decode: old entries have no analytics fields
     init(from decoder: Decoder) throws {
@@ -26,12 +28,14 @@ struct CachedEntry: Codable {
         rouge2 = try c.decodeIfPresent(Double.self, forKey: .rouge2)
         rougeL = try c.decodeIfPresent(Double.self, forKey: .rougeL)
         cachedAt = try c.decode(Date.self, forKey: .cachedAt)
+        timingCohortID = try c.decodeIfPresent(UUID.self, forKey: .timingCohortID)
+        timingFinishedAt = try c.decodeIfPresent(Date.self, forKey: .timingFinishedAt)
     }
 
     init(responseText: String, tokenUsage: TokenUsage, durationMs: Int,
          costUSD: Double, cosineSimilarity: Double,
          rouge1: Double? = nil, rouge2: Double? = nil, rougeL: Double? = nil,
-         cachedAt: Date) {
+         cachedAt: Date, timingCohortID: UUID? = nil, timingFinishedAt: Date? = nil) {
         self.responseText = responseText
         self.tokenUsage = tokenUsage
         self.durationMs = durationMs
@@ -41,6 +45,8 @@ struct CachedEntry: Codable {
         self.rouge2 = rouge2
         self.rougeL = rougeL
         self.cachedAt = cachedAt
+        self.timingCohortID = timingCohortID
+        self.timingFinishedAt = timingFinishedAt
     }
 }
 
