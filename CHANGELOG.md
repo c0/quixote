@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-04-30
+
+### Changed
+- Add changelog and release verification to make release
+- Add GPT-4.1 and GPT-5 variants to model selection
+- Hide window title text
+- Store raw provider responses with output details
+- design system
+- Add rerun actions to run menu
+- Share settings state and reset unsaved API key drafts
+- Rotate Sparkle signing key
+
 ## [1.0.2] - 2026-04-21
 
 ### Changed
