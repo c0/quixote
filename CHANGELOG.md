@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-05-01
+
+### Changed
+- Preserve cached run timing in stats
+- Raise default concurrency and rate limit bounds
+- Add throughput sparkline and match latency width
+- copy
+
 ## [1.0.3] - 2026-04-30
 
 ### Changed
