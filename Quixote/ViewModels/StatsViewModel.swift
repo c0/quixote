@@ -9,6 +9,7 @@ final class StatsViewModel: ObservableObject {
         let failedItems: Int
         let progress: Double
         let throughputRowsPerSecond: Double?
+        let throughputSeries: [Double]
         let latencyP50Ms: Double?
         let latencyP90Ms: Double?
         let latencySeries: [Double]
@@ -24,6 +25,7 @@ final class StatsViewModel: ObservableObject {
             failedItems: 0,
             progress: 0,
             throughputRowsPerSecond: nil,
+            throughputSeries: [],
             latencyP50Ms: nil,
             latencyP90Ms: nil,
             latencySeries: [],
@@ -116,6 +118,7 @@ final class StatsViewModel: ObservableObject {
                 runStartedAt: runStartedAt,
                 runState: runState
             ),
+            throughputSeries: throughputSeries(for: completedResults),
             latencyP50Ms: percentile(allLatencies, 0.50),
             latencyP90Ms: percentile(allLatencies, 0.90),
             latencySeries: Array(completedResults
@@ -289,6 +292,46 @@ final class StatsViewModel: ObservableObject {
         return Double(results.count) / elapsed
     }
 
+    private func throughputSeries(for results: [PromptResult]) -> [Double] {
+        let cohorts = timingCohorts(for: results)
+            .sorted { cohortSortDate(for: $0) < cohortSortDate(for: $1) }
+
+        let values = cohorts.flatMap(rollingThroughputSeries(forCohort:))
+        return Array(values.suffix(24))
+    }
+
+    private func rollingThroughputSeries(forCohort results: [PromptResult]) -> [Double] {
+        let sorted = results.sorted { displayTimestamp(for: $0) < displayTimestamp(for: $1) }
+        guard !sorted.isEmpty else { return [] }
+
+        var points: [Double] = []
+        let windowSize = min(6, sorted.count)
+
+        for endIndex in sorted.indices {
+            let startIndex = max(0, endIndex - windowSize + 1)
+            let window = Array(sorted[startIndex...endIndex])
+
+            let rate: Double?
+            if window.count >= 2 {
+                let elapsed = displayTimestamp(for: window[window.count - 1])
+                    .timeIntervalSince(displayTimestamp(for: window[0]))
+                if elapsed > 0 {
+                    rate = Double(window.count) / elapsed
+                } else {
+                    rate = durationRateFallback(for: window)
+                }
+            } else {
+                rate = durationRateFallback(for: window)
+            }
+
+            if let rate, rate.isFinite, rate > 0 {
+                points.append(rate)
+            }
+        }
+
+        return points
+    }
+
     private func timingCohorts(for results: [PromptResult]) -> [[PromptResult]] {
         Dictionary(grouping: results) { result in
             result.timingCohortID ?? result.runID
@@ -317,6 +360,11 @@ final class StatsViewModel: ObservableObject {
         let totalDurationMs = results.compactMap(\.durationMs).reduce(0, +)
         guard totalDurationMs > 0 else { return nil }
         return Double(totalDurationMs) / 1000.0
+    }
+
+    private func durationRateFallback(for results: [PromptResult]) -> Double? {
+        guard let elapsed = durationFallback(for: results), elapsed > 0 else { return nil }
+        return Double(results.count) / elapsed
     }
 
     private func normalizedErrorCode(for message: String) -> String {
