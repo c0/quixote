@@ -13,6 +13,14 @@ struct RunActionControls: View {
     @State private var rowLimit: RowLimit = .all
     @State private var runScope: RunScope = .selected
 
+    private var selectedRunnablePrompt: Prompt? {
+        guard let selectedPrompt,
+              !selectedPrompt.template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return selectedPrompt
+    }
+
     private var rowsToProcess: [Row] {
         switch rowLimit {
         case .all:          return rows
@@ -27,22 +35,34 @@ struct RunActionControls: View {
     private var promptsToRun: [Prompt] {
         switch runScope {
         case .selected:
-            guard let selectedPrompt,
-                  !selectedPrompt.template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return []
-            }
-            return [selectedPrompt]
+            guard let selectedRunnablePrompt else { return [] }
+            return [selectedRunnablePrompt]
         case .all:
             return runnablePrompts
         }
     }
 
-    private var canRun: Bool {
+    private var hasRunnableInputs: Bool {
         settings.hasSavedAPIKey
-            && !promptsToRun.isEmpty
-            && !rows.isEmpty
+            && !rowsToProcess.isEmpty
             && !modelConfigs.isEmpty
             && !processing.isActive
+    }
+
+    private var canRun: Bool {
+        hasRunnableInputs && !promptsToRun.isEmpty
+    }
+
+    private var canRerunCurrent: Bool {
+        hasRunnableInputs && selectedRunnablePrompt != nil
+    }
+
+    private var canRerunAll: Bool {
+        hasRunnableInputs && !runnablePrompts.isEmpty
+    }
+
+    private var isRunMenuEnabled: Bool {
+        canRun || canRerunCurrent || canRerunAll
     }
 
     var body: some View {
@@ -106,27 +126,72 @@ struct RunActionControls: View {
         }
     }
 
-    private var runAction: () -> Void {
-        {
-            let apiKey: String
-            do {
-                apiKey = try settings.apiKeyForUserAction()
-            } catch {
-                settings.keyValidationResult = .invalid(error.localizedDescription)
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                return
-            }
+    private func startRun(prompts: [Prompt], resetCache: Bool) {
+        let apiKey: String
+        do {
+            apiKey = try settings.apiKeyForUserAction()
+        } catch {
+            settings.keyValidationResult = .invalid(error.localizedDescription)
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            return
+        }
 
-            processing.startRun(
-                prompts: promptsToRun,
-                rows: rowsToProcess,
-                columns: columns,
-                modelConfigs: modelConfigs,
-                apiKey: apiKey,
-                concurrency: settings.concurrency,
-                rateLimit: Double(settings.rateLimit),
-                maxRetries: settings.maxRetries
-            )
+        if resetCache {
+            resetCacheEntries(for: prompts)
+        }
+
+        processing.startRun(
+            prompts: prompts,
+            rows: rowsToProcess,
+            columns: columns,
+            modelConfigs: modelConfigs,
+            apiKey: apiKey,
+            concurrency: settings.concurrency,
+            rateLimit: Double(settings.rateLimit),
+            maxRetries: settings.maxRetries
+        )
+    }
+
+    private func resetCacheEntries(for prompts: [Prompt]) {
+        var keys = Set<String>()
+        for prompt in prompts {
+            for row in rowsToProcess {
+                let expandedPrompt = InterpolationEngine.expand(
+                    template: prompt.template,
+                    row: row,
+                    columns: columns
+                )
+
+                for modelConfig in modelConfigs {
+                    keys.insert(
+                        ResponseCache.cacheKey(
+                            expandedPrompt: expandedPrompt,
+                            systemMessage: prompt.systemMessage,
+                            modelID: modelConfig.modelID,
+                            params: modelConfig.parameters
+                        )
+                    )
+                }
+            }
+        }
+        ResponseCache.shared.removeEntries(for: keys)
+    }
+
+    private var runAction: () -> Void {
+        { startRun(prompts: promptsToRun, resetCache: false) }
+    }
+
+    private var rerunCurrentAction: (() -> Void)? {
+        guard let selectedRunnablePrompt else { return nil }
+        return {
+            startRun(prompts: [selectedRunnablePrompt], resetCache: true)
+        }
+    }
+
+    private var rerunAllAction: (() -> Void)? {
+        guard !runnablePrompts.isEmpty else { return nil }
+        return {
+            startRun(prompts: runnablePrompts, resetCache: true)
         }
     }
 
@@ -145,15 +210,23 @@ struct RunActionControls: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .disabled(!canRun)
 
             ZStack {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(Color.white)
 
-                RowLimitMenuHitTarget(selection: $rowLimit, isEnabled: canRun)
+                RowLimitMenuHitTarget(
+                    selection: $rowLimit,
+                    isEnabled: isRunMenuEnabled,
+                    canRerunCurrent: canRerunCurrent,
+                    canRerunAll: canRerunAll,
+                    onRerunCurrent: rerunCurrentAction,
+                    onRerunAll: rerunAllAction
+                )
                     .frame(width: caretSegmentWidth, height: 32)
-                    .accessibilityLabel("Row limit")
+                    .accessibilityLabel("Run options")
             }
             .frame(width: caretSegmentWidth, height: 32)
             .contentShape(Rectangle())
@@ -177,8 +250,7 @@ struct RunActionControls: View {
             RoundedRectangle(cornerRadius: QuixoteSpacing.cornerRadius, style: .continuous)
                 .stroke(Color.white.opacity(0.04), lineWidth: 1)
         }
-        .disabled(!canRun)
-        .opacity(canRun ? 1 : 0.5)
+        .opacity(isRunMenuEnabled ? 1 : 0.5)
         .accessibilityElement(children: .contain)
     }
 }
@@ -189,9 +261,17 @@ struct RunActionControls: View {
 private struct RowLimitMenuHitTarget: NSViewRepresentable {
     @Binding var selection: RowLimit
     let isEnabled: Bool
+    let canRerunCurrent: Bool
+    let canRerunAll: Bool
+    let onRerunCurrent: (() -> Void)?
+    let onRerunAll: (() -> Void)?
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(selection: $selection)
+        Coordinator(
+            selection: $selection,
+            onRerunCurrent: onRerunCurrent,
+            onRerunAll: onRerunAll
+        )
     }
 
     func makeNSView(context: Context) -> NSButton {
@@ -210,15 +290,29 @@ private struct RowLimitMenuHitTarget: NSViewRepresentable {
 
     func updateNSView(_ button: NSButton, context: Context) {
         context.coordinator.selection = $selection
+        context.coordinator.onRerunCurrent = onRerunCurrent
+        context.coordinator.onRerunAll = onRerunAll
+        context.coordinator.canRerunCurrent = canRerunCurrent
+        context.coordinator.canRerunAll = canRerunAll
         button.isEnabled = isEnabled
-        button.toolTip = "Row limit"
+        button.toolTip = "Run options"
     }
 
     final class Coordinator: NSObject {
         var selection: Binding<RowLimit>
+        var canRerunCurrent = false
+        var canRerunAll = false
+        var onRerunCurrent: (() -> Void)?
+        var onRerunAll: (() -> Void)?
 
-        init(selection: Binding<RowLimit>) {
+        init(
+            selection: Binding<RowLimit>,
+            onRerunCurrent: (() -> Void)?,
+            onRerunAll: (() -> Void)?
+        ) {
             self.selection = selection
+            self.onRerunCurrent = onRerunCurrent
+            self.onRerunAll = onRerunAll
         }
 
         @objc func showMenu(_ sender: NSButton) {
@@ -227,6 +321,9 @@ private struct RowLimitMenuHitTarget: NSViewRepresentable {
             addItem("First 10", tag: 10, to: menu)
             addItem("First 50", tag: 50, to: menu)
             addItem("First 100", tag: 100, to: menu)
+            menu.addItem(.separator())
+            addActionItem("Rerun", action: #selector(rerunCurrent), enabled: canRerunCurrent, to: menu)
+            addActionItem("Rerun all prompts", action: #selector(rerunAll), enabled: canRerunAll, to: menu)
 
             menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.minY - 2), in: sender)
         }
@@ -239,8 +336,23 @@ private struct RowLimitMenuHitTarget: NSViewRepresentable {
             menu.addItem(item)
         }
 
+        private func addActionItem(_ title: String, action: Selector, enabled: Bool, to menu: NSMenu) {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self
+            item.isEnabled = enabled
+            menu.addItem(item)
+        }
+
         @objc private func selectRowLimit(_ sender: NSMenuItem) {
             selection.wrappedValue = rowLimit(for: sender.tag)
+        }
+
+        @objc private func rerunCurrent() {
+            onRerunCurrent?()
+        }
+
+        @objc private func rerunAll() {
+            onRerunAll?()
         }
 
         private func rowLimit(for tag: Int) -> RowLimit {

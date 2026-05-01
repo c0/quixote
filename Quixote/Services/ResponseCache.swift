@@ -104,6 +104,16 @@ final class ResponseCache: ObservableObject {
         try? FileManager.default.removeItem(at: Self.persistenceURL)
     }
 
+    func removeEntries(for keys: Set<String>) {
+        guard !keys.isEmpty else { return }
+        saveTask?.cancel()
+        for key in keys {
+            store.removeValue(forKey: key)
+        }
+        entryCount = store.count
+        persist()
+    }
+
     // MARK: - Persistence
 
     private var saveTask: Task<Void, Never>?
