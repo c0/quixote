@@ -112,15 +112,14 @@ final class StatsViewModel: ObservableObject {
             failedItems: failedResults.count,
             progress: totalItems > 0 ? Double(completedResults.count) / Double(totalItems) : 0,
             throughputRowsPerSecond: throughput(
-                completedCount: completedResults.count,
-                completedResults: completedResults,
+                for: completedResults,
                 runStartedAt: runStartedAt,
                 runState: runState
             ),
             latencyP50Ms: percentile(allLatencies, 0.50),
             latencyP90Ms: percentile(allLatencies, 0.90),
             latencySeries: Array(completedResults
-                .sorted { ($0.finishedAt ?? .distantPast) < ($1.finishedAt ?? .distantPast) }
+                .sorted { displayTimestamp(for: $0) < displayTimestamp(for: $1) }
                 .compactMap { $0.durationMs.map(Double.init) }
                 .suffix(24)),
             inputTokens: completedResults.compactMap { $0.tokenUsage?.input }.reduce(0, +),
@@ -189,7 +188,7 @@ final class StatsViewModel: ObservableObject {
             completedRows: completed.count,
             failedRows: failed.count,
             totalRows: totalRows,
-            elapsedSeconds: elapsedSeconds(for: completed),
+            elapsedSeconds: totalElapsedSeconds(for: completed),
             currentRowsPerSecond: currentRowsPerSecond(for: completed),
             lifetimeAverageRowsPerSecond: lifetimeAverageRowsPerSecond(for: completed),
             p50LatencyMs: percentile(durations, 0.50),
@@ -235,52 +234,49 @@ final class StatsViewModel: ObservableObject {
     }
 
     private func throughput(
-        completedCount: Int,
-        completedResults: [PromptResult],
+        for completedResults: [PromptResult],
         runStartedAt: Date?,
         runState: ProcessingViewModel.RunState
     ) -> Double? {
-        guard completedCount > 0 else { return nil }
+        guard !completedResults.isEmpty else { return nil }
         if let runStartedAt, case .running = runState {
-            let elapsed = max(Date().timeIntervalSince(runStartedAt), 0.001)
-            return Double(completedCount) / elapsed
+            let liveResults = completedResults.filter { $0.timingSource != .cached }
+            if !liveResults.isEmpty {
+                let elapsed = max(Date().timeIntervalSince(runStartedAt), 0.001)
+                return Double(liveResults.count) / elapsed
+            }
         }
 
-        let dates = completedResults.compactMap(\.finishedAt).sorted()
-        guard let first = dates.first, let last = dates.last else { return nil }
-        let elapsed = last.timeIntervalSince(first)
-        if elapsed <= 0 {
-            let totalDuration = Double(completedResults.compactMap(\.durationMs).reduce(0, +)) / 1000.0
-            guard totalDuration > 0 else { return nil }
-            return Double(completedCount) / totalDuration
-        }
-        return Double(completedCount) / elapsed
+        guard let elapsed = totalElapsedSeconds(for: completedResults), elapsed > 0 else { return nil }
+        return Double(completedResults.count) / elapsed
     }
 
-    private func elapsedSeconds(for results: [PromptResult]) -> Double? {
-        let dates = results.compactMap(\.finishedAt).sorted()
-        guard let first = dates.first, let last = dates.last else {
-            let totalDurationMs = results.compactMap(\.durationMs).reduce(0, +)
-            guard totalDurationMs > 0 else { return nil }
-            return Double(totalDurationMs) / 1000.0
-        }
-        let elapsed = last.timeIntervalSince(first)
-        if elapsed <= 0 {
-            let totalDurationMs = results.compactMap(\.durationMs).reduce(0, +)
-            guard totalDurationMs > 0 else { return nil }
-            return Double(totalDurationMs) / 1000.0
-        }
-        return elapsed
+    private func totalElapsedSeconds(for results: [PromptResult]) -> Double? {
+        let cohorts = timingCohorts(for: results)
+        guard !cohorts.isEmpty else { return durationFallback(for: results) }
+
+        let elapsed = cohorts.compactMap { elapsedSeconds(forCohort: $0) }.reduce(0, +)
+        if elapsed > 0 { return elapsed }
+        return durationFallback(for: results)
     }
 
     private func currentRowsPerSecond(for results: [PromptResult]) -> Double? {
-        let recent = results
-            .filter { $0.finishedAt != nil }
-            .sorted { ($0.finishedAt ?? .distantPast) < ($1.finishedAt ?? .distantPast) }
+        let cohorts = timingCohorts(for: results)
+        guard let mostRecentCohort = cohorts.max(by: {
+            cohortSortDate(for: $0) < cohortSortDate(for: $1)
+        }) else {
+            return lifetimeAverageRowsPerSecond(for: results)
+        }
+
+        let recent = mostRecentCohort
+            .sorted { displayTimestamp(for: $0) < displayTimestamp(for: $1) }
             .suffix(10)
-        guard recent.count >= 2,
-              let first = recent.first?.finishedAt,
-              let last = recent.last?.finishedAt else {
+        guard recent.count >= 2 else {
+            return lifetimeAverageRowsPerSecond(for: results)
+        }
+
+        let timestamps = recent.map(displayTimestamp(for:))
+        guard let first = timestamps.first, let last = timestamps.last else {
             return lifetimeAverageRowsPerSecond(for: results)
         }
         let elapsed = last.timeIntervalSince(first)
@@ -289,8 +285,38 @@ final class StatsViewModel: ObservableObject {
     }
 
     private func lifetimeAverageRowsPerSecond(for results: [PromptResult]) -> Double? {
-        guard let elapsed = elapsedSeconds(for: results), elapsed > 0 else { return nil }
+        guard let elapsed = totalElapsedSeconds(for: results), elapsed > 0 else { return nil }
         return Double(results.count) / elapsed
+    }
+
+    private func timingCohorts(for results: [PromptResult]) -> [[PromptResult]] {
+        Dictionary(grouping: results) { result in
+            result.timingCohortID ?? result.runID
+        }.values.map(Array.init)
+    }
+
+    private func elapsedSeconds(forCohort results: [PromptResult]) -> Double? {
+        let timestamps = results.map(displayTimestamp(for:)).sorted()
+        guard let first = timestamps.first, let last = timestamps.last else {
+            return durationFallback(for: results)
+        }
+        let elapsed = last.timeIntervalSince(first)
+        if elapsed > 0 { return elapsed }
+        return durationFallback(for: results)
+    }
+
+    private func displayTimestamp(for result: PromptResult) -> Date {
+        result.timingFinishedAt ?? result.finishedAt ?? .distantPast
+    }
+
+    private func cohortSortDate(for results: [PromptResult]) -> Date {
+        results.map(displayTimestamp(for:)).max() ?? .distantPast
+    }
+
+    private func durationFallback(for results: [PromptResult]) -> Double? {
+        let totalDurationMs = results.compactMap(\.durationMs).reduce(0, +)
+        guard totalDurationMs > 0 else { return nil }
+        return Double(totalDurationMs) / 1000.0
     }
 
     private func normalizedErrorCode(for message: String) -> String {
