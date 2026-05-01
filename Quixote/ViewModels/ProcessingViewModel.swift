@@ -453,8 +453,8 @@ final class ProcessingViewModel: ObservableObject {
         // Re-read settings from UserDefaults for concurrency/rate
         let concurrency = UserDefaults.standard.integer(forKey: "quixote.concurrency")
         let rateLimit = UserDefaults.standard.integer(forKey: "quixote.rateLimit")
-        maxConcurrency = max(1, concurrency == 0 ? 2 : concurrency)
-        rateLimiter = RateLimiter(requestsPerSecond: max(1, Double(rateLimit == 0 ? 5 : rateLimit)))
+        maxConcurrency = max(1, concurrency == 0 ? 10 : concurrency)
+        rateLimiter = RateLimiter(requestsPerSecond: max(1, Double(rateLimit == 0 ? 10 : rateLimit)))
 
         guard let apiKey = readAPIKeyForUserAction() else { return }
 
