@@ -127,14 +127,14 @@ struct RunActionControls: View {
     }
 
     private func startRun(prompts: [Prompt], resetCache: Bool) {
-        let apiKey: String
-        do {
-            apiKey = try settings.apiKeyForUserAction()
-        } catch {
-            settings.keyValidationResult = .invalid(error.localizedDescription)
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-            return
-        }
+            let apiKey: String
+            do {
+                apiKey = try settings.apiKeyForUserAction()
+            } catch {
+                settings.presentAPIKeyError(error.localizedDescription)
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                return
+            }
 
         if resetCache {
             resetCacheEntries(for: prompts)
