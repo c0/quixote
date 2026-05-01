@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Quixote — Color Palette</title>
+  <link rel="stylesheet" href="../colors_and_type.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; background: var(--qx-app-bg); min-height: 100vh; }
+    body { padding: 32px; color: var(--qx-fg-1); }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 18px; margin-bottom: 4px; }
+    .caption { font-family: var(--qx-font-mono); color: var(--qx-fg-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; }
+    .group { margin-top: 32px; }
+    .group-label { font-family: var(--qx-font-sans); font-size: 11px; font-weight: 600; color: var(--qx-fg-2); text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 12px; }
+    .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+    .swatch { border: 1px solid var(--qx-divider); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .chip { height: 56px; border-radius: 4px; border: 1px solid var(--qx-divider); }
+    .meta { display: flex; flex-direction: column; gap: 2px; }
+    .name { font-size: 12px; font-weight: 600; color: var(--qx-fg-1); }
+    .value { font-family: var(--qx-font-mono); font-size: 10.5px; color: var(--qx-fg-3); }
+    .note { font-size: 11px; color: var(--qx-fg-2); margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Color palette</h1>
+    <div class="caption">Dark surfaces · 5 neutral bands · 1 blue accent · 3 semantic</div>
+
+    <div class="group">
+      <div class="group-label">Surfaces — app</div>
+      <div class="swatches" id="surf"></div>
+      <div class="note">Surface hierarchy is 2–4% luminance steps. No shadows. 1px <code>rgba(255,255,255,0.08)</code> dividers.</div>
+    </div>
+
+    <div class="group">
+      <div class="group-label">Text</div>
+      <div class="swatches" id="text"></div>
+    </div>
+
+    <div class="group">
+      <div class="group-label">Accent & semantic</div>
+      <div class="swatches" id="semantic"></div>
+      <div class="note"><strong>Do not introduce new accents.</strong> One blue for primary; red/green/orange for states only.</div>
+    </div>
+
+    <div class="group">
+      <div class="group-label">Site — marketing</div>
+      <div class="swatches" id="site"></div>
+    </div>
+  </div>
+
+  <script>
+    function card(root, name, varname, val) {
+      root.insertAdjacentHTML('beforeend',
+        `<div class="swatch"><div class="chip" style="background:${val}"></div>
+         <div class="meta"><span class="name">${name}</span>
+         <span class="value">${varname}</span>
+         <span class="value">${val}</span></div></div>`);
+    }
+    const surf = [
+      ['App background',   '--qx-app-bg',        '#17171A'],
+      ['Panel',            '--qx-panel',         '#212124'],
+      ['Panel raised',     '--qx-panel-raised',  '#29292B'],
+      ['Card',             '--qx-card',          '#1C1C1F'],
+      ['Selection',        '--qx-selection',     '#38383D'],
+    ];
+    const text = [
+      ['Foreground 1',     '--qx-fg-1',          '#F2F2F5'],
+      ['Foreground 2',     '--qx-fg-2',          '#8F97AD'],
+      ['Foreground 3',     '--qx-fg-3',          '#6E7382'],
+    ];
+    const semantic = [
+      ['Blue (primary)',   '--qx-blue',          '#306BF0'],
+      ['Blue muted',       '--qx-blue-muted',    '#478CFF'],
+      ['Green (success)',  '--qx-green',         '#38DB7A'],
+      ['Red (destructive)','--qx-red',           '#D42945'],
+      ['Orange (warning)', '--qx-orange',        '#F29E3B'],
+    ];
+    const site = [
+      ['Site background',  '--qx-site-bg',        '#030405'],
+      ['Site panel',       '--qx-site-panel',     'rgba(10,12,16,0.72)'],
+      ['Site panel strong','--qx-site-panel-strong', 'rgba(14,17,22,0.86)'],
+    ];
+    surf.forEach(r => card(document.getElementById('surf'), ...r));
+    text.forEach(r => card(document.getElementById('text'), ...r));
+    semantic.forEach(r => card(document.getElementById('semantic'), ...r));
+    site.forEach(r => card(document.getElementById('site'), ...r));
+  </script>
+</body>
+</html>

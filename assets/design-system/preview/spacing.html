@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Quixote — Spacing, Radii, Shadows</title>
+  <link rel="stylesheet" href="../colors_and_type.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; background: var(--qx-app-bg); min-height: 100vh; color: var(--qx-fg-1); }
+    body { padding: 32px; }
+    .wrap { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px; }
+    h1 { font-size: 18px; margin: 0; }
+    .caption { font-family: var(--qx-font-mono); color: var(--qx-fg-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; margin-top: 4px; }
+    .group-label { font-family: var(--qx-font-sans); font-size: 11px; font-weight: 600; color: var(--qx-fg-2); text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 14px; }
+
+    /* spacing ruler */
+    .ruler { display: flex; flex-direction: column; gap: 6px; }
+    .ruler-row { display: grid; grid-template-columns: 110px 1fr 120px; gap: 18px; align-items: center; padding: 6px 0; border-top: 1px solid var(--qx-divider); }
+    .ruler-row:first-child { border-top: none; }
+    .ruler-name { font-family: var(--qx-font-mono); font-size: 11px; color: var(--qx-fg-2); text-transform: uppercase; letter-spacing: 0.18em; }
+    .ruler-bar { height: 12px; background: var(--qx-blue); border-radius: 2px; }
+    .ruler-meta { font-family: var(--qx-font-mono); font-size: 11px; color: var(--qx-fg-3); text-align: right; }
+
+    /* radii */
+    .radii { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+    .radius-card { border: 1px solid var(--qx-divider); padding: 14px; display: flex; flex-direction: column; gap: 10px; background: var(--qx-panel); }
+    .radius-swatch { height: 68px; background: var(--qx-selection); border: 1px solid var(--qx-divider); }
+    .radius-name { font-size: 12px; font-weight: 600; color: var(--qx-fg-1); }
+    .radius-value { font-family: var(--qx-font-mono); font-size: 10.5px; color: var(--qx-fg-3); }
+
+    /* shadows */
+    .shadows { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .shadow-card { background: var(--qx-site-bg); border-radius: 10px; padding: 38px 24px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+    .shadow-panel { width: 180px; height: 100px; background: var(--qx-site-panel-strong); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; }
+    .shadow-logo { width: 80px; height: 80px; border-radius: 16px; background: #1c1c1f url('../assets/icon-128.png') center/cover no-repeat; }
+    .shadow-meta { font-family: var(--qx-font-mono); font-size: 10.5px; color: var(--qx-fg-3); text-align: center; }
+    .s1 { box-shadow: var(--qx-shadow-site); }
+    .s2 { box-shadow: var(--qx-shadow-hero-logo); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <h1>Spacing · Radii · Shadows</h1>
+      <div class="caption">2/4/6/8/10/12/14/18 scale · 6px house radius · shadows only on site</div>
+    </div>
+
+    <div>
+      <div class="group-label">Spacing scale</div>
+      <div class="ruler" id="ruler"></div>
+    </div>
+
+    <div>
+      <div class="group-label">Radii</div>
+      <div class="radii" id="radii"></div>
+    </div>
+
+    <div>
+      <div class="group-label">Shadows (marketing site only — app uses none)</div>
+      <div class="shadows">
+        <div class="shadow-card">
+          <div class="shadow-panel s1"></div>
+          <div class="shadow-meta">--qx-shadow-site<br>0 24px 80px rgba(0,0,0,0.45)</div>
+        </div>
+        <div class="shadow-card">
+          <div class="shadow-logo s2"></div>
+          <div class="shadow-meta">--qx-shadow-hero-logo<br>0 18px 38px rgba(0,0,0,0.40)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SPACE = [
+      ['space-1', 2, 'shim'],
+      ['space-2', 4, 'icon gap'],
+      ['space-3', 6, 'chip inner'],
+      ['space-4', 8, 'control gap'],
+      ['space-5', 10, 'label → control'],
+      ['space-6', 12, 'card inner'],
+      ['space-7', 14, 'shell padding'],
+      ['space-8', 18, 'pane inset · section gap'],
+      ['space-10', 24, 'site column'],
+    ];
+    const r = document.getElementById('ruler');
+    SPACE.forEach(([n, px, use]) => {
+      r.insertAdjacentHTML('beforeend',
+        `<div class="ruler-row">
+          <span class="ruler-name">${n}</span>
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div class="ruler-bar" style="width:${px}px;"></div>
+            <span style="font-family:var(--qx-font-mono);font-size:11px;color:var(--qx-fg-3);">${use}</span>
+          </div>
+          <span class="ruler-meta">${px}px</span>
+        </div>`);
+    });
+    const RADII = [
+      ['xs', 2, '--qx-radius-xs'],
+      ['sm', 4, '--qx-radius-sm'],
+      ['md', 6, '--qx-radius-md'],
+      ['lg', 10, '--qx-radius-lg'],
+      ['pill', 999, '--qx-radius-pill'],
+    ];
+    const rr = document.getElementById('radii');
+    RADII.forEach(([n, px, v]) => {
+      rr.insertAdjacentHTML('beforeend',
+        `<div class="radius-card">
+          <div class="radius-swatch" style="border-radius:${px}px;"></div>
+          <div class="radius-name">${n} · ${px === 999 ? 'pill' : px + 'px'}</div>
+          <div class="radius-value">${v}</div>
+        </div>`);
+    });
+  </script>
+</body>
+</html>

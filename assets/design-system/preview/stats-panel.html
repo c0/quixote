@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Quixote — Analytics Summary Panel</title>
+  <link rel="stylesheet" href="../colors_and_type.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; background: var(--qx-app-bg); min-height: 100vh; color: var(--qx-fg-1); }
+    body { padding: 28px; }
+    .wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+    h1 { font-size: 18px; margin: 0; }
+    .caption { font-family: var(--qx-font-mono); color: var(--qx-fg-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; margin-top: 4px; }
+    .group-label { font-family: var(--qx-font-sans); font-size: 11px; font-weight: 600; color: var(--qx-fg-2); text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 10px; }
+
+    /* "table shell" — simulated results pane */
+    .shell { border: 1px solid var(--qx-divider); border-radius: 6px; overflow: hidden; background: var(--qx-panel); }
+    .shell-head { display: flex; align-items: center; gap: 10px; padding: 8px 14px; }
+    .shell-title { font-size: 18px; font-weight: 700; }
+    .shell-sub { font-family: var(--qx-font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--qx-fg-2); margin-top: 2px; }
+    .shell-actions { margin-left: auto; display: flex; gap: 10px; }
+    .fake-table { height: 180px; background:
+      repeating-linear-gradient(0deg, transparent 0 30px, rgba(41,41,43,0.45) 30px 60px);
+      border-top: 1px solid var(--qx-divider);
+      position: relative;
+    }
+    .fake-table::before {
+      content: ''; position: absolute; top: 0; left: 52px; bottom: 0; width: 1px; background: var(--qx-divider);
+    }
+
+    /* ---- STATS BAR ---- */
+    .stats-bar {
+      display: flex; align-items: center; gap: 0;
+      padding: 0 14px; height: 44px; flex: none;
+      background: var(--qx-panel-raised); border-top: 1px solid var(--qx-divider);
+      font-family: var(--qx-font-sans);
+    }
+    .cell { padding: 0 14px; border-left: 1px solid var(--qx-divider); display: flex; flex-direction: column; gap: 2px; }
+    .cell:first-child { border-left: none; padding-left: 0; }
+    .cell-row { display: flex; align-items: center; gap: 10px; padding: 0 14px; border-left: 1px solid var(--qx-divider); }
+    .label { font-family: var(--qx-font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--qx-fg-3); white-space: nowrap; }
+    .val  { font-family: var(--qx-font-mono); font-size: 14px; font-weight: 600; color: var(--qx-fg-1); font-variant-numeric: tabular-nums; }
+    .val-group { display: flex; align-items: baseline; gap: 4px; }
+    .unit { font-family: var(--qx-font-mono); font-size: 10px; color: var(--qx-fg-3); letter-spacing: 0.14em; text-transform: uppercase; }
+
+    .status-chip { display: flex; align-items: center; gap: 10px; padding-right: 14px; }
+    .status-chip .dot { position: relative; width: 8px; height: 8px; border-radius: 999px; background: var(--qx-green); }
+    .status-chip .dot::after { content: ''; position: absolute; inset: -3px; border-radius: 999px; border: 1px solid var(--qx-green); opacity: 0.35; animation: pulse 1.4s ease-out infinite; }
+    @keyframes pulse { 0% { transform: scale(0.8); opacity: 0.45; } 80% { transform: scale(2.1); opacity: 0; } 100% { transform: scale(2.1); opacity: 0; } }
+    .status-label { font-family: var(--qx-font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.18em; color: var(--qx-fg-1); }
+
+    .mini { width: 120px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.06); overflow: hidden; }
+    .mini span { display: block; height: 100%; background: var(--qx-blue); transition: width 280ms ease-out; }
+
+    .eta { font-family: var(--qx-font-mono); font-size: 11px; color: var(--qx-fg-2); text-transform: uppercase; letter-spacing: 0.16em; margin-right: 12px; }
+    .details-btn {
+      background: transparent; border: 1px solid var(--qx-divider); color: var(--qx-fg-2);
+      border-radius: 4px; padding: 4px 10px; cursor: pointer;
+      font-family: var(--qx-font-mono); font-size: 10px; font-weight: 600;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+
+    /* ---- STATS GRID ---- */
+    .stats-grid {
+      background: var(--qx-panel); border-top: 1px solid var(--qx-divider);
+      padding: 14px 14px 16px;
+      display: grid; grid-template-columns: minmax(340px, 2fr) minmax(240px, 1fr) minmax(220px, 1fr); gap: 18px;
+    }
+    .sub-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+    .sub-label { font-size: 11px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--qx-fg-2); }
+    .sub-meta { font-family: var(--qx-font-mono); font-size: 10px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--qx-fg-3); }
+    .card { border: 1px solid var(--qx-divider); border-radius: 6px; background: var(--qx-card); }
+    .model-hd, .model-row {
+      display: grid; grid-template-columns: 1.4fr 0.8fr 0.8fr 0.8fr 0.7fr 0.7fr;
+      padding: 8px 12px; gap: 10px; align-items: center;
+      font-family: var(--qx-font-mono); font-size: 11px; font-variant-numeric: tabular-nums;
+    }
+    .model-hd {
+      background: var(--qx-panel-raised); border-bottom: 1px solid var(--qx-divider);
+      font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--qx-fg-2);
+    }
+    .model-hd span:not(:first-child), .model-row span:not(:first-child) { text-align: right; }
+    .model-row { border-bottom: 1px solid var(--qx-divider); color: var(--qx-fg-1); }
+    .model-row:last-child { border-bottom: none; }
+    .model-row:nth-child(odd) { background: rgba(41,41,43,0.45); }
+    .model-row .name { display: flex; align-items: center; gap: 8px; text-align: left; }
+    .model-row .name .d { width: 6px; height: 6px; border-radius: 999px; background: var(--qx-green); }
+
+    .usage { padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+    .big-stat .hd { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .big-stat .hd .l { font-family: var(--qx-font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--qx-fg-3); }
+    .big-stat .hd .v { font-family: var(--qx-font-mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--qx-fg-1); }
+    .big-stat .bar { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.06); overflow: hidden; }
+    .big-stat .bar > span { display: block; height: 100%; transition: width 240ms ease-out; }
+    .total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 10px; border-top: 1px solid var(--qx-divider); }
+    .total .l { font-family: var(--qx-font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--qx-fg-3); }
+    .total .v { font-family: var(--qx-font-mono); font-size: 16px; font-weight: 600; color: var(--qx-fg-1); font-variant-numeric: tabular-nums; }
+
+    .err-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--qx-divider); font-family: var(--qx-font-mono); font-size: 11px; color: var(--qx-fg-1); }
+    .err-row:last-of-type { border-bottom: none; }
+    .err-row .d { color: var(--qx-red); font-size: 13px; line-height: 1; }
+    .err-row .lbl { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .err-row .c { color: var(--qx-fg-2); font-variant-numeric: tabular-nums; }
+    .err-foot { padding: 10px 12px; border-top: 1px solid var(--qx-divider); display: flex; justify-content: flex-end; }
+    .btn-retry { background: transparent; border: 1px solid var(--qx-divider); color: var(--qx-fg-1); border-radius: 4px; padding: 5px 10px; cursor: pointer; font-family: var(--qx-font-sans); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+
+    /* mini sparkline */
+    .spark { display: block; flex: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <h1>Analytics summary panel</h1>
+      <div class="caption">Bottom of the results pane · two variants · keyboard-driven, no fluff</div>
+    </div>
+
+    <!-- Variant A: bar only -->
+    <div>
+      <div class="group-label">Variant A — status bar (collapsed)</div>
+      <div class="shell">
+        <div class="shell-head">
+          <div style="flex:1">
+            <div class="shell-title">products-xs</div>
+            <div class="shell-sub">1 248 rows · 24 columns</div>
+          </div>
+        </div>
+        <div class="fake-table"></div>
+
+        <div class="stats-bar">
+          <div class="status-chip"><span class="dot"></span><span class="status-label">RUNNING</span></div>
+
+          <div class="cell-row">
+            <span class="val">487<span style="color:var(--qx-fg-3)"> / 1,248</span></span>
+            <div class="mini"><span style="width:39%"></span></div>
+            <span style="font-family:var(--qx-font-mono); font-size:11px; color:var(--qx-fg-2); font-variant-numeric: tabular-nums;">39.0%</span>
+          </div>
+
+          <div class="cell">
+            <div class="label">Throughput</div>
+            <div class="val-group"><span class="val">12.4</span><span class="unit">rows/s</span></div>
+          </div>
+
+          <div class="cell-row" style="gap:8px">
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <div class="label">Latency p50 / p95</div>
+              <div class="val-group">
+                <span class="val">842</span>
+                <span style="font-family:var(--qx-font-mono); font-size:10px; color:var(--qx-fg-3);">/</span>
+                <span class="val">2104</span>
+                <span class="unit">ms</span>
+              </div>
+            </div>
+            <svg class="spark" width="56" height="16"><polyline fill="none" stroke="#478CFF" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"
+              points="0,10 4,7 8,9 12,12 16,8 20,5 24,7 28,9 32,11 36,8 40,6 44,7 48,5 52,6 56,8" /></svg>
+          </div>
+
+          <div class="cell">
+            <div class="label">Tokens in/out</div>
+            <div class="val-group"><span class="val">184.3K / 92.2K</span></div>
+          </div>
+
+          <div class="cell">
+            <div class="label">Cost</div>
+            <div class="val-group"><span class="val">$1.78</span></div>
+          </div>
+
+          <div class="cell">
+            <div class="label">Similarity (mean)</div>
+            <div class="val-group"><span class="val">0.847</span></div>
+          </div>
+
+          <div class="cell">
+            <div class="label">Failed</div>
+            <div class="val-group"><span class="val" style="color: var(--qx-red);">3</span></div>
+          </div>
+
+          <div style="flex:1"></div>
+          <span class="eta">ETA 1m 02s</span>
+          <button class="details-btn">Details <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Variant B: grid -->
+    <div>
+      <div class="group-label">Variant B — expanded (per-model + usage + errors)</div>
+      <div class="shell">
+        <div class="shell-head">
+          <div style="flex:1">
+            <div class="shell-title">products-xs</div>
+            <div class="shell-sub">1 248 rows · 24 columns</div>
+          </div>
+        </div>
+        <div class="fake-table" style="height: 120px;"></div>
+
+        <!-- same bar, compact -->
+        <div class="stats-bar">
+          <div class="status-chip"><span class="dot"></span><span class="status-label">RUNNING</span></div>
+          <div class="cell-row">
+            <span class="val">487<span style="color:var(--qx-fg-3)"> / 1,248</span></span>
+            <div class="mini"><span style="width:39%"></span></div>
+            <span style="font-family:var(--qx-font-mono); font-size:11px; color:var(--qx-fg-2);">39.0%</span>
+          </div>
+          <div class="cell"><div class="label">Throughput</div><div class="val-group"><span class="val">12.4</span><span class="unit">rows/s</span></div></div>
+          <div class="cell"><div class="label">Cost</div><div class="val-group"><span class="val">$1.78</span></div></div>
+          <div style="flex:1"></div>
+          <span class="eta">ETA 1m 02s</span>
+        </div>
+
+        <div class="stats-grid">
+          <!-- per-model -->
+          <section>
+            <div class="sub-head"><span class="sub-label">Per model</span><span class="sub-meta">3 active</span></div>
+            <div class="card">
+              <div class="model-hd">
+                <span>Model</span><span>Rows</span><span>p50</span><span>p95</span><span>SIM</span><span>$</span>
+              </div>
+              <div class="model-row">
+                <span class="name"><span class="d"></span>gpt-4.1</span>
+                <span>487</span><span>842</span><span>2104</span><span>0.847</span><span>$1.12</span>
+              </div>
+              <div class="model-row">
+                <span class="name"><span class="d"></span>claude-haiku-4.5</span>
+                <span>421</span><span>308</span><span>612</span><span>0.812</span><span>$0.24</span>
+              </div>
+              <div class="model-row">
+                <span class="name"><span class="d"></span>gemini-2.5-pro</span>
+                <span>440</span><span>1180</span><span>2890</span><span style="color: var(--qx-fg-2)">0.801</span><span>$0.42</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- usage -->
+          <section>
+            <div class="sub-head"><span class="sub-label">Usage</span><span class="sub-meta">total</span></div>
+            <div class="card usage">
+              <div class="big-stat">
+                <div class="hd"><span class="l">Input tokens</span><span class="v">184,320</span></div>
+                <div class="bar"><span style="width:66.7%; background: #478CFF;"></span></div>
+              </div>
+              <div class="big-stat">
+                <div class="hd"><span class="l">Output tokens</span><span class="v">92,180</span></div>
+                <div class="bar"><span style="width:33.3%; background: #38DB7A;"></span></div>
+              </div>
+              <div class="total"><span class="l">Running total</span><span class="v">$1.78</span></div>
+            </div>
+          </section>
+
+          <!-- errors -->
+          <section>
+            <div class="sub-head"><span class="sub-label">Errors</span><span class="sub-meta">3 total</span></div>
+            <div class="card">
+              <div class="err-row"><span class="d">●</span><span class="lbl">rate_limit_exceeded (gpt-4.1)</span><span class="c">×2</span></div>
+              <div class="err-row"><span class="d">●</span><span class="lbl">context_length_exceeded (row #892)</span><span class="c">×1</span></div>
+              <div class="err-foot"><button class="btn-retry">Retry failed</button></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- Design notes -->
+    <div>
+      <div class="group-label">Why this shape</div>
+      <div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 10px; font-family: var(--qx-font-sans); font-size: 12px; line-height: 1.6; color: var(--qx-fg-2);">
+        <p><strong style="color: var(--qx-fg-1)">Dense &amp; monospace.</strong> Every value is tabular-nums so numbers align across refreshes. No rounded card nesting; the bar sits flush with the table above it.</p>
+        <p><strong style="color: var(--qx-fg-1)">One accent.</strong> Blue fills the progress bar; red only appears when <code>failed &gt; 0</code>. Semantic dot for RUNNING / PAUSED / FAILED matches the existing status palette.</p>
+        <p><strong style="color: var(--qx-fg-1)">Progressive disclosure.</strong> Bar always visible while running; Grid opens on <em>Details</em> for per-model breakdown, token split, and retry-failed. Keeps table real estate intact 90% of the time.</p>
+        <p><strong style="color: var(--qx-fg-1)">Vertical-slice metrics.</strong> Not a dashboard. Every metric is something you'd watch mid-run: <em>am I ahead of ETA? is any model degraded? where are the failures?</em></p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

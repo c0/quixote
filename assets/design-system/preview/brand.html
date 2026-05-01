@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Quixote — Brand mark &amp; dither</title>
+  <link rel="stylesheet" href="../colors_and_type.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; background: var(--qx-app-bg); min-height: 100vh; color: var(--qx-fg-1); }
+    body { padding: 32px; }
+    .wrap { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+    h1 { font-size: 18px; margin: 0; }
+    .caption { font-family: var(--qx-font-mono); color: var(--qx-fg-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; margin-top: 4px; }
+    .group { border-top: 1px solid var(--qx-divider); padding-top: 20px; }
+    .group-label { font-family: var(--qx-font-sans); font-size: 11px; font-weight: 600; color: var(--qx-fg-2); text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 14px; }
+
+    .sizes { display: flex; align-items: end; gap: 24px; flex-wrap: wrap; }
+    .size-card { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .size-card img { display: block; border-radius: 4px; background: transparent; }
+    .size-card .meta { font-family: var(--qx-font-mono); font-size: 10.5px; color: var(--qx-fg-3); text-transform: uppercase; letter-spacing: 0.18em; }
+
+    .lockup { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: var(--qx-panel); border: 1px solid var(--qx-divider); border-radius: 6px; width: max-content; }
+    .lockup img { width: 24px; height: 24px; border-radius: 4px; }
+    .lockup .name { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+
+    .hero-stage { position: relative; background: #030405; border-radius: 10px; overflow: hidden; padding: 64px 24px; display: flex; justify-content: center; border: 1px solid rgba(255,255,255,0.08); }
+    .hero-logo { width: 200px; filter: drop-shadow(0 18px 38px rgba(0,0,0,0.4)); }
+    .hero-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: 0.98; }
+    .hero-stage .fg { position: relative; z-index: 1; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .hero-stage .fg .title { font-family: var(--qx-font-sans); font-weight: 700; font-size: 42px; letter-spacing: -0.04em; margin-top: 8px; }
+    .hero-stage .fg .sub { font-family: var(--qx-font-sans); color: #aeb6c2; font-size: 14px; }
+
+    .rules { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .rule { background: var(--qx-panel); border: 1px solid var(--qx-divider); border-radius: 6px; padding: 14px; }
+    .rule h3 { font-size: 13px; margin: 0 0 6px; }
+    .rule p { font-family: var(--qx-font-sans); font-size: 12px; color: var(--qx-fg-2); line-height: 1.5; margin: 0; }
+    .rule.bad { border-color: rgba(212,41,69,0.35); }
+    .rule.good { border-color: rgba(56,219,122,0.35); }
+    .rule .tag { font-family: var(--qx-font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--qx-fg-3); margin-bottom: 6px; }
+    .rule.bad .tag { color: var(--qx-red); }
+    .rule.good .tag { color: var(--qx-green); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <h1>Brand mark &amp; dither</h1>
+      <div class="caption">Dithered Don Quixote portrait · the one distinctive motif</div>
+    </div>
+
+    <div class="group">
+      <div class="group-label">Icon sizes</div>
+      <div class="sizes">
+        <div class="size-card"><img src="../assets/icon-32.png"  width="32"  height="32"  alt=""><span class="meta">32</span></div>
+        <div class="size-card"><img src="../assets/icon-64.png"  width="64"  height="64"  alt=""><span class="meta">64</span></div>
+        <div class="size-card"><img src="../assets/icon-128.png" width="128" height="128" alt=""><span class="meta">128</span></div>
+        <div class="size-card"><img src="../assets/icon-256.png" width="180" height="180" alt=""><span class="meta">256</span></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-label">Sidebar lockup</div>
+      <div class="lockup">
+        <img src="../assets/icon-128.png" alt="">
+        <span class="name">Quixote</span>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-label">Marketing hero — dither background + drop shadow logo</div>
+      <div class="hero-stage">
+        <canvas id="dither"></canvas>
+        <div class="fg">
+          <img class="hero-logo" src="../assets/icon-512.png" alt="">
+          <div class="title">Data Quixote</div>
+          <div class="sub">Run multiple LLM prompts on any set of data. Iterate and refine.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-label">Do &amp; don't</div>
+      <div class="rules">
+        <div class="rule good">
+          <div class="tag">Do</div>
+          <h3>Keep the mark monochrome &amp; high-contrast</h3>
+          <p>The portrait's halftone-dither works because it stays pure B&amp;W. Place on near-black or near-white only.</p>
+        </div>
+        <div class="rule good">
+          <div class="tag">Do</div>
+          <h3>Use the dither as ambient background</h3>
+          <p>Marketing-site only. Low-fps (12fps), desaturated, never competes with content. Respect <code>prefers-reduced-motion</code>.</p>
+        </div>
+        <div class="rule bad">
+          <div class="tag">Don't</div>
+          <h3>Recolor, tint, or gradient-fill the mark</h3>
+          <p>No blue tint, no duotone, no "brand-coloring" the portrait. The dither palette is strictly grey.</p>
+        </div>
+        <div class="rule bad">
+          <div class="tag">Don't</div>
+          <h3>Shrink the lockup below 20px tall</h3>
+          <p>The dither pattern disintegrates under 20px. Swap to the solid <code>icon.png</code> mark for favicons.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Minimal dither background, same aesthetic as the site.
+    (function() {
+      const canvas = document.getElementById('dither');
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const buf = document.createElement('canvas');
+      const bctx = buf.getContext('2d', { alpha: false });
+      const bayer = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+      const palette = [[3,4,5],[10,12,15],[18,21,25],[31,35,40],[52,58,66],[164,171,180]];
+      let W=0,H=0,cols=0,rows=0,img=null,data=null,anim=0,last=0;
+      const target = 1000/12;
+      const cell = 2.5;
+      const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
+      const smooth = (a,b,x) => { const t = clamp((x-a)/(b-a),0,1); return t*t*(3-2*t); };
+      function resize() {
+        const p = canvas.parentElement;
+        W = p.clientWidth; H = p.clientHeight;
+        cols = Math.ceil(W/cell); rows = Math.ceil(H/cell);
+        canvas.width = W; canvas.height = H;
+        canvas.style.width = W+'px'; canvas.style.height = H+'px';
+        buf.width = cols; buf.height = rows;
+        ctx.imageSmoothingEnabled = false; bctx.imageSmoothingEnabled = false;
+        img = bctx.createImageData(cols, rows); data = img.data;
+      }
+      function f(nx,ny,t) {
+        const dx = t*0.009, dy = t*0.0056;
+        const a = Math.sin((ny+dy)*9.6 + Math.sin((nx+dx*0.85)*2.7)*1.25);
+        const b = Math.cos((ny-dy*0.9)*7.3 - Math.cos((nx-dx*0.55)*3.5)*1.05);
+        const env = smooth(0.02,0.18,ny)*(1 - smooth(0.84,0.99,ny));
+        return clamp(0.18 + env*0.16 + a*0.12 + b*0.1, 0, 1);
+      }
+      function render(ms) {
+        if (ms - last < target) { anim = requestAnimationFrame(render); return; }
+        last = ms;
+        const t = ms*0.001;
+        for (let y=0; y<rows; y++) {
+          for (let x=0; x<cols; x++) {
+            const nx = cols<=1 ? 0 : x/(cols-1);
+            const ny = rows<=1 ? 0 : y/(rows-1);
+            const val = f(nx,ny,t);
+            const thr = (bayer[y%4][x%4]+0.5)/16 - 0.5;
+            let idx = Math.round(val*3.3 + thr*0.5);
+            idx = clamp(idx, 0, palette.length-2);
+            if (val>0.975 && ((x+y)%11===0)) idx = palette.length-1;
+            const tone = palette[idx];
+            const off = (y*cols+x)*4;
+            data[off]=tone[0]; data[off+1]=tone[1]; data[off+2]=tone[2]; data[off+3]=255;
+          }
+        }
+        bctx.putImageData(img, 0, 0);
+        ctx.clearRect(0,0,W,H);
+        ctx.drawImage(buf, 0, 0, W, H);
+        anim = requestAnimationFrame(render);
+      }
+      resize(); render(performance.now());
+      window.addEventListener('resize', () => { cancelAnimationFrame(anim); resize(); render(performance.now()); });
+    })();
+  </script>
+</body>
+</html>

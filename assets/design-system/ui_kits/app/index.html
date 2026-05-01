@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Quixote — App UI Kit</title>
+  <link rel="stylesheet" href="../../colors_and_type.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    html, body { height: 100%; margin: 0; overflow: hidden; background: var(--qx-app-bg); }
+    #root { height: 100vh; }
+    .qx-traffic { display: flex; gap: 8px; padding: 10px 14px; background: var(--qx-app-bg); border-bottom: 1px solid var(--qx-divider); }
+    .qx-traffic span { width: 12px; height: 12px; border-radius: 999px; display: block; }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" src="./Primitives.jsx"></script>
+  <script type="text/babel" src="./Sidebar.jsx"></script>
+  <script type="text/babel" src="./PromptEditor.jsx"></script>
+  <script type="text/babel" src="./ResultsPane.jsx"></script>
+  <script type="text/babel" src="./StatsPanel.jsx"></script>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ---------- demo stats state ----------
+    const SAMPLE_STATS = {
+      status: 'running',
+      processed: 487, total: 1248,
+      tps: 12.4,
+      latencyP50: 842, latencyP95: 2104,
+      tokensIn: 184_320, tokensOut: 92_180,
+      cost: 1.78,
+      sim: 0.847,
+      failed: 3,
+      eta: 62,
+      latencyTrail: [900, 820, 880, 950, 860, 780, 830, 870, 910, 860, 820, 840, 800, 842],
+      perModel: [
+        { name: 'gpt-4.1',       status: 'running', rows: 487, p50: 842, p95: 2104, sim: 0.847, cost: 1.12 },
+        { name: 'claude-haiku-4.5', status: 'running', rows: 421, p50: 308, p95: 612,  sim: 0.812, cost: 0.24 },
+        { name: 'gemini-2.5-pro', status: 'running', rows: 440, p50: 1180, p95: 2890, sim: 0.801, cost: 0.42 },
+      ],
+      errors: [
+        { label: 'rate_limit_exceeded (gpt-4.1)', count: 2 },
+        { label: 'context_length_exceeded (row #892)', count: 1 },
+      ],
+    };
+
+    const FILES = [
+      { id: 'f1', name: 'products-xs' },
+      { id: 'f2', name: 'customers-q1' },
+    ];
+
+    const COLS = [
+      { key: 'cost_per_item', width: 148 },
+      { key: 'included_unit', width: 148 },
+      { key: 'price_united_', width: 148 },
+      { key: 'compare_at_', width: 148 },
+      { key: 'included_cana', width: 148 },
+      { key: 'pric', width: 72 },
+      { key: 'output', width: 320 },
+    ];
+
+    const SAMPLES = [
+      { cost_per_item: '7.59',  included_unit: 'true',  output: '- The Carter Crewneck is...' },
+      { cost_per_item: '12.90', output: 'Certainly! However, I notice...' },
+      { cost_per_item: '8.19',  included_unit: 'true',  output: '- The Carter Crewneck is...' },
+      { cost_per_item: '13.35', included_cana: 'true',  output: 'Of course! Could you please...' },
+      { cost_per_item: '8.00',  included_unit: 'true',  output: '- The Carter Crewneck is...' },
+      { cost_per_item: '7.38',  output: 'Certainly! However, I notice...' },
+      { cost_per_item: '6.73',  included_unit: 'true',  output: '- The Carter Crewneck is...' },
+      { cost_per_item: '10.43', included_cana: 'true',  output: 'Of course! Could you please...' },
+      { cost_per_item: '11.97', included_unit: 'true',  output: '- The Carter Crewneck is...' },
+      { cost_per_item: '9.98',  included_cana: 'true',  output: 'Of course! Could you please...' },
+      { cost_per_item: '7.83',  included_unit: 'true',  output: '- The Carter Crewneck is...' },
+      { cost_per_item: '14.81', output: 'Certainly! However, I notice...' },
+      { cost_per_item: '7.75',  included_unit: 'true',  included_cana: 'true', output: '- The Carter Crewneck is...' },
+      { cost_per_item: '10.06', output: 'Certainly! However, I notice...' },
+      { cost_per_item: '13.17', included_unit: 'true',  output: '- The Carter Crewneck is...' },
+      { cost_per_item: '6.21',  included_cana: 'true',  output: 'Of course! Could you please...' },
+      { cost_per_item: '13.75', included_unit: 'true',  output: '- The Carter Crewneck is...' },
+      { cost_per_item: '8.71',  output: 'Certainly! However, I notice...' },
+    ];
+
+    function App() {
+      const [selectedFile, setSelectedFile] = useState('f1');
+      const [tabs, setTabs] = useState([{ id: 't1', name: 'Sample Prompt' }]);
+      const [activeTab, setActiveTab] = useState('t1');
+      const [promptText, setPromptText] = useState('Summarized in 3 bullet points:\n{{body_html}}');
+      const [systemMessage, setSystemMessage] = useState('');
+
+      // ---------- Tweaks state (persisted via EDITMODE markers) ----------
+      const INITIAL_TWEAKS = /*EDITMODE-BEGIN*/{
+        "showStatsPanel": true,
+        "statsVariant": "grid",
+        "liveTicker": true,
+        "showFailures": true,
+        "showSim": true
+      }/*EDITMODE-END*/;
+      const [tweaks, setTweaks] = useState(INITIAL_TWEAKS);
+      const [tweaksOpen, setTweaksOpen] = useState(false);
+      const [tweaksAvail, setTweaksAvail] = useState(false);
+
+      // Animate the stats as a "live" feed.
+      const [stats, setStats] = useState(SAMPLE_STATS);
+      useEffect(() => {
+        if (!tweaks.liveTicker) return;
+        const id = setInterval(() => {
+          setStats(prev => {
+            const inc = 2 + Math.floor(Math.random() * 3);
+            const processed = Math.min(prev.total, prev.processed + inc);
+            const jitter = (Math.random() - 0.5) * 80;
+            const p50 = Math.max(400, Math.round(prev.latencyP50 + jitter));
+            const trail = [...prev.latencyTrail.slice(-23), p50];
+            const tps = +(11 + Math.random() * 3).toFixed(1);
+            return {
+              ...prev,
+              processed,
+              status: processed >= prev.total ? 'done' : prev.status,
+              tps,
+              latencyP50: p50,
+              latencyP95: Math.round(p50 * (2.3 + Math.random() * 0.4)),
+              latencyTrail: trail,
+              tokensIn: prev.tokensIn + inc * 380,
+              tokensOut: prev.tokensOut + inc * 190,
+              cost: +(prev.cost + inc * 0.004).toFixed(3),
+              eta: Math.max(0, Math.round((prev.total - processed) / tps)),
+            };
+          });
+        }, 900);
+        return () => clearInterval(id);
+      }, [tweaks.liveTicker]);
+
+      // ---------- Tweaks protocol (register listener BEFORE announcing) ----------
+      useEffect(() => {
+        const onMsg = (e) => {
+          const d = e.data || {};
+          if (d.type === '__activate_edit_mode')   setTweaksOpen(true);
+          if (d.type === '__deactivate_edit_mode') setTweaksOpen(false);
+        };
+        window.addEventListener('message', onMsg);
+        setTweaksAvail(true);
+        window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+        return () => window.removeEventListener('message', onMsg);
+      }, []);
+
+      const setTweak = (patch) => {
+        setTweaks(t => ({ ...t, ...patch }));
+        window.parent.postMessage({ type: '__edit_mode_set_keys', edits: patch }, '*');
+      };
+
+      // Apply tweaks to the stats payload for the panel.
+      const effectiveStats = {
+        ...stats,
+        failed: tweaks.showFailures ? stats.failed : 0,
+        sim: tweaks.showSim ? stats.sim : null,
+      };
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: QX.appBg }}>
+          <div className="qx-traffic">
+            <span style={{ background: '#ff5f57' }} />
+            <span style={{ background: '#febc2e' }} />
+            <span style={{ background: '#28c840' }} />
+          </div>
+          <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+            <QxSidebar
+              files={FILES} selectedId={selectedFile} onSelect={setSelectedFile}
+              brandSrc="../../assets/icon-128.png"
+            />
+            <QxPromptEditor
+              tabs={tabs} activeTabId={activeTab} onSelectTab={setActiveTab}
+              onAddTab={() => {
+                const id = 't' + (tabs.length + 1);
+                setTabs([...tabs, { id, name: 'Prompt ' + (tabs.length + 1) }]);
+                setActiveTab(id);
+              }}
+              onCloseTab={(id) => setTabs(tabs.filter(t => t.id !== id))}
+              models={[{ name: 'gpt-4.1', online: true, settings: { temp: '1.00', topP: '1.00', tokens: '2048' } }]}
+              columns={['vendor', 'type', 'tags', 'option1_name', 'option2_value', 'variant_sku', 'variant_taxable', 'image_src', 'cost_per_item', 'price']}
+              systemMessage={systemMessage} onSystemMessageChange={setSystemMessage}
+              promptText={promptText} onPromptChange={setPromptText}
+            />
+            <QxResultsPane
+              dataset="products-xs"
+              subtitle="12 rows · 24 columns"
+              columns={COLS} rows={SAMPLES}
+              onRun={() => alert('Run (mock)')}
+              onDownload={() => alert('Download (mock)')}
+              stats={tweaks.showStatsPanel ? effectiveStats : null}
+              statsVariant={tweaks.statsVariant}
+            />
+          </div>
+          {tweaksOpen && <TweaksPanel tweaks={tweaks} setTweak={setTweak} />}
+        </div>
+      );
+    }
+
+    // ---------- Tweaks UI ----------
+    function TweaksPanel({ tweaks, setTweak }) {
+      const row = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderTop: `1px solid ${QX.divider}` };
+      const labelStyle = { fontFamily: QX.fontMono, fontSize: 11, color: QX.fg2, textTransform: 'uppercase', letterSpacing: '0.14em' };
+      return (
+        <div style={{
+          position: 'fixed', right: 16, bottom: 16, zIndex: 50,
+          width: 260, background: QX.panelRaised,
+          border: `1px solid ${QX.divider}`, borderRadius: 8,
+          boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
+          padding: '12px 14px 14px', color: QX.fg1, fontFamily: QX.fontSans,
+        }}>
+          <div style={{
+            fontFamily: QX.fontSans, fontSize: 11, fontWeight: 700,
+            letterSpacing: '0.2em', textTransform: 'uppercase', color: QX.fg1,
+            marginBottom: 4,
+          }}>Tweaks</div>
+          <div style={{ ...row, borderTop: 'none' }}>
+            <span style={labelStyle}>Stats panel</span>
+            <Toggle on={tweaks.showStatsPanel} onChange={v => setTweak({ showStatsPanel: v })} />
+          </div>
+          <div style={row}>
+            <span style={labelStyle}>Variant</span>
+            <Segmented options={[['bar','Bar'],['grid','Grid']]} value={tweaks.statsVariant}
+              onChange={v => setTweak({ statsVariant: v })} />
+          </div>
+          <div style={row}>
+            <span style={labelStyle}>Live ticker</span>
+            <Toggle on={tweaks.liveTicker} onChange={v => setTweak({ liveTicker: v })} />
+          </div>
+          <div style={row}>
+            <span style={labelStyle}>Show failures</span>
+            <Toggle on={tweaks.showFailures} onChange={v => setTweak({ showFailures: v })} />
+          </div>
+          <div style={row}>
+            <span style={labelStyle}>Show SIM</span>
+            <Toggle on={tweaks.showSim} onChange={v => setTweak({ showSim: v })} />
+          </div>
+        </div>
+      );
+    }
+
+    function Toggle({ on, onChange }) {
+      return (
+        <button onClick={() => onChange(!on)} style={{
+          position: 'relative', width: 34, height: 18, borderRadius: 999,
+          background: on ? QX.blue : 'rgba(255,255,255,0.12)',
+          border: 'none', cursor: 'pointer', padding: 0, transition: 'background 160ms',
+        }}>
+          <span style={{
+            position: 'absolute', top: 2, left: on ? 18 : 2,
+            width: 14, height: 14, borderRadius: 999, background: '#fff',
+            transition: 'left 160ms ease-out',
+          }} />
+        </button>
+      );
+    }
+    function Segmented({ options, value, onChange }) {
+      return (
+        <div style={{
+          display: 'inline-flex', background: QX.card,
+          border: `1px solid ${QX.divider}`, borderRadius: 6, padding: 2,
+        }}>
+          {options.map(([v, l]) => (
+            <button key={v} onClick={() => onChange(v)} style={{
+              padding: '4px 10px', border: 'none', cursor: 'pointer',
+              background: value === v ? QX.selection : 'transparent',
+              color: value === v ? QX.fg1 : QX.fg2,
+              borderRadius: 4,
+              fontFamily: QX.fontSans, fontSize: 11, fontWeight: 600,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+            }}>{l}</button>
+          ))}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
