@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-05-07
+
+### Changed
+- Upgrade Pages workflow actions to Node 24 versions
+- Polish app controls and site metadata
+
 ## [1.0.4] - 2026-05-01
 
 ### Changed
