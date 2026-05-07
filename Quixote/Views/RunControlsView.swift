@@ -9,6 +9,7 @@ struct RunActionControls: View {
     let rows: [Row]
     let columns: [ColumnDef]
     let modelConfigs: [ResolvedFileModelConfig]
+    let onOpenSettings: () -> Void
 
     @State private var rowLimit: RowLimit = .all
     @State private var runScope: RunScope = .selected
@@ -68,9 +69,7 @@ struct RunActionControls: View {
     var body: some View {
         HStack(spacing: 14) {
             if !settings.hasSavedAPIKey {
-                Button {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                } label: {
+                Button(action: onOpenSettings) {
                     Label("Set API key in Settings", systemImage: "key.fill")
                         .font(.caption)
                         .foregroundStyle(Color.quixoteOrange)
@@ -132,7 +131,7 @@ struct RunActionControls: View {
                 apiKey = try settings.apiKeyForUserAction()
             } catch {
                 settings.presentAPIKeyError(error.localizedDescription)
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                onOpenSettings()
                 return
             }
 
@@ -200,7 +199,7 @@ struct RunActionControls: View {
 
         return HStack(spacing: 0) {
             Button(action: runAction) {
-                Label("RUN", systemImage: "play")
+                Label(rowLimit.runButtonTitle, systemImage: "play")
                     .font(.system(size: 12, weight: .bold))
                     .tracking(1.0)
                     .foregroundStyle(Color.white)
@@ -319,8 +318,8 @@ private struct RowLimitMenuHitTarget: NSViewRepresentable {
             let menu = NSMenu()
             addItem("All rows", tag: 0, to: menu)
             addItem("First 10", tag: 10, to: menu)
-            addItem("First 50", tag: 50, to: menu)
             addItem("First 100", tag: 100, to: menu)
+            addItem("First 1000", tag: 1000, to: menu)
             menu.addItem(.separator())
             addActionItem("Rerun", action: #selector(rerunCurrent), enabled: canRerunCurrent, to: menu)
             addActionItem("Rerun all prompts", action: #selector(rerunAll), enabled: canRerunAll, to: menu)
@@ -357,7 +356,7 @@ private struct RowLimitMenuHitTarget: NSViewRepresentable {
 
         private func rowLimit(for tag: Int) -> RowLimit {
             switch tag {
-            case 10, 50, 100:
+            case 10, 100, 1000:
                 return .first(tag)
             default:
                 return .all
@@ -369,6 +368,15 @@ private struct RowLimitMenuHitTarget: NSViewRepresentable {
 enum RowLimit: Hashable {
     case all
     case first(Int)
+
+    var runButtonTitle: String {
+        switch self {
+        case .all:
+            return "RUN"
+        case .first(let count):
+            return "RUN \(count)"
+        }
+    }
 }
 
 enum RunScope: Hashable {

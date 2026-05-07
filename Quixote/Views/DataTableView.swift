@@ -50,6 +50,7 @@ struct DataTableView: View {
     let modelConfigs: [ResolvedFileModelConfig]
     let canExport: Bool
     let onExport: () -> Void
+    let onOpenSettings: () -> Void
     var onRetry: ((UUID, UUID, UUID) -> Void)? = nil
 
     @State private var selectedResultCell: SelectedResultCell?
@@ -102,7 +103,8 @@ struct DataTableView: View {
                 prompts: prompts,
                 rows: rows,
                 columns: columns,
-                modelConfigs: modelConfigs
+                modelConfigs: modelConfigs,
+                onOpenSettings: onOpenSettings
             )
 
             Button {

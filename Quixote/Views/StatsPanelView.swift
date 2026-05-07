@@ -832,8 +832,8 @@ private struct StatsSummaryHitTarget: NSViewRepresentable {
         Coordinator(action: action)
     }
 
-    func makeNSView(context: Context) -> NSButton {
-        let button = NSButton(frame: .zero)
+    func makeNSView(context: Context) -> CursorButton {
+        let button = CursorButton(frame: .zero)
         button.title = ""
         button.isBordered = false
         button.bezelStyle = .shadowlessSquare
@@ -846,8 +846,11 @@ private struct StatsSummaryHitTarget: NSViewRepresentable {
         return button
     }
 
-    func updateNSView(_ button: NSButton, context: Context) {
+    func updateNSView(_ button: CursorButton, context: Context) {
         context.coordinator.action = action
+        if let window = button.window {
+            window.invalidateCursorRects(for: button)
+        }
     }
 
     final class Coordinator: NSObject {
@@ -860,6 +863,60 @@ private struct StatsSummaryHitTarget: NSViewRepresentable {
         @objc func performAction(_ sender: NSButton) {
             action()
         }
+    }
+
+    final class CursorButton: NSButton {
+        override func resetCursorRects() {
+            super.resetCursorRects()
+            addCursorRect(bounds, cursor: NSCursor.pointingHand)
+        }
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+}
+
+private extension View {
+    func respectSystemScrollerStyle() -> some View {
+        background(SystemScrollerStyleConfigurator())
+    }
+}
+
+private struct SystemScrollerStyleConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            configureEnclosingScrollView(for: view)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            configureEnclosingScrollView(for: nsView)
+        }
+    }
+
+    private func configureEnclosingScrollView(for view: NSView) {
+        var candidate = view.superview
+        while let current = candidate {
+            if let scrollView = current as? NSScrollView {
+                scrollView.scrollerStyle = NSScroller.preferredScrollerStyle
+                scrollView.autohidesScrollers = true
+                return
+            }
+
+            candidate = current.superview
+        }
+
+        guard let scrollView = view.enclosingScrollView else {
+            return
+        }
+
+        scrollView.scrollerStyle = NSScroller.preferredScrollerStyle
+        scrollView.autohidesScrollers = true
     }
 }
 
@@ -911,7 +968,7 @@ private struct StatsTableSection: View {
                         .frame(maxWidth: .infinity, minHeight: 112, alignment: .center)
                 } else {
                     GeometryReader { proxy in
-                        ScrollView([.horizontal, .vertical], showsIndicators: true) {
+                        ScrollView([.horizontal, .vertical]) {
                             VStack(spacing: 0) {
                                 headerRow
                                 ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
@@ -921,6 +978,7 @@ private struct StatsTableSection: View {
                             .frame(minWidth: max(860, proxy.size.width), alignment: .leading)
                             .frame(minHeight: proxy.size.height, alignment: .topLeading)
                         }
+                        .respectSystemScrollerStyle()
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
                     .frame(minHeight: 0, maxHeight: .infinity)

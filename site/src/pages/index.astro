@@ -10,7 +10,10 @@ const assetBase = import.meta.env.BASE_URL.endsWith("/")
 const LOGO_URL = `${assetBase}quixote-logo.png`;
 ---
 
-<Layout>
+<Layout
+  title="Data Quixote - Test LLM prompts on local data"
+  description="Test your LLM prompts on local data. Iterate, compare model output, and export results from a native macOS app."
+>
   <main>
     <section class="hero">
       <img src={LOGO_URL} alt="Quixote logo" class="hero-logo" />

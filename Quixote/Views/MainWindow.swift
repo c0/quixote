@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct MainWindow: View {
+    @Environment(\.openSettings) private var openSettings
+
     @StateObject private var workspace = WorkspaceViewModel()
     @StateObject private var dataPreview = DataPreviewViewModel()
     @StateObject private var promptList = PromptListViewModel()
@@ -47,6 +49,9 @@ struct MainWindow: View {
                 modelConfigs: resolvedModelConfigs,
                 canExport: canExport,
                 onExport: triggerExport,
+                onOpenSettings: {
+                    openSettings()
+                },
                 onRetry: { rowID, promptID, modelConfigID in
                     processing.retryResult(rowID: rowID, promptID: promptID, modelConfigID: modelConfigID)
                 }
