@@ -8,6 +8,63 @@ const assetBase = import.meta.env.BASE_URL.endsWith("/")
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`;
 const LOGO_URL = `${assetBase}quixote-logo.png`;
+const SCREENSHOT_URL = `${assetBase}quixote-seo-products-demo.png`;
+
+const providerRows = [
+  ["OpenAI", "gpt-5.4, gpt-4.1, gpt-4o"],
+  ["Gemini", "gemini-2.5-pro, gemini-2.5-flash"],
+  ["Ollama", "llama3.2, qwen2.5, mistral, gemma3"],
+  ["LM Studio", "Gemma, Llama, Qwen, local downloads"],
+  ["Compatible API", "Any exposed OpenAI-compatible model ID"],
+];
+
+const featureGroups = [
+  {
+    label: "Models",
+    items: [
+      ["Multi-provider", "OpenAI, Gemini, Ollama, LM Studio, and any OpenAI-compatible endpoint."],
+      ["Model refresh", "Pull model lists from providers that expose /v1/models."],
+      ["Manual models", "Add model IDs for local servers or gateways that cannot list models."],
+      ["Side-by-side", "Run multiple provider-backed models on the same rows and prompts."],
+    ],
+  },
+  {
+    label: "Data",
+    items: [
+      ["File support", "Open CSV, TSV, tab-delimited, JSON arrays, or Excel files."],
+      ["Column variables", "Reference any column with {{column_name}} inside a prompt."],
+      ["One file, many prompts", "Keep multiple prompt tabs attached to a single dataset."],
+      ["Export", "Download enriched results to CSV after the run finishes."],
+    ],
+  },
+  {
+    label: "Prompts",
+    items: [
+      ["Prompt variants", "Compare different instructions against the same product catalog."],
+      ["System message", "Set tone, behavior, and response style once per prompt."],
+      ["Parameters", "Tune temperature, top-p, max tokens, and reasoning level per model."],
+      ["Run limits", "Test all rows or sample the first 10, 100, or 1000 rows."],
+    ],
+  },
+  {
+    label: "Runs",
+    items: [
+      ["Concurrent processing", "Fill result columns across rows without leaving the app."],
+      ["Pause and resume", "Stop a run and continue later from the saved queue state."],
+      ["Retry failed rows", "Re-run only the outputs that errored."],
+      ["Raw response viewer", "Inspect and copy the model response behind any cell."],
+    ],
+  },
+  {
+    label: "Stats",
+    items: [
+      ["Token usage", "Track input and output tokens by run, row, and model."],
+      ["Cost estimate", "See running totals and per-model cost estimates."],
+      ["Latency", "Compare response time and throughput while a run is active."],
+      ["Quality signals", "Review similarity and ROUGE metrics when references are available."],
+    ],
+  },
+];
 ---
 
 <Layout
@@ -19,7 +76,7 @@ const LOGO_URL = `${assetBase}quixote-logo.png`;
       <img src={LOGO_URL} alt="Quixote logo" class="hero-logo" />
       <h1>Data Quixote</h1>
       <p class="tagline">
-        Test your LLM prompts on local data. Iterate and refine.
+        Test LLM prompts on local product data. Humanize descriptions, compare models, and export the results.
       </p>
       <div class="buttons">
         <a href={DMG_URL} class="btn primary">
@@ -42,6 +99,66 @@ const LOGO_URL = `${assetBase}quixote-logo.png`;
       </p>
     </section>
 
+    <section class="screenshot-bleed" aria-label="Product SEO screenshot">
+      <figure class="screenshot-frame">
+        <img
+          src={SCREENSHOT_URL}
+          alt="Quixote running humanized SEO prompts across an ecommerce product CSV with OpenAI and GPT-5.4 mini output columns."
+          loading="eager"
+        />
+      </figure>
+    </section>
+
+    <section class="intro">
+      <p>
+        Import a local product catalog, write prompts with row variables, and run them through OpenAI,
+        Gemini, Ollama, LM Studio, or a compatible API. Quixote keeps the table, outputs,
+        raw responses, costs, timing, and export in one native macOS workspace.
+      </p>
+    </section>
+
+    <section class="model-table" aria-label="Supported providers and models">
+      <header class="table-header">
+        <span class="eyebrow">Providers and models</span>
+        <p>Use hosted APIs, local model servers, or any OpenAI-compatible endpoint.</p>
+      </header>
+      <div class="table-grid" role="table">
+        <div class="table-row table-head" role="row">
+          <span role="columnheader">Provider</span>
+          <span role="columnheader">Supported models</span>
+        </div>
+        {
+          providerRows.map(([provider, models]) => (
+            <div class="table-row" role="row">
+              <span role="cell">{provider}</span>
+              <span role="cell">{models}</span>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="features" aria-label="Features">
+      {
+        featureGroups.map((group, index) => (
+          <section class="feature-group">
+            <header class="feature-header">
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <h2>{group.label}</h2>
+            </header>
+            <div class="feature-grid">
+              {group.items.map(([name, description]) => (
+                <article class="feature-item">
+                  <h3>{name}</h3>
+                  <p>{description}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ))
+      }
+    </section>
+
     <footer>
       <p>
         &copy; 2026 &middot; <a href={GITHUB_URL}>Open source</a> under The O&apos;Saasy
@@ -57,10 +174,10 @@ const LOGO_URL = `${assetBase}quixote-logo.png`;
     z-index: 1;
     max-width: 720px;
     margin: 0 auto;
-    padding: 96px 24px 56px;
+    padding: 96px 24px 64px;
     display: flex;
     flex-direction: column;
-    gap: 80px;
+    gap: 96px;
   }
 
   .hero {
@@ -145,6 +262,185 @@ const LOGO_URL = `${assetBase}quixote-logo.png`;
     margin-top: 8px;
   }
 
+  .screenshot-bleed {
+    width: min(760px, 100%);
+    margin: 0 auto;
+  }
+
+  .screenshot-frame {
+    margin: 0;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: rgba(10, 12, 16, 0.76);
+    box-shadow:
+      0 30px 90px rgba(0, 0, 0, 0.55),
+      0 4px 14px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+    position: relative;
+    padding: 6px;
+  }
+
+  .screenshot-frame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    pointer-events: none;
+  }
+
+  .screenshot-frame img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+  }
+
+  .eyebrow,
+  .feature-header span {
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.69rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+
+  .intro {
+    font-size: clamp(1.22rem, 2.4vw, 1.55rem);
+    line-height: 1.45;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    text-align: center;
+  }
+
+  .model-table {
+    width: min(960px, calc(100vw - 48px));
+    margin-left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 22px 0 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .table-header {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .table-header p {
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .table-grid {
+    display: grid;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table-row {
+    display: grid;
+    grid-template-columns: minmax(140px, 0.6fr) minmax(0, 2.4fr);
+    column-gap: 28px;
+    align-items: baseline;
+    padding: 13px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .table-row:first-child {
+    border-top: 0;
+  }
+
+  .table-row span {
+    min-width: 0;
+    color: var(--text-secondary);
+    line-height: 1.45;
+  }
+
+  .table-row span:first-child {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .table-head span {
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    font-weight: 500;
+  }
+
+  .table-head span:first-child {
+    color: var(--text-tertiary);
+  }
+
+  .features {
+    width: min(960px, calc(100vw - 48px));
+    margin-left: 50%;
+    transform: translateX(-50%);
+    max-width: 960px;
+    display: flex;
+    flex-direction: column;
+    gap: 72px;
+  }
+
+  .feature-group {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  .feature-header {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .feature-header h2 {
+    flex: 1;
+    margin: 0;
+    font-size: clamp(1.6rem, 3.2vw, 2.1rem);
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1;
+    color: var(--text);
+  }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 32px;
+  }
+
+  .feature-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .feature-item h3 {
+    margin: 0;
+    font-size: 0.98rem;
+    line-height: 1.25;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    color: var(--text);
+  }
+
+  .feature-item p {
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
   footer {
     text-align: center;
     font-size: 0.82rem;
@@ -156,6 +452,34 @@ const LOGO_URL = `${assetBase}quixote-logo.png`;
       margin: 0 14px;
       padding: 80px 20px 42px;
       gap: 64px;
+    }
+
+    .screenshot-bleed,
+    .model-table,
+    .features {
+      width: min(100%, calc(100vw - 28px));
+    }
+
+    .screenshot-frame {
+      border-radius: 10px;
+      padding: 4px;
+    }
+
+    .screenshot-frame::after {
+      border-radius: 10px;
+    }
+
+    .feature-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .table-row {
+      grid-template-columns: minmax(96px, 0.8fr) minmax(0, 1.8fr);
+      column-gap: 12px;
+    }
+
+    .feature-header {
+      gap: 12px;
     }
   }
 </style>

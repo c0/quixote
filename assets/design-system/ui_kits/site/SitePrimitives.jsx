@@ -11,6 +11,7 @@ const QX_SITE = {
   border: 'rgba(255, 255, 255, 0.1)',
   shadow: '0 24px 80px rgba(0, 0, 0, 0.45)',
   fontSans: '"Inter Tight", "SF Pro Display", "SF Pro Text", system-ui, -apple-system, sans-serif',
+  fontMono: '"JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace',
 };
 
 // Mini Apple logo SVG (used inside the primary Download button)
