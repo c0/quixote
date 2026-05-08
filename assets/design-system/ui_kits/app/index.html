@@ -20,6 +20,7 @@
   <script type="text/babel" src="./Primitives.jsx"></script>
   <script type="text/babel" src="./Sidebar.jsx"></script>
   <script type="text/babel" src="./PromptEditor.jsx"></script>
+  <script type="text/babel" src="./PinnedEditor.jsx"></script>
   <script type="text/babel" src="./ResultsPane.jsx"></script>
   <script type="text/babel" src="./StatsPanel.jsx"></script>
   <script type="text/babel" src="./OutputDetail.jsx"></script>
@@ -86,11 +87,32 @@
     ];
 
     function App() {
-      const [selectedFile, setSelectedFile] = useState('f1');
-      const [tabs, setTabs] = useState([{ id: 't1', name: 'Sample Prompt' }]);
-      const [activeTab, setActiveTab] = useState('t1');
-      const [promptText, setPromptText] = useState('Summarized in 3 bullet points:\n{{body_html}}');
-      const [systemMessage, setSystemMessage] = useState('');
+      // ---------- Default starter pins ----------
+      const DEFAULT_PINS = [
+        { id: 'pin-summarize', name: 'Summarize', builtIn: true,
+          system: 'You are a concise summarizer. No preamble, no apology, no questions back.',
+          prompt: 'Summarize the following in 3 bullet points:\n{{text}}' },
+        { id: 'pin-classify', name: 'Classify sentiment', builtIn: true,
+          system: 'You are a precise classifier. Reply with one label and nothing else.',
+          prompt: 'Classify the sentiment of the text below as one of: positive, neutral, negative.\n\n{{text}}' },
+        { id: 'pin-entities', name: 'Extract entities', builtIn: true,
+          system: 'Return JSON only. No prose.',
+          prompt: 'Extract named entities (people, places, organizations) from the text below as a JSON array of {name, type}.\n\n{{text}}' },
+        { id: 'pin-translate', name: 'Translate to English', builtIn: true,
+          system: 'Translate faithfully. Preserve tone. Return only the translation.',
+          prompt: 'Translate the following to English:\n\n{{text}}' },
+      ];
+
+      const [files] = useState(FILES);
+      const [prompts, setPrompts] = useState(DEFAULT_PINS);
+      const [selection, setSelection] = useState({ kind: 'data', id: 'f1' });
+      const [tabs, setTabs] = useState([
+        { id: 't1', fileId: 'f1', name: 'Sample Prompt',
+          systemMessage: '',
+          promptText: 'Summarized in 3 bullet points:\n{{body_html}}',
+          fromPinId: null, fromPinName: null, pinned: false },
+      ]);
+      const [activeTabByFile, setActiveTabByFile] = useState({ f1: 't1' });
       const [openedCell, setOpenedCell] = useState({ row: 11, col: 'output' });
 
       // ---------- Tweaks state (persisted via EDITMODE markers) ----------
@@ -99,7 +121,8 @@
         "statsVariant": "grid",
         "liveTicker": true,
         "showFailures": true,
-        "showSim": true
+        "showSim": true,
+        "showPinsSection": true
       }/*EDITMODE-END*/;
       const [tweaks, setTweaks] = useState(INITIAL_TWEAKS);
       const [tweaksOpen, setTweaksOpen] = useState(false);
@@ -160,6 +183,64 @@
         sim: tweaks.showSim ? stats.sim : null,
       };
 
+      // ---------- Pinned-prompt actions ----------
+      const updatePin = (id, patch) => setPrompts(ps => ps.map(p => p.id === id ? { ...p, ...patch } : p));
+      const addPin = (init) => {
+        const id = 'pin-' + Date.now();
+        const np = { id, name: 'New prompt', system: '', prompt: '', builtIn: false, ...init };
+        setPrompts(ps => [...ps, np]);
+        setSelection({ kind: 'prompt', id });
+      };
+      const deletePin = (id) => {
+        setPrompts(ps => ps.filter(p => p.id !== id));
+        setSelection(s => s.kind === 'prompt' && s.id === id ? { kind: 'data', id: files[0].id } : s);
+      };
+      const duplicatePin = (id) => {
+        const p = prompts.find(x => x.id === id); if (!p) return;
+        const nid = 'pin-' + Date.now();
+        setPrompts(ps => [...ps, { ...p, id: nid, name: p.name + ' copy', builtIn: false }]);
+        setSelection({ kind: 'prompt', id: nid });
+      };
+
+      // Pin current dataset tab → save its system+prompt as a new pin (model stripped).
+      const pinCurrentTab = () => {
+        const fid = selection.id;
+        const tab = tabs.find(t => t.id === activeTabByFile[fid]);
+        if (!tab || tab.pinned) return;
+        const id = 'pin-' + Date.now();
+        const name = (tab.promptText || '').split('\n')[0].slice(0, 40).trim() || tab.name || 'Untitled';
+        setPrompts(ps => [...ps, { id, name, system: tab.systemMessage || '', prompt: tab.promptText || '', builtIn: false }]);
+        setTabs(ts => ts.map(t => t.id === tab.id ? { ...t, pinned: true, pinnedId: id } : t));
+      };
+
+      // Run a pinned prompt on a chosen dataset → make a new tab on that file, copy contents in, attach a default model.
+      const runPinOnDataset = (pinId, fileId) => {
+        const pin = prompts.find(p => p.id === pinId); if (!pin) return;
+        const tabId = 't' + Date.now();
+        const newTab = {
+          id: tabId, fileId,
+          name: pin.name,
+          systemMessage: pin.system,
+          promptText: pin.prompt,
+          fromPinId: pin.id, fromPinName: pin.name,
+          pinned: false,
+        };
+        setTabs(ts => [...ts, newTab]);
+        setActiveTabByFile(m => ({ ...m, [fileId]: tabId }));
+        setSelection({ kind: 'data', id: fileId });
+      };
+
+      const promptsForSidebar = tweaks.showPinsSection ? prompts : [];
+      const isData = selection.kind === 'data';
+      const fileId = isData ? selection.id : null;
+      const fileTabs = isData ? tabs.filter(t => t.fileId === fileId) : [];
+      const activeTabId = isData ? (activeTabByFile[fileId] || (fileTabs[0] && fileTabs[0].id)) : null;
+      const activeTab = fileTabs.find(t => t.id === activeTabId);
+
+      const updateTab = (patch) => setTabs(ts => ts.map(t => t.id === activeTabId ? { ...t, ...patch, pinned: false } : t));
+
+      const selectedPin = !isData ? prompts.find(p => p.id === selection.id) : null;
+
       return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: QX.appBg }}>
           <div className="qx-traffic">
@@ -169,34 +250,69 @@
           </div>
           <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
             <QxSidebar
-              files={FILES} selectedId={selectedFile} onSelect={setSelectedFile}
+              files={files}
+              prompts={promptsForSidebar}
+              selection={selection}
+              onSelect={setSelection}
+              onAddFile={() => alert('Open file (mock)')}
+              onAddPrompt={() => addPin({ name: 'New prompt' })}
               brandSrc="../../assets/icon-128.png"
             />
-            <QxPromptEditor
-              tabs={tabs} activeTabId={activeTab} onSelectTab={setActiveTab}
-              onAddTab={() => {
-                const id = 't' + (tabs.length + 1);
-                setTabs([...tabs, { id, name: 'Prompt ' + (tabs.length + 1) }]);
-                setActiveTab(id);
-              }}
-              onCloseTab={(id) => setTabs(tabs.filter(t => t.id !== id))}
-              models={[{ name: 'gpt-4.1', online: true, settings: { temp: '1.00', topP: '1.00', tokens: '2048' } }]}
-              columns={['vendor', 'type', 'tags', 'option1_name', 'option2_value', 'variant_sku', 'variant_taxable', 'image_src', 'cost_per_item', 'price']}
-              systemMessage={systemMessage} onSystemMessageChange={setSystemMessage}
-              promptText={promptText} onPromptChange={setPromptText}
-            />
-            <QxResultsPane
-              dataset="products-xs"
-              subtitle="12 rows · 24 columns"
-              columns={COLS} rows={SAMPLES}
-              onRun={() => alert('Run (mock)')}
-              onDownload={() => alert('Download (mock)')}
-              stats={tweaks.showStatsPanel ? effectiveStats : null}
-              statsVariant={tweaks.statsVariant}
-              onCellOpen={({ rowIndex, col, row }) => setOpenedCell({ row: rowIndex, col })}
-              openedCell={openedCell}
-            />
-            {openedCell && (() => {
+
+            {isData && activeTab && (
+              <QxPromptEditor
+                tabs={fileTabs}
+                activeTabId={activeTabId}
+                onSelectTab={(id) => setActiveTabByFile(m => ({ ...m, [fileId]: id }))}
+                onAddTab={() => {
+                  const id = 't' + Date.now();
+                  setTabs(ts => [...ts, { id, fileId, name: 'Prompt ' + (fileTabs.length + 1),
+                    systemMessage: '', promptText: '', fromPinId: null, pinned: false }]);
+                  setActiveTabByFile(m => ({ ...m, [fileId]: id }));
+                }}
+                onCloseTab={(id) => setTabs(ts => ts.filter(t => t.id !== id))}
+                models={[{ name: 'gpt-4.1', online: true, settings: { temp: '1.00', topP: '1.00', tokens: '2048' } }]}
+                columns={['vendor', 'type', 'tags', 'option1_name', 'option2_value', 'variant_sku', 'variant_taxable', 'image_src', 'cost_per_item', 'price']}
+                systemMessage={activeTab.systemMessage}
+                onSystemMessageChange={(v) => updateTab({ systemMessage: v })}
+                promptText={activeTab.promptText}
+                onPromptChange={(v) => updateTab({ promptText: v })}
+                fromPin={activeTab.fromPinName ? `From: ${activeTab.fromPinName}` : null}
+                pinned={!!activeTab.pinned}
+                onPinCurrent={pinCurrentTab}
+              />
+            )}
+
+            {!isData && selectedPin && (
+              <QxPinnedEditor
+                prompt={selectedPin}
+                onChange={(patch) => updatePin(selectedPin.id, patch)}
+                onDelete={() => deletePin(selectedPin.id)}
+                onDuplicate={() => duplicatePin(selectedPin.id)}
+                datasets={files.map(f => ({ id: f.id, name: f.name }))}
+                onRunOn={(fileId) => runPinOnDataset(selectedPin.id, fileId)}
+              />
+            )}
+
+            {isData && (
+              <QxResultsPane
+                dataset="products-xs"
+                subtitle="12 rows · 24 columns"
+                columns={COLS} rows={SAMPLES}
+                onRun={() => alert('Run (mock)')}
+                onDownload={() => alert('Download (mock)')}
+                stats={tweaks.showStatsPanel ? effectiveStats : null}
+                statsVariant={tweaks.statsVariant}
+                onCellOpen={({ rowIndex, col, row }) => setOpenedCell({ row: rowIndex, col })}
+                openedCell={openedCell}
+              />
+            )}
+
+            {!isData && (
+              <QxPinnedRightPane prompt={selectedPin} />
+            )}
+
+            {isData && openedCell && (() => {
               const r = SAMPLES[openedCell.row];
               const out = r ? r[openedCell.col] : '';
               return (
@@ -218,6 +334,35 @@
           </div>
           {tweaksOpen && <TweaksPanel tweaks={tweaks} setTweak={setTweak} />}
         </div>
+      );
+    }
+
+    // Right-pane placeholder when a pinned prompt is selected.
+    function QxPinnedRightPane({ prompt }) {
+      return (
+        <section style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          background: QX.appBg, color: QX.fg2,
+          fontFamily: QX.fontSans, padding: 40, textAlign: 'center', gap: 12,
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 12,
+            background: QX.panelRaised, border: `1px solid ${QX.divider}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: QX.fg2,
+          }}>
+            <QxIcon name="pin-fill" size={22} />
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: QX.fg1 }}>{prompt ? prompt.name : 'Pinned prompt'}</div>
+          <div style={{ fontSize: 12, color: QX.fg2, maxWidth: 360, lineHeight: 1.5 }}>
+            Pinned prompts are model-agnostic templates. Use <span style={{ color: QX.fg1, fontWeight: 600 }}>Run on…</span> to apply this prompt to a dataset and pick models there.
+          </div>
+          <div style={{
+            marginTop: 6, fontFamily: QX.fontMono, fontSize: 10, color: QX.fg3,
+            letterSpacing: '0.16em', textTransform: 'uppercase',
+          }}>No model · No variables bound</div>
+        </section>
       );
     }
 
@@ -258,6 +403,10 @@
           <div style={row}>
             <span style={labelStyle}>Show SIM</span>
             <Toggle on={tweaks.showSim} onChange={v => setTweak({ showSim: v })} />
+          </div>
+          <div style={row}>
+            <span style={labelStyle}>Pins section</span>
+            <Toggle on={tweaks.showPinsSection} onChange={v => setTweak({ showPinsSection: v })} />
           </div>
         </div>
       );

@@ -5,6 +5,9 @@ function QxPromptEditor({
   models, columns,
   systemMessage, onSystemMessageChange,
   promptText, onPromptChange,
+  fromPin,         // string label like "From: Summarize" if applicable
+  pinned,          // bool — current tab is already saved as a pin
+  onPinCurrent,    // () => save current tab as a pinned prompt
 }) {
   return (
     <section style={{
@@ -41,7 +44,13 @@ function QxPromptEditor({
             </div>
           ))}
         </div>
-        <button onClick={onAddTab} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+        <button onClick={onPinCurrent} title={pinned ? 'Saved to PROMPTS' : 'Save to PROMPTS'} style={{
+          background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+          color: pinned ? QX.blueMuted : QX.fg2,
+        }}>
+          <QxIcon name={pinned ? 'pin-fill' : 'pin'} size={13} />
+        </button>
+        <button onClick={onAddTab} title="New tab" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
           <QxIcon name="plus" size={14} color={QX.fg2} />
         </button>
       </div>
@@ -50,6 +59,17 @@ function QxPromptEditor({
       {/* Body */}
       <div style={{ flex: 1, overflow: 'auto', padding: '14px 18px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {fromPin && (
+            <div style={{
+              fontFamily: QX.fontMono, fontSize: 10, color: QX.fg3,
+              letterSpacing: '0.14em', textTransform: 'uppercase',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              marginTop: -4,
+            }}>
+              <QxIcon name="pin-fill" size={10} color={QX.fg3} />
+              <span>{fromPin}</span>
+            </div>
+          )}
           {/* MODEL */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
