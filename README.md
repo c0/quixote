@@ -10,7 +10,7 @@ Native macOS app for testing LLM prompts on local structured data.
 
 ![Quixote app screenshot](assets/design-system/uploads/Screenshot%202026-05-07%20at%207.37.08%20PM.png)
 
-Import a CSV, TSV, JSON, or XLSX file, write prompts with row variables, run those prompts across one or more LLM providers, inspect outputs and raw responses, then export the enriched table.
+Import a CSV, TSV, JSON, or XLSX file, write prompts that reference any column, run them through one or more LLM providers, inspect outputs and raw responses, then export the results.
 
 ```text
 products.csv / customers.xlsx / data.json
@@ -45,7 +45,7 @@ Enriched result columns + stats + CSV export
 ### Prompting
 
 - **Multiple prompts per file** - Keep several prompt tabs attached to the same dataset.
-- **Row variables** - Insert file columns into prompts and system messages with variable interpolation.
+- **Row variables** - Reference any file column inside prompts and system messages using {{column_name}}.
 - **Model parameters** - Configure temperature, max tokens, top-p, and reasoning effort where supported.
 - **Run limits** - Run all rows or quick samples like first 10, 100, or 1000 rows.
 
@@ -54,13 +54,13 @@ Enriched result columns + stats + CSV export
 - **Built-in providers** - OpenAI, Gemini, Ollama, and LM Studio.
 - **Custom APIs** - Connect any OpenAI-compatible endpoint with a custom base URL.
 - **Model refresh** - Pull model lists from providers that expose `/v1/models`.
-- **Manual models** - Add model IDs manually for local or custom providers when model listing is unavailable.
+- **Manual models** - Add model IDs manually for providers that don't expose /v1/models.
 
 ### Runs & Results
 
 - **Concurrent processing** - Run rows with configurable concurrency and rate limits.
 - **Pause and resume** - Pause active work and restore queued runs from disk.
-- **Retry failed outputs** - Retry all failures or a selected failed output.
+- **Retry failed outputs** - Re-run all failed rows or just one.
 - **Output detail** - Inspect content, raw provider responses, status, tokens, cost, latency, similarity, and ROUGE.
 - **Copy output** - Copy content or raw response from the detail sidebar.
 
@@ -69,7 +69,7 @@ Enriched result columns + stats + CSV export
 - **Run stats** - Track progress, throughput, latency, token usage, and cost.
 - **Per-model stats** - Compare model performance and quality metrics.
 - **Similarity metrics** - Optional cosine similarity and ROUGE-1/2/L metrics.
-- **Caching** - Identical requests can reuse persisted cached responses instead of calling the provider again.
+- **Caching** - Identical requests hit a local cache instead of calling the provider again.
 - **CSV export** - Export original columns plus prompt output and selected metrics.
 
 ### Privacy
@@ -146,9 +146,9 @@ Quixote/
 
 ## Architecture
 
-Quixote is a SwiftUI macOS app with focused AppKit bridges where native macOS behavior is needed. Workspace state, prompt editing, provider settings, processing, results, stats, and export are split into view models.
+Quixote is a SwiftUI macOS app with AppKit bridges where native behavior is needed. View models handle workspace state, prompt editing, provider settings, processing, results, stats, and export.
 
-The processing pipeline parses a local table into rows and columns, expands each prompt against each row, sends requests through an OpenAI-compatible provider adapter, persists completed results, caches equivalent responses, and updates the table, detail sidebar, stats panel, and CSV export.
+The processing pipeline parses a local table into rows and columns, expands each prompt per row, sends requests through an OpenAI-compatible adapter, persists results, caches equivalent responses, and refreshes the table view, detail sidebar, and stats panel.
 
 The direct-download build uses Sparkle for updates. The public site is an Astro project that serves the download page, social metadata, and Sparkle appcast.
 

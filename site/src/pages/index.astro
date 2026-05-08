@@ -22,46 +22,97 @@ const featureGroups = [
   {
     label: "Models",
     items: [
-      ["Multi-provider", "OpenAI, Gemini, Ollama, LM Studio, and any OpenAI-compatible endpoint."],
-      ["Model refresh", "Pull model lists from providers that expose /v1/models."],
-      ["Manual models", "Add model IDs for local servers or gateways that cannot list models."],
-      ["Side-by-side", "Run multiple provider-backed models on the same rows and prompts."],
+      [
+        "Multi-provider",
+        "OpenAI, Gemini, Ollama, LM Studio, and any OpenAI-compatible endpoint.",
+      ],
+      [
+        "Model refresh",
+        "Pull model lists from providers that expose /v1/models.",
+      ],
+      [
+        "Manual models",
+        "Add model IDs for local servers or gateways that cannot list models.",
+      ],
+      [
+        "Side-by-side",
+        "Run two or three models on the same rows and compare their outputs column by column.",
+      ],
     ],
   },
   {
     label: "Data",
     items: [
-      ["File support", "Open CSV, TSV, tab-delimited, JSON arrays, or Excel files."],
-      ["Column variables", "Reference any column with {{column_name}} inside a prompt."],
-      ["One file, many prompts", "Keep multiple prompt tabs attached to a single dataset."],
-      ["Export", "Download enriched results to CSV after the run finishes."],
+      [
+        "File support",
+        "Open CSV, TSV, tab-delimited, JSON arrays, or Excel files.",
+      ],
+      [
+        "Column variables",
+        "Reference any column with {{column_name}} inside a prompt.",
+      ],
+      [
+        "One file, many prompts",
+        "Attach multiple prompt tabs to one dataset — test variants without re-importing.",
+      ],
+      ["Export", "Download the completed table as CSV when the run finishes."],
     ],
   },
   {
     label: "Prompts",
     items: [
-      ["Prompt variants", "Compare different instructions against the same product catalog."],
-      ["System message", "Set tone, behavior, and response style once per prompt."],
-      ["Parameters", "Tune temperature, top-p, max tokens, and reasoning level per model."],
-      ["Run limits", "Test all rows or sample the first 10, 100, or 1000 rows."],
+      [
+        "Prompt variants",
+        "Compare different instructions against the same data.",
+      ],
+      [
+        "System message",
+        "Write a system prompt once; every row in the run uses it.",
+      ],
+      [
+        "Parameters",
+        "Tune temperature, top-p, max tokens, and reasoning level per model.",
+      ],
+      [
+        "Run limits",
+        "Test all rows or sample the first 10, 100, or 1000 rows.",
+      ],
     ],
   },
   {
     label: "Runs",
     items: [
-      ["Concurrent processing", "Fill result columns across rows without leaving the app."],
-      ["Pause and resume", "Stop a run and continue later from the saved queue state."],
+      [
+        "Concurrent processing",
+        "Process multiple rows at once instead of waiting for each response in sequence.",
+      ],
+      [
+        "Pause and resume",
+        "Stop a run and continue later from the saved queue state.",
+      ],
       ["Retry failed rows", "Re-run only the outputs that errored."],
-      ["Raw response viewer", "Inspect and copy the model response behind any cell."],
+      [
+        "Raw response viewer",
+        "Inspect and copy the model response behind any cell.",
+      ],
     ],
   },
   {
     label: "Stats",
     items: [
       ["Token usage", "Track input and output tokens by run, row, and model."],
-      ["Cost estimate", "See running totals and per-model cost estimates."],
-      ["Latency", "Compare response time and throughput while a run is active."],
-      ["Quality signals", "Review similarity and ROUGE metrics when references are available."],
+      [
+        "Cost estimate",
+        "See what each model is costing you, per row and in total.",
+      ],
+      [
+        "Latency",
+        "Compare response time and throughput while a run is active.",
+      ],
+      [
+        "Quality signals",
+        "Review similarity and ROUGE metrics when references are available.",
+      ],
     ],
   },
 ];
@@ -69,14 +120,15 @@ const featureGroups = [
 
 <Layout
   title="Data Quixote - Test LLM prompts on local data"
-  description="Test your LLM prompts on local data. Iterate, compare model output, and export results from a native macOS app."
+  description="Run LLM prompts across a local dataset and compare model outputs side by side. Native macOS app, no data leaves your machine."
 >
   <main>
     <section class="hero">
       <img src={LOGO_URL} alt="Quixote logo" class="hero-logo" />
       <h1>Data Quixote</h1>
       <p class="tagline">
-        Test LLM prompts on local product data. Humanize descriptions, compare models, and export the results.
+        Test your LLM prompts on local data. Run it through multiple models at
+        once. Compare outputs, check costs, export what works.
       </p>
       <div class="buttons">
         <a href={DMG_URL} class="btn primary">
@@ -99,11 +151,11 @@ const featureGroups = [
       </p>
     </section>
 
-    <section class="screenshot-bleed" aria-label="Product SEO screenshot">
+    <section class="screenshot-bleed" aria-label="Screenshot">
       <figure class="screenshot-frame">
         <img
           src={SCREENSHOT_URL}
-          alt="Quixote running humanized SEO prompts across an ecommerce product CSV with OpenAI and GPT-5.4 mini output columns."
+          alt="Quixote running SEO prompts across an ecommerce CSV with OpenAI and GPT-5.4 mini output columns."
           loading="eager"
         />
       </figure>
@@ -111,16 +163,20 @@ const featureGroups = [
 
     <section class="intro">
       <p>
-        Import a local product catalog, write prompts with row variables, and run them through OpenAI,
-        Gemini, Ollama, LM Studio, or a compatible API. Quixote keeps the table, outputs,
-        raw responses, costs, timing, and export in one native macOS workspace.
+        Load a local CSV, write prompts that reference any column, and run them
+        through OpenAI, Gemini, Ollama, LM Studio, or a compatible API. The
+        table, raw responses, token costs, and timing all stay in one window.
+        Nothing leaves your machine.
       </p>
     </section>
 
     <section class="model-table" aria-label="Supported providers and models">
       <header class="table-header">
         <span class="eyebrow">Providers and models</span>
-        <p>Use hosted APIs, local model servers, or any OpenAI-compatible endpoint.</p>
+        <p>
+          Use hosted APIs, local model servers, or any OpenAI-compatible
+          endpoint.
+        </p>
       </header>
       <div class="table-grid" role="table">
         <div class="table-row table-head" role="row">
