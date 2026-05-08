@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-08
+
+### Changed
+- README and updated site
+- README and site updates
+- Implement pinned prompts
+- Add pinned prompts design plan
+- Add Quixote test coverage
+- Handle Uline-style CSV imports
+- Add pre-commit test hook
+
 ## [1.0.6] - 2026-05-07
 
 ### Changed
