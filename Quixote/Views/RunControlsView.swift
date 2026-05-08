@@ -44,7 +44,7 @@ struct RunActionControls: View {
     }
 
     private var hasRunnableInputs: Bool {
-        settings.hasSavedAPIKey
+        settings.hasRunnableCredentials(for: modelConfigs)
             && !rowsToProcess.isEmpty
             && !modelConfigs.isEmpty
             && !processing.isActive
@@ -68,9 +68,9 @@ struct RunActionControls: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            if !settings.hasSavedAPIKey {
+            if !settings.hasRunnableCredentials(for: modelConfigs) {
                 Button(action: onOpenSettings) {
-                    Label("Set API key in Settings", systemImage: "key.fill")
+                    Label("Set provider credentials in Settings", systemImage: "key.fill")
                         .font(.caption)
                         .foregroundStyle(Color.quixoteOrange)
                 }
@@ -126,14 +126,14 @@ struct RunActionControls: View {
     }
 
     private func startRun(prompts: [Prompt], resetCache: Bool) {
-            let apiKey: String
-            do {
-                apiKey = try settings.apiKeyForUserAction()
-            } catch {
-                settings.presentAPIKeyError(error.localizedDescription)
-                onOpenSettings()
-                return
-            }
+        let providerSecrets: [String: String]
+        do {
+            providerSecrets = try settings.providerSecretsForUserAction(modelConfigs: modelConfigs)
+        } catch {
+            settings.presentAPIKeyError(error.localizedDescription)
+            onOpenSettings()
+            return
+        }
 
         if resetCache {
             resetCacheEntries(for: prompts)
@@ -144,7 +144,7 @@ struct RunActionControls: View {
             rows: rowsToProcess,
             columns: columns,
             modelConfigs: modelConfigs,
-            apiKey: apiKey,
+            providerSecrets: providerSecrets,
             concurrency: settings.concurrency,
             rateLimit: Double(settings.rateLimit),
             maxRetries: settings.maxRetries
@@ -167,6 +167,8 @@ struct RunActionControls: View {
                             expandedPrompt: expandedPrompt,
                             systemMessage: prompt.systemMessage,
                             modelID: modelConfig.modelID,
+                            providerProfileID: modelConfig.providerProfileID,
+                            providerBaseURL: modelConfig.providerProfile.normalizedBaseURL,
                             params: modelConfig.parameters
                         )
                     )

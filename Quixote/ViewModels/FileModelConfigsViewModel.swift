@@ -52,52 +52,75 @@ final class FileModelConfigsViewModel: ObservableObject {
         configs = []
     }
 
-    func resolvedConfigs(using availableModels: [ModelConfig]) -> [ResolvedFileModelConfig] {
+    func resolvedConfigs(using availableModels: [ModelConfig], providerProfiles: [ProviderProfile]) -> [ResolvedFileModelConfig] {
         let resolved = configs.compactMap { config -> (FileModelConfig, ModelConfig)? in
-            guard let model = availableModels.first(where: { $0.id == config.modelID }) else { return nil }
+            guard let model = availableModels.first(where: {
+                $0.id == config.modelID && $0.providerProfileID == config.providerProfileID
+            }) else { return nil }
             return (config, model)
         }
 
-        let duplicateCounts = Dictionary(grouping: resolved, by: { $0.1.id }).mapValues(\.count)
+        let duplicateCounts = Dictionary(grouping: resolved, by: { $0.1.selectionKey }).mapValues(\.count)
+        let providerCounts = Dictionary(grouping: resolved, by: { $0.1.providerProfileID }).mapValues(\.count)
         var seenCounts: [String: Int] = [:]
 
         return resolved.map { config, model in
-            seenCounts[model.id, default: 0] += 1
-            let occurrence = seenCounts[model.id] ?? 1
-            let displayName: String
-            if duplicateCounts[model.id, default: 0] > 1 {
-                displayName = "\(model.displayName) (\(occurrence))"
+            let provider = providerProfiles.first(where: { $0.id == model.providerProfileID })
+                ?? ProviderProfile.defaults.first(where: { $0.id == model.providerProfileID })
+                ?? ProviderProfile.defaults[0]
+            seenCounts[model.selectionKey, default: 0] += 1
+            let occurrence = seenCounts[model.selectionKey] ?? 1
+            let baseDisplayName: String
+            if provider.kind == .openAI && providerCounts.count == 1 {
+                baseDisplayName = model.displayName
             } else {
-                displayName = model.displayName
+                baseDisplayName = "\(provider.displayName) · \(model.displayName)"
+            }
+            let displayName: String
+            if duplicateCounts[model.selectionKey, default: 0] > 1 {
+                displayName = "\(baseDisplayName) (\(occurrence))"
+            } else {
+                displayName = baseDisplayName
             }
             return ResolvedFileModelConfig(
                 id: config.id,
                 fileID: config.fileID,
                 model: model,
+                providerProfile: provider,
                 parameters: normalizedParameters(config.parameters, for: model.id, availableModels: availableModels),
                 displayName: displayName
             )
         }
     }
 
-    func addModel(modelID: String, availableModels: [ModelConfig]) {
+    func addModel(modelID selectionKey: String, availableModels: [ModelConfig]) {
         guard let fileID = currentFileID else { return }
+        let selection = ModelSelectionID.parse(selectionKey)
+        guard let model = availableModels.first(where: {
+            $0.id == selection.modelID && $0.providerProfileID == selection.providerProfileID
+        }) else { return }
         let base = configs.last?.parameters ?? LLMParameters()
         let config = FileModelConfig(
             fileID: fileID,
-            modelID: modelID,
-            parameters: normalizedParameters(base, for: modelID, availableModels: availableModels)
+            modelID: model.id,
+            providerProfileID: model.providerProfileID,
+            parameters: normalizedParameters(base, for: model.id, availableModels: availableModels)
         )
         configs.append(config)
         configsByFile[fileID] = configs
         scheduleSave()
     }
 
-    func updateModel(configID: UUID, modelID: String, availableModels: [ModelConfig]) {
+    func updateModel(configID: UUID, modelID selectionKey: String, availableModels: [ModelConfig]) {
         guard let fileID = currentFileID,
               let index = configs.firstIndex(where: { $0.id == configID }) else { return }
-        configs[index].modelID = modelID
-        configs[index].parameters = normalizedParameters(configs[index].parameters, for: modelID, availableModels: availableModels)
+        let selection = ModelSelectionID.parse(selectionKey)
+        guard let model = availableModels.first(where: {
+            $0.id == selection.modelID && $0.providerProfileID == selection.providerProfileID
+        }) else { return }
+        configs[index].modelID = model.id
+        configs[index].providerProfileID = model.providerProfileID
+        configs[index].parameters = normalizedParameters(configs[index].parameters, for: model.id, availableModels: availableModels)
         configsByFile[fileID] = configs
         scheduleSave()
     }
@@ -135,22 +158,31 @@ final class FileModelConfigsViewModel: ObservableObject {
     }
 
     private func defaultConfig(fileID: UUID, availableModels: [ModelConfig]) -> FileModelConfig {
-        let fallbackModelID = availableModels.first?.id ?? ModelConfig.builtIn.first?.id ?? "gpt-4o-mini"
-        return FileModelConfig(fileID: fileID, modelID: fallbackModelID, parameters: normalizedParameters(LLMParameters(), for: fallbackModelID, availableModels: availableModels))
+        let fallbackModel = availableModels.first ?? ModelConfig.builtIn.first ?? ModelConfig(id: "gpt-4o-mini", displayName: "GPT-4o mini", provider: .openAI)
+        return FileModelConfig(
+            fileID: fileID,
+            modelID: fallbackModel.id,
+            providerProfileID: fallbackModel.providerProfileID,
+            parameters: normalizedParameters(LLMParameters(), for: fallbackModel.id, availableModels: availableModels)
+        )
     }
 
     private func sanitize(_ configs: [FileModelConfig], fileID: UUID, availableModels: [ModelConfig]) -> [FileModelConfig] {
         guard !availableModels.isEmpty else { return configs }
-        let fallbackModelID = availableModels.first?.id ?? "gpt-4o-mini"
-        let availableIDs = Set(availableModels.map(\.id))
+        let fallbackModel = availableModels.first ?? ModelConfig(id: "gpt-4o-mini", displayName: "GPT-4o mini", provider: .openAI)
+        let availableSelections = Set(availableModels.map(\.selectionKey))
 
         let sanitized = configs.map { config in
-            let modelID = availableIDs.contains(config.modelID) ? config.modelID : fallbackModelID
+            let existingSelection = ModelSelectionID(providerProfileID: config.providerProfileID, modelID: config.modelID)
+            let model = availableSelections.contains(existingSelection.rawValue)
+                ? availableModels.first { $0.selectionKey == existingSelection.rawValue } ?? fallbackModel
+                : fallbackModel
             return FileModelConfig(
                 id: config.id,
                 fileID: fileID,
-                modelID: modelID,
-                parameters: normalizedParameters(config.parameters, for: modelID, availableModels: availableModels)
+                modelID: model.id,
+                providerProfileID: model.providerProfileID,
+                parameters: normalizedParameters(config.parameters, for: model.id, availableModels: availableModels)
             )
         }
 

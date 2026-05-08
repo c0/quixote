@@ -214,7 +214,10 @@ final class StatsViewModel: ObservableObject {
         results: [PromptResult],
         modelConfigs: [ResolvedFileModelConfig]
     ) -> [ErrorStat] {
-        let displayNames = Dictionary(uniqueKeysWithValues: modelConfigs.map { ($0.id, $0.displayName) })
+        var displayNames: [UUID: String] = [:]
+        for config in modelConfigs {
+            displayNames[config.id] = config.displayName
+        }
         var counts: [String: Int] = [:]
 
         for result in results where result.status == .failed {

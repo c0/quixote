@@ -27,7 +27,7 @@ final class ProcessingViewModel: ObservableObject {
         let rows: [Row]
         let columns: [ColumnDef]
         let modelConfigs: [ResolvedFileModelConfig]
-        let apiKey: String
+        let providerSecrets: [String: String]
         let maxRetries: Int
     }
 
@@ -135,7 +135,7 @@ final class ProcessingViewModel: ObservableObject {
         rows: [Row],
         columns: [ColumnDef],
         modelConfigs: [ResolvedFileModelConfig],
-        apiKey: String,
+        providerSecrets: [String: String],
         concurrency: Int = 2,
         rateLimit: Double = 5,
         maxRetries: Int = 3
@@ -145,7 +145,7 @@ final class ProcessingViewModel: ObservableObject {
         rateLimiter = RateLimiter(requestsPerSecond: max(1, rateLimit))
         runContext = RunContext(
             prompts: prompts, rows: rows, columns: columns,
-            modelConfigs: modelConfigs, apiKey: apiKey, maxRetries: maxRetries
+            modelConfigs: modelConfigs, providerSecrets: providerSecrets, maxRetries: maxRetries
         )
         activeFileID = prompts.first?.fileID
         isRestoredFromDisk = false
@@ -166,12 +166,10 @@ final class ProcessingViewModel: ObservableObject {
         runStartedAt = Date()
         runState = .running(completed: 0, total: total)
 
-        let service = OpenAIService(apiKey: apiKey)
-
         runTask = Task {
             await processRows(prompts: prompts, rows: rows,
                               columns: columns, modelConfigs: modelConfigs,
-                              service: service, maxRetries: maxRetries)
+                              providerSecrets: providerSecrets, maxRetries: maxRetries)
         }
     }
 
@@ -278,17 +276,25 @@ final class ProcessingViewModel: ObservableObject {
                         rowID: row.id,
                         modelConfigID: modelConfig.id
                     )
-                    if hydratedResults[compositeKey]?.status == .completed {
-                        continue
-                    }
 
                     let cacheKey = ResponseCache.cacheKey(
                         expandedPrompt: expanded,
                         systemMessage: prompt.systemMessage,
                         modelID: modelConfig.modelID,
+                        providerProfileID: modelConfig.providerProfileID,
+                        providerBaseURL: modelConfig.providerProfile.normalizedBaseURL,
                         params: modelConfig.parameters
                     )
                     guard let entry = cache.entry(for: cacheKey) else { continue }
+
+                    if var existing = hydratedResults[compositeKey], existing.status == .completed {
+                        guard existing.rawResponse?.isEmpty != false,
+                              let rawResponse = entry.rawResponse,
+                              !rawResponse.isEmpty else { continue }
+                        existing.rawResponse = rawResponse
+                        hydratedResults[compositeKey] = existing
+                        continue
+                    }
 
                     var result = PromptResult(
                         runID: UUID(),
@@ -297,7 +303,9 @@ final class ProcessingViewModel: ObservableObject {
                         modelID: modelConfig.modelID,
                         modelConfigID: modelConfig.id
                     )
+                    result.providerProfileID = modelConfig.providerProfileID
                     result.responseText = entry.responseText
+                    result.rawResponse = entry.rawResponse
                     result.tokenUsage = entry.tokenUsage
                     result.durationMs = entry.durationMs
                     result.costUSD = entry.costUSD
@@ -336,14 +344,15 @@ final class ProcessingViewModel: ObservableObject {
         maxConcurrency = max(1, concurrency)
         rateLimiter = RateLimiter(requestsPerSecond: max(1, rateLimit))
 
-        let apiKey = ctx.apiKey.isEmpty ? readAPIKeyForUserAction() : ctx.apiKey
-        guard let apiKey else { return }
-
-        let service = OpenAIService(apiKey: apiKey)
+        let providerSecrets = ctx.providerSecrets.isEmpty ? readProviderSecrets(for: ctx.modelConfigs) : ctx.providerSecrets
+        guard let providerSecrets else { return }
         let columns = ctx.columns
         let maxRetries = ctx.maxRetries
 
-        let promptsByID = Dictionary(uniqueKeysWithValues: ctx.prompts.map { ($0.id, $0) })
+        var promptsByID: [UUID: Prompt] = [:]
+        for prompt in ctx.prompts {
+            promptsByID[prompt.id] = prompt
+        }
         let promptScopedWorkItems = results.values
             .filter { result in
                 result.status == .failed && (promptID == nil || result.promptID == promptID)
@@ -363,7 +372,7 @@ final class ProcessingViewModel: ObservableObject {
 
         runTask = Task {
             await processWorkItems(promptScopedWorkItems, columns: columns,
-                                   service: service, maxRetries: maxRetries)
+                                   providerSecrets: providerSecrets, maxRetries: maxRetries)
             if Task.isCancelled { return }
             if case .running(_, let total) = runState {
                 runStartedAt = nil
@@ -387,15 +396,14 @@ final class ProcessingViewModel: ObservableObject {
 
         let expandedPrompt = InterpolationEngine.expand(
             template: prompt.template, row: row, columns: ctx.columns)
-        let apiKey = ctx.apiKey.isEmpty ? readAPIKeyForUserAction() : ctx.apiKey
-        guard let apiKey else { return }
-
-        let service = OpenAIService(apiKey: apiKey)
+        let providerSecrets = ctx.providerSecrets.isEmpty ? readProviderSecrets(for: ctx.modelConfigs) : ctx.providerSecrets
+        guard let providerSecrets else { return }
         let maxRetries = ctx.maxRetries
 
         Task {
             let result = await Self.callService(
-                service: service, prompt: expandedPrompt,
+                providerSecrets: providerSecrets,
+                prompt: expandedPrompt,
                 systemMessage: prompt.systemMessage,
                 params: config.parameters,
                 row: row, promptID: prompt.id, modelConfig: config,
@@ -408,10 +416,13 @@ final class ProcessingViewModel: ObservableObject {
                     expandedPrompt: expandedPrompt,
                     systemMessage: prompt.systemMessage,
                     modelID: result.modelID,
+                    providerProfileID: config.providerProfileID,
+                    providerBaseURL: config.providerProfile.normalizedBaseURL,
                     params: config.parameters)
                 ResponseCache.shared.store(
                     entry: CachedEntry(
                         responseText: text,
+                        rawResponse: result.rawResponse,
                         tokenUsage: usage,
                         durationMs: result.durationMs ?? 0,
                         costUSD: result.costUSD ?? 0,
@@ -456,24 +467,23 @@ final class ProcessingViewModel: ObservableObject {
         maxConcurrency = max(1, concurrency == 0 ? 10 : concurrency)
         rateLimiter = RateLimiter(requestsPerSecond: max(1, Double(rateLimit == 0 ? 10 : rateLimit)))
 
-        guard let apiKey = readAPIKeyForUserAction() else { return }
+        guard let providerSecrets = readProviderSecrets(for: ctx.modelConfigs) else { return }
 
-        // Update runContext with fresh apiKey
+        // Update runContext with fresh credentials from Keychain.
         runContext = RunContext(
             prompts: ctx.prompts, rows: ctx.rows, columns: ctx.columns,
-            modelConfigs: ctx.modelConfigs, apiKey: apiKey, maxRetries: ctx.maxRetries
+            modelConfigs: ctx.modelConfigs, providerSecrets: providerSecrets, maxRetries: ctx.maxRetries
         )
         activeFileID = ctx.prompts.first?.fileID
 
         runStartedAt = Date()
         runState = .running(completed: completedSoFar, total: total)
-        let service = OpenAIService(apiKey: apiKey)
         let columns = ctx.columns
         let maxRetries = ctx.maxRetries
 
         runTask = Task {
             await processWorkItems(remainingItems, columns: columns,
-                                   service: service, maxRetries: maxRetries)
+                                   providerSecrets: providerSecrets, maxRetries: maxRetries)
             if Task.isCancelled { return }
             switch runState {
             case .running(_, let t), .paused(_, let t):
@@ -509,7 +519,7 @@ final class ProcessingViewModel: ObservableObject {
 
         runContext = RunContext(
             prompts: snapshot.prompts, rows: snapshot.rows, columns: snapshot.columns,
-            modelConfigs: snapshot.modelConfigs, apiKey: "", maxRetries: snapshot.maxRetries
+            modelConfigs: snapshot.modelConfigs, providerSecrets: [:], maxRetries: snapshot.maxRetries
         )
         activeFileID = snapshot.prompts.first?.fileID
         results = snapshot.results
@@ -518,9 +528,13 @@ final class ProcessingViewModel: ObservableObject {
         runState = .paused(completed: snapshot.completedCount, total: snapshot.totalCount)
     }
 
-    private func readAPIKeyForUserAction() -> String? {
+    private func readProviderSecrets(for modelConfigs: [ResolvedFileModelConfig]) -> [String: String]? {
         do {
-            return try KeychainHelper.readOpenAIKey()
+            var secrets: [String: String] = [:]
+            for profile in uniqueProfiles(from: modelConfigs) where profile.requiresAPIKey {
+                secrets[profile.id] = try KeychainHelper.readAPIKey(account: profile.keychainAccount)
+            }
+            return secrets
         } catch {
             runStartedAt = nil
             runState = .failed(error.localizedDescription)
@@ -535,6 +549,16 @@ final class ProcessingViewModel: ObservableObject {
             guard !Task.isCancelled else { return }
             saveQueueStateNow()
         }
+    }
+
+    private func uniqueProfiles(from modelConfigs: [ResolvedFileModelConfig]) -> [ProviderProfile] {
+        var seen = Set<String>()
+        var profiles: [ProviderProfile] = []
+        for config in modelConfigs where !seen.contains(config.providerProfile.id) {
+            seen.insert(config.providerProfile.id)
+            profiles.append(config.providerProfile)
+        }
+        return profiles
     }
 
     private func saveQueueStateNow() {
@@ -604,7 +628,7 @@ final class ProcessingViewModel: ObservableObject {
         rows: [Row],
         columns: [ColumnDef],
         modelConfigs: [ResolvedFileModelConfig],
-        service: OpenAIService,
+        providerSecrets: [String: String],
         maxRetries: Int
     ) async {
         let workItems = prompts.flatMap { prompt in
@@ -612,7 +636,7 @@ final class ProcessingViewModel: ObservableObject {
                 modelConfigs.map { modelConfig in (prompt, row, modelConfig) }
             }
         }
-        await processWorkItems(workItems, columns: columns, service: service, maxRetries: maxRetries)
+        await processWorkItems(workItems, columns: columns, providerSecrets: providerSecrets, maxRetries: maxRetries)
 
         if Task.isCancelled { return }
         switch runState {
@@ -628,7 +652,7 @@ final class ProcessingViewModel: ObservableObject {
     private func processWorkItems(
         _ workItems: [(Prompt, Row, ResolvedFileModelConfig)],
         columns: [ColumnDef],
-        service: OpenAIService,
+        providerSecrets: [String: String],
         maxRetries: Int
     ) async {
         let cache = ResponseCache.shared
@@ -645,6 +669,8 @@ final class ProcessingViewModel: ObservableObject {
                 expandedPrompt: expanded,
                 systemMessage: prompt.systemMessage,
                 modelID: modelConfig.modelID,
+                providerProfileID: modelConfig.providerProfileID,
+                providerBaseURL: modelConfig.providerProfile.normalizedBaseURL,
                 params: modelConfig.parameters)
 
             if let entry = cache.entry(for: key) {
@@ -654,7 +680,9 @@ final class ProcessingViewModel: ObservableObject {
                     promptID: prompt.id,
                     modelID: modelConfig.modelID,
                     modelConfigID: modelConfig.id)
+                result.providerProfileID = modelConfig.providerProfileID
                 result.responseText = entry.responseText
+                result.rawResponse = entry.rawResponse
                 result.tokenUsage = entry.tokenUsage
                 result.durationMs = entry.durationMs
                 result.costUSD = entry.costUSD
@@ -694,7 +722,8 @@ final class ProcessingViewModel: ObservableObject {
                 group.addTask { [modelConfig, prompt, rateLimiter] in
                     try? await rateLimiter.waitForSlot()
                     return await Self.callService(
-                        service: service, prompt: expanded,
+                        providerSecrets: providerSecrets,
+                        prompt: expanded,
                         systemMessage: prompt.systemMessage,
                         params: modelConfig.parameters,
                         row: row, promptID: prompt.id, modelConfig: modelConfig,
@@ -726,10 +755,13 @@ final class ProcessingViewModel: ObservableObject {
                             expandedPrompt: expanded,
                             systemMessage: workItem.0.systemMessage,
                             modelID: result.modelID,
+                            providerProfileID: workItem.2.providerProfileID,
+                            providerBaseURL: workItem.2.providerProfile.normalizedBaseURL,
                             params: workItem.2.parameters)
                         cache.store(
                             entry: CachedEntry(
                                 responseText: text,
+                                rawResponse: result.rawResponse,
                                 tokenUsage: usage,
                                 durationMs: result.durationMs ?? 0,
                                 costUSD: result.costUSD ?? 0,
@@ -757,7 +789,8 @@ final class ProcessingViewModel: ObservableObject {
                     group.addTask { [modelConfig, prompt, rateLimiter] in
                         try? await rateLimiter.waitForSlot()
                         return await Self.callService(
-                            service: service, prompt: expanded,
+                            providerSecrets: providerSecrets,
+                            prompt: expanded,
                             systemMessage: prompt.systemMessage,
                             params: modelConfig.parameters,
                             row: row, promptID: prompt.id, modelConfig: modelConfig,
@@ -874,7 +907,7 @@ final class ProcessingViewModel: ObservableObject {
     }
 
     private static func callService(
-        service: OpenAIService,
+        providerSecrets: [String: String],
         prompt: String,
         systemMessage: String,
         params: LLMParameters,
@@ -890,9 +923,14 @@ final class ProcessingViewModel: ObservableObject {
             promptID: promptID,
             modelID: modelConfig.modelID,
             modelConfigID: modelConfig.id)
+        result.providerProfileID = modelConfig.providerProfileID
         result.status = .inProgress
         result.timingSource = .live
         result.timingCohortID = runID
+        let service = OpenAICompatibleService(
+            profile: modelConfig.providerProfile,
+            apiKey: providerSecrets[modelConfig.providerProfileID]
+        )
 
         var attempt = 0
         while true {

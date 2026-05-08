@@ -26,12 +26,24 @@ enum KeychainHelper {
     private static let openAIAccount = "com.c0.quixote.api.openai"
 
     static func saveOpenAIKey(_ value: String) throws {
+        try saveAPIKey(value, account: openAIAccount)
+    }
+
+    static func readOpenAIKey() throws -> String {
+        try readAPIKey(account: openAIAccount)
+    }
+
+    static func deleteOpenAIKey() throws {
+        try deleteAPIKey(account: openAIAccount)
+    }
+
+    static func saveAPIKey(_ value: String, account: String) throws {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let data = trimmed.data(using: .utf8) else { return }
 
-        SecItemDelete(baseOpenAIQuery() as CFDictionary)
+        SecItemDelete(baseQuery(account: account) as CFDictionary)
 
-        var item = baseOpenAIQuery()
+        var item = baseQuery(account: account)
         item[kSecValueData] = data
         item[kSecAttrAccessible] = kSecAttrAccessibleWhenUnlocked
 
@@ -41,8 +53,8 @@ enum KeychainHelper {
         }
     }
 
-    static func readOpenAIKey() throws -> String {
-        var query = baseOpenAIQuery()
+    static func readAPIKey(account: String) throws -> String {
+        var query = baseQuery(account: account)
         query[kSecReturnData] = true
         query[kSecMatchLimit] = kSecMatchLimitOne
 
@@ -58,18 +70,18 @@ enum KeychainHelper {
         return string
     }
 
-    static func deleteOpenAIKey() throws {
-        let status = SecItemDelete(baseOpenAIQuery() as CFDictionary)
+    static func deleteAPIKey(account: String) throws {
+        let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw map(status)
         }
     }
 
-    private static func baseOpenAIQuery() -> [CFString: Any] {
+    private static func baseQuery(account: String) -> [CFString: Any] {
         [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
-            kSecAttrAccount: openAIAccount
+            kSecAttrAccount: account
         ]
     }
 

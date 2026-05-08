@@ -5,6 +5,7 @@ import CryptoKit
 
 struct CachedEntry: Codable {
     var responseText: String
+    var rawResponse: String?
     var tokenUsage: TokenUsage
     var durationMs: Int
     var costUSD: Double
@@ -20,6 +21,7 @@ struct CachedEntry: Codable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         responseText = try c.decode(String.self, forKey: .responseText)
+        rawResponse = try c.decodeIfPresent(String.self, forKey: .rawResponse)
         tokenUsage = try c.decode(TokenUsage.self, forKey: .tokenUsage)
         durationMs = try c.decode(Int.self, forKey: .durationMs)
         costUSD = try c.decode(Double.self, forKey: .costUSD)
@@ -32,11 +34,12 @@ struct CachedEntry: Codable {
         timingFinishedAt = try c.decodeIfPresent(Date.self, forKey: .timingFinishedAt)
     }
 
-    init(responseText: String, tokenUsage: TokenUsage, durationMs: Int,
+    init(responseText: String, rawResponse: String? = nil, tokenUsage: TokenUsage, durationMs: Int,
          costUSD: Double, cosineSimilarity: Double,
          rouge1: Double? = nil, rouge2: Double? = nil, rougeL: Double? = nil,
          cachedAt: Date, timingCohortID: UUID? = nil, timingFinishedAt: Date? = nil) {
         self.responseText = responseText
+        self.rawResponse = rawResponse
         self.tokenUsage = tokenUsage
         self.durationMs = durationMs
         self.costUSD = costUSD
@@ -77,17 +80,29 @@ final class ResponseCache: ObservableObject {
         expandedPrompt: String,
         systemMessage: String,
         modelID: String,
+        providerProfileID: String = ProviderProfile.openAIDefaultID,
+        providerBaseURL: String = "",
         params: LLMParameters
     ) -> String {
+        let normalizedBaseURL = providerBaseURL
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let paramsString = [
             "\(params.temperature)",
             "\(params.maxTokens ?? -1)",
             "\(params.topP)",
             params.reasoningEffort?.rawValue ?? "none"
         ].joined(separator: "|")
-        let raw = systemMessage + "\0" + expandedPrompt + "\0" + modelID + "\0" + paramsString
+        let raw = [
+            providerProfileID,
+            normalizedBaseURL,
+            modelID,
+            systemMessage,
+            expandedPrompt,
+            paramsString
+        ].joined(separator: "\0")
         let digest = SHA256.hash(data: Data(raw.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
+        return "v2:" + digest.map { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: - Lookup / store

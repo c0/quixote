@@ -18,7 +18,7 @@ struct PromptEditorView: View {
     @State private var hiddenVariableColumnIDs: Set<UUID> = []
 
     private var resolvedModelConfigs: [ResolvedFileModelConfig] {
-        modelConfigs.resolvedConfigs(using: settings.availableModels)
+        modelConfigs.resolvedConfigs(using: settings.availableModels, providerProfiles: settings.providerProfiles)
     }
 
     private var visibleVariableColumns: [ColumnDef] {
@@ -132,8 +132,8 @@ struct PromptEditorView: View {
                     SingleModelPickerPopover(
                         groupedModels: settings.groupedModels,
                         selectedID: nil
-                    ) { modelID in
-                        modelConfigs.addModel(modelID: modelID, availableModels: settings.availableModels)
+                    ) { selectionKey in
+                        modelConfigs.addModel(modelID: selectionKey, availableModels: settings.availableModels)
                         showAddModelPicker = false
                     }
                 }
@@ -145,8 +145,8 @@ struct PromptEditorView: View {
                         config: config,
                         groupedModels: settings.groupedModels,
                         canDelete: resolvedModelConfigs.count > 1,
-                        onSelectModel: { modelID in
-                            modelConfigs.updateModel(configID: config.id, modelID: modelID, availableModels: settings.availableModels)
+                        onSelectModel: { selectionKey in
+                            modelConfigs.updateModel(configID: config.id, modelID: selectionKey, availableModels: settings.availableModels)
                         },
                         onUpdateParameters: { parameters in
                             modelConfigs.updateParameters(configID: config.id, parameters: parameters, availableModels: settings.availableModels)
@@ -506,9 +506,9 @@ private struct ModelConfigCard: View {
                 .popover(isPresented: $showModelPicker) {
                     SingleModelPickerPopover(
                         groupedModels: groupedModels,
-                        selectedID: config.modelID,
-                        onSelect: { modelID in
-                            onSelectModel(modelID)
+                        selectedID: config.selectionID.rawValue,
+                        onSelect: { selectionKey in
+                            onSelectModel(selectionKey)
                             showModelPicker = false
                         }
                     )

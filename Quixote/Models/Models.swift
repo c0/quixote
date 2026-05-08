@@ -198,8 +198,52 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
     var id: String        // e.g. "gpt-4o-mini"
     var displayName: String
     var provider: LLMProvider
+    var providerProfileID: String = ProviderProfile.openAIDefaultID
     var created: Int?     // Unix timestamp from API; nil for builtIn
     var supportedReasoningLevels: [ReasoningEffort] = []
+
+    var selectionID: ModelSelectionID {
+        ModelSelectionID(providerProfileID: providerProfileID, modelID: id)
+    }
+
+    var selectionKey: String {
+        selectionID.rawValue
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case displayName
+        case provider
+        case providerProfileID
+        case created
+        case supportedReasoningLevels
+    }
+
+    init(
+        id: String,
+        displayName: String,
+        provider: LLMProvider,
+        providerProfileID: String = ProviderProfile.openAIDefaultID,
+        created: Int? = nil,
+        supportedReasoningLevels: [ReasoningEffort] = []
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.provider = provider
+        self.providerProfileID = providerProfileID
+        self.created = created
+        self.supportedReasoningLevels = supportedReasoningLevels
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        provider = try container.decodeIfPresent(LLMProvider.self, forKey: .provider) ?? .openAI
+        providerProfileID = try container.decodeIfPresent(String.self, forKey: .providerProfileID) ?? ProviderProfile.openAIDefaultID
+        created = try container.decodeIfPresent(Int.self, forKey: .created)
+        supportedReasoningLevels = try container.decodeIfPresent([ReasoningEffort].self, forKey: .supportedReasoningLevels) ?? []
+    }
 
     static let builtIn: [ModelConfig] = sortedForSelection([
         ModelConfig(id: "gpt-5.4",       displayName: "GPT-5.4",       provider: .openAI, supportedReasoningLevels: [.low, .medium, .high]),
@@ -316,7 +360,16 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
     }
 
     static func eligibleTextModels(_ models: [ModelConfig]) -> [ModelConfig] {
-        sortedForSelection(models.filter { isEligibleTextModelID($0.id) })
+        sortedForSelection(models.filter { model in
+            switch model.provider {
+            case .openAI:
+                return isEligibleTextModelID(model.id)
+            case .gemini:
+                return model.id.lowercased().hasPrefix("gemini-")
+            case .ollama, .lmStudio, .customOpenAICompatible:
+                return true
+            }
+        })
     }
 
     static func sortedForSelection(_ models: [ModelConfig]) -> [ModelConfig] {
@@ -369,8 +422,211 @@ struct ModelConfig: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-enum LLMProvider: String, Codable {
+enum LLMProvider: String, Codable, CaseIterable {
     case openAI
+    case gemini
+    case ollama
+    case lmStudio
+    case customOpenAICompatible
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = LLMProvider(rawValue: rawValue) ?? .openAI
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    var displayName: String {
+        switch self {
+        case .openAI: return "OpenAI"
+        case .gemini: return "Gemini"
+        case .ollama: return "Ollama"
+        case .lmStudio: return "LM Studio"
+        case .customOpenAICompatible: return "Custom"
+        }
+    }
+}
+
+struct ProviderProfile: Identifiable, Codable, Equatable, Hashable {
+    static let openAIDefaultID = "openai"
+    static let geminiDefaultID = "gemini"
+    static let ollamaDefaultID = "ollama"
+    static let lmStudioDefaultID = "lm-studio"
+    static let customDefaultID = "custom"
+
+    let id: String
+    var kind: LLMProvider
+    var displayName: String
+    var baseURL: String
+    var requiresAPIKey: Bool
+    var isEnabled: Bool
+    var discoveredModels: [String]
+    var manualModels: [String]
+
+    var normalizedBaseURL: String {
+        baseURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    var availableModelIDs: [String] {
+        Array(Set(discoveredModels + manualModels)).sorted()
+    }
+
+    var baseURLValidationMessage: String? {
+        let trimmed = normalizedBaseURL
+        guard let components = URLComponents(string: trimmed),
+              let scheme = components.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              components.host?.isEmpty == false else {
+            return "Enter a valid http or https base URL"
+        }
+        return nil
+    }
+
+    var keychainAccount: String {
+        "com.c0.quixote.api.\(id)"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case kind
+        case displayName
+        case baseURL
+        case requiresAPIKey
+        case isEnabled
+        case discoveredModels
+        case manualModels
+    }
+
+    init(
+        id: String,
+        kind: LLMProvider,
+        displayName: String,
+        baseURL: String,
+        requiresAPIKey: Bool,
+        isEnabled: Bool,
+        discoveredModels: [String] = [],
+        manualModels: [String] = []
+    ) {
+        self.id = id
+        self.kind = kind
+        self.displayName = displayName
+        self.baseURL = baseURL
+        self.requiresAPIKey = requiresAPIKey
+        self.isEnabled = isEnabled
+        self.discoveredModels = Self.uniqueModelIDs(discoveredModels)
+        self.manualModels = Self.uniqueModelIDs(manualModels)
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        kind = try container.decodeIfPresent(LLMProvider.self, forKey: .kind) ?? .openAI
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName) ?? kind.displayName
+        baseURL = try container.decodeIfPresent(String.self, forKey: .baseURL) ?? ""
+        requiresAPIKey = try container.decodeIfPresent(Bool.self, forKey: .requiresAPIKey) ?? true
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+        discoveredModels = Self.uniqueModelIDs(try container.decodeIfPresent([String].self, forKey: .discoveredModels) ?? [])
+        manualModels = Self.uniqueModelIDs(try container.decodeIfPresent([String].self, forKey: .manualModels) ?? [])
+    }
+
+    func sanitized(fallback: ProviderProfile? = nil) -> ProviderProfile {
+        var copy = self
+        let trimmedName = copy.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.displayName = trimmedName.isEmpty ? (fallback?.displayName ?? copy.kind.displayName) : trimmedName
+        let trimmedBaseURL = copy.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.baseURL = trimmedBaseURL.isEmpty ? (fallback?.baseURL ?? "") : trimmedBaseURL
+        copy.discoveredModels = Self.uniqueModelIDs(copy.discoveredModels)
+        copy.manualModels = Self.uniqueModelIDs(copy.manualModels)
+
+        switch copy.kind {
+        case .openAI, .gemini:
+            copy.requiresAPIKey = true
+        case .ollama, .lmStudio:
+            copy.requiresAPIKey = false
+        case .customOpenAICompatible:
+            break
+        }
+
+        return copy
+    }
+
+    private static func uniqueModelIDs(_ ids: [String]) -> [String] {
+        Array(Set(ids.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })).sorted()
+    }
+
+    static let defaults: [ProviderProfile] = [
+        ProviderProfile(
+            id: openAIDefaultID,
+            kind: .openAI,
+            displayName: "OpenAI",
+            baseURL: "https://api.openai.com/v1",
+            requiresAPIKey: true,
+            isEnabled: true,
+            discoveredModels: [],
+            manualModels: []
+        ),
+        ProviderProfile(
+            id: geminiDefaultID,
+            kind: .gemini,
+            displayName: "Gemini",
+            baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
+            requiresAPIKey: true,
+            isEnabled: false,
+            discoveredModels: [],
+            manualModels: []
+        ),
+        ProviderProfile(
+            id: ollamaDefaultID,
+            kind: .ollama,
+            displayName: "Ollama",
+            baseURL: "http://localhost:11434/v1",
+            requiresAPIKey: false,
+            isEnabled: true,
+            discoveredModels: [],
+            manualModels: []
+        ),
+        ProviderProfile(
+            id: lmStudioDefaultID,
+            kind: .lmStudio,
+            displayName: "LM Studio",
+            baseURL: "http://localhost:1234/v1",
+            requiresAPIKey: false,
+            isEnabled: true,
+            discoveredModels: [],
+            manualModels: []
+        ),
+        ProviderProfile(
+            id: customDefaultID,
+            kind: .customOpenAICompatible,
+            displayName: "Custom",
+            baseURL: "http://localhost:8000/v1",
+            requiresAPIKey: false,
+            isEnabled: false,
+            discoveredModels: [],
+            manualModels: []
+        )
+    ]
+}
+
+struct ModelSelectionID: Codable, Equatable, Hashable {
+    var providerProfileID: String
+    var modelID: String
+
+    var rawValue: String {
+        "\(providerProfileID)::\(modelID)"
+    }
+
+    static func parse(_ rawValue: String) -> ModelSelectionID {
+        let split = rawValue.components(separatedBy: "::")
+        if split.count == 2 {
+            return ModelSelectionID(providerProfileID: split[0], modelID: split[1])
+        }
+        return ModelSelectionID(providerProfileID: ProviderProfile.openAIDefaultID, modelID: rawValue)
+    }
 }
 
 // MARK: - RunStatus / ResultStatus
@@ -415,6 +671,7 @@ struct ProcessingRun: Identifiable, Codable {
     let id: UUID
     var promptID: UUID
     var modelID: String
+    var providerProfileID: String
     var modelConfigID: UUID?
     var status: RunStatus
     var startedAt: Date
@@ -424,9 +681,33 @@ struct ProcessingRun: Identifiable, Codable {
         self.id = UUID()
         self.promptID = promptID
         self.modelID = modelID
+        self.providerProfileID = ProviderProfile.openAIDefaultID
         self.modelConfigID = modelConfigID
         self.status = .pending
         self.startedAt = Date()
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case promptID
+        case modelID
+        case providerProfileID
+        case modelConfigID
+        case status
+        case startedAt
+        case completedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        promptID = try container.decode(UUID.self, forKey: .promptID)
+        modelID = try container.decode(String.self, forKey: .modelID)
+        providerProfileID = try container.decodeIfPresent(String.self, forKey: .providerProfileID) ?? ProviderProfile.openAIDefaultID
+        modelConfigID = try container.decodeIfPresent(UUID.self, forKey: .modelConfigID)
+        status = try container.decode(RunStatus.self, forKey: .status)
+        startedAt = try container.decode(Date.self, forKey: .startedAt)
+        completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
     }
 }
 
@@ -443,6 +724,7 @@ struct PromptResult: Identifiable, Codable, Equatable {
     var rowID: UUID
     var promptID: UUID
     var modelID: String
+    var providerProfileID: String
     var modelConfigID: UUID?
     var responseText: String?
     var rawResponse: String?
@@ -466,8 +748,60 @@ struct PromptResult: Identifiable, Codable, Equatable {
         self.rowID = rowID
         self.promptID = promptID
         self.modelID = modelID
+        self.providerProfileID = ProviderProfile.openAIDefaultID
         self.modelConfigID = modelConfigID
         self.status = .pending
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case runID
+        case rowID
+        case promptID
+        case modelID
+        case providerProfileID
+        case modelConfigID
+        case responseText
+        case rawResponse
+        case status
+        case tokenUsage
+        case costUSD
+        case durationMs
+        case retryCount
+        case finishedAt
+        case timingSource
+        case timingCohortID
+        case timingFinishedAt
+        case cosineSimilarity
+        case rouge1
+        case rouge2
+        case rougeL
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        runID = try container.decode(UUID.self, forKey: .runID)
+        rowID = try container.decode(UUID.self, forKey: .rowID)
+        promptID = try container.decode(UUID.self, forKey: .promptID)
+        modelID = try container.decode(String.self, forKey: .modelID)
+        providerProfileID = try container.decodeIfPresent(String.self, forKey: .providerProfileID) ?? ProviderProfile.openAIDefaultID
+        modelConfigID = try container.decodeIfPresent(UUID.self, forKey: .modelConfigID)
+        responseText = try container.decodeIfPresent(String.self, forKey: .responseText)
+        rawResponse = try container.decodeIfPresent(String.self, forKey: .rawResponse)
+        status = try container.decode(ResultStatus.self, forKey: .status)
+        tokenUsage = try container.decodeIfPresent(TokenUsage.self, forKey: .tokenUsage)
+        costUSD = try container.decodeIfPresent(Double.self, forKey: .costUSD)
+        durationMs = try container.decodeIfPresent(Int.self, forKey: .durationMs)
+        retryCount = try container.decodeIfPresent(Int.self, forKey: .retryCount) ?? 0
+        finishedAt = try container.decodeIfPresent(Date.self, forKey: .finishedAt)
+        timingSource = try container.decodeIfPresent(TimingSource.self, forKey: .timingSource) ?? .live
+        timingCohortID = try container.decodeIfPresent(UUID.self, forKey: .timingCohortID)
+        timingFinishedAt = try container.decodeIfPresent(Date.self, forKey: .timingFinishedAt)
+        cosineSimilarity = try container.decodeIfPresent(Double.self, forKey: .cosineSimilarity)
+        rouge1 = try container.decodeIfPresent(Double.self, forKey: .rouge1)
+        rouge2 = try container.decodeIfPresent(Double.self, forKey: .rouge2)
+        rougeL = try container.decodeIfPresent(Double.self, forKey: .rougeL)
     }
 }
 
@@ -477,13 +811,32 @@ struct FileModelConfig: Identifiable, Codable, Equatable {
     let id: UUID
     var fileID: UUID
     var modelID: String
+    var providerProfileID: String
     var parameters: LLMParameters
 
-    init(id: UUID = UUID(), fileID: UUID, modelID: String, parameters: LLMParameters = LLMParameters()) {
+    init(id: UUID = UUID(), fileID: UUID, modelID: String, providerProfileID: String = ProviderProfile.openAIDefaultID, parameters: LLMParameters = LLMParameters()) {
         self.id = id
         self.fileID = fileID
         self.modelID = modelID
+        self.providerProfileID = providerProfileID
         self.parameters = parameters
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case fileID
+        case modelID
+        case providerProfileID
+        case parameters
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        fileID = try container.decode(UUID.self, forKey: .fileID)
+        modelID = try container.decode(String.self, forKey: .modelID)
+        providerProfileID = try container.decodeIfPresent(String.self, forKey: .providerProfileID) ?? ProviderProfile.openAIDefaultID
+        parameters = try container.decodeIfPresent(LLMParameters.self, forKey: .parameters) ?? LLMParameters()
     }
 }
 
@@ -491,10 +844,52 @@ struct ResolvedFileModelConfig: Identifiable, Codable, Equatable {
     let id: UUID
     let fileID: UUID
     let model: ModelConfig
+    let providerProfile: ProviderProfile
     let parameters: LLMParameters
     let displayName: String
 
     var modelID: String { model.id }
+    var providerProfileID: String { providerProfile.id }
+    var selectionID: ModelSelectionID { model.selectionID }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case fileID
+        case model
+        case providerProfile
+        case parameters
+        case displayName
+    }
+
+    init(
+        id: UUID,
+        fileID: UUID,
+        model: ModelConfig,
+        providerProfile: ProviderProfile,
+        parameters: LLMParameters,
+        displayName: String
+    ) {
+        self.id = id
+        self.fileID = fileID
+        self.model = model
+        self.providerProfile = providerProfile
+        self.parameters = parameters
+        self.displayName = displayName
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        fileID = try container.decode(UUID.self, forKey: .fileID)
+        var decodedModel = try container.decode(ModelConfig.self, forKey: .model)
+        providerProfile = try container.decodeIfPresent(ProviderProfile.self, forKey: .providerProfile)
+            ?? ProviderProfile.defaults.first(where: { $0.id == decodedModel.providerProfileID })
+            ?? ProviderProfile.defaults[0]
+        decodedModel.providerProfileID = providerProfile.id
+        model = decodedModel
+        parameters = try container.decodeIfPresent(LLMParameters.self, forKey: .parameters) ?? LLMParameters()
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName) ?? model.displayName
+    }
 }
 
 // MARK: - ParsedTable

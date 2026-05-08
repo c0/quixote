@@ -130,7 +130,7 @@ struct MainWindow: View {
     }
 
     private var resolvedModelConfigs: [ResolvedFileModelConfig] {
-        fileModelConfigs.resolvedConfigs(using: settings.availableModels)
+        fileModelConfigs.resolvedConfigs(using: settings.availableModels, providerProfiles: settings.providerProfiles)
     }
 
     private var canExport: Bool {

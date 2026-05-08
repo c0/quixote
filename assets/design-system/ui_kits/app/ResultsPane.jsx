@@ -1,6 +1,6 @@
 // Results table pane — dataset header + RUN/DOWNLOAD + sticky grid + optional stats footer.
 
-function QxResultsPane({ dataset, subtitle, columns, rows, onRun, onDownload, stats, statsVariant = 'bar' }) {
+function QxResultsPane({ dataset, subtitle, columns, rows, onRun, onDownload, stats, statsVariant = 'bar', onCellOpen, openedCell }) {
   return (
     <section style={{
       flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
@@ -20,14 +20,14 @@ function QxResultsPane({ dataset, subtitle, columns, rows, onRun, onDownload, st
       </div>
       <QxRowDivider />
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        <QxDataTable columns={columns} rows={rows} />
+        <QxDataTable columns={columns} rows={rows} onCellOpen={onCellOpen} openedCell={openedCell} />
       </div>
       {stats && window.QxStatsPanel && <QxStatsPanel stats={stats} variant={statsVariant} />}
     </section>
   );
 }
 
-function QxDataTable({ columns, rows }) {
+function QxDataTable({ columns, rows, onCellOpen, openedCell }) {
   const colWidths = columns.map(c => c.width || 140);
   const totalW = 52 + colWidths.reduce((a, b) => a + b, 0);
   return (
@@ -64,6 +64,8 @@ function QxDataTable({ columns, rows }) {
             const v = r[c.key];
             const isBool = v === 'true' || v === 'false' || v === true || v === false;
             const isNum = !isBool && v != null && v !== '' && !isNaN(Number(v));
+            const opens = c.openable;
+            const isOpen = openedCell && openedCell.row === ri && openedCell.col === c.key;
             return (
               <div key={c.key} style={{
                 width: colWidths[i], padding: '8px 12px',
@@ -71,8 +73,28 @@ function QxDataTable({ columns, rows }) {
                 fontSize: 11,
                 color: isBool ? QX.blueMuted : QX.fg1,
                 borderRight: `1px solid ${QX.divider}`,
+                background: isOpen ? QX.selection : 'transparent',
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}>{v == null ? '' : String(v)}</div>
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {v == null ? '' : String(v)}
+                </span>
+                {opens && onCellOpen && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onCellOpen({ rowIndex: ri, col: c.key, row: r }); }}
+                    aria-label="Open output detail"
+                    style={{
+                      flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      width: 18, height: 18, padding: 0,
+                      background: 'transparent', border: 'none', cursor: 'pointer',
+                      color: isOpen ? QX.fg1 : QX.fg2, borderRadius: 3,
+                    }}
+                  >
+                    <QxIcon name="arrow-up-right" size={12} stroke={2} />
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
