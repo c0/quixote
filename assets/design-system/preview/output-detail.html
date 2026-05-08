@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Quixote — Output Detail Panel</title>
+  <link rel="stylesheet" href="../colors_and_type.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; background: var(--qx-app-bg); min-height: 100vh; color: var(--qx-fg-1); }
+    body { padding: 28px; font-family: var(--qx-font-sans); }
+    .wrap { max-width: 460px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+    h1 { font-size: 18px; margin: 0; }
+    .caption { font-family: var(--qx-font-mono); color: var(--qx-fg-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; margin-top: 4px; }
+    .frame { width: 380px; min-height: 600px; background: var(--qx-panel); border: 1px solid var(--qx-divider); border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <h1>Output detail panel</h1>
+      <div class="caption">Right sheet · opens from prompt cell arrow</div>
+    </div>
+    <div id="root" class="frame"></div>
+  </div>
+  <script type="text/babel" src="../ui_kits/app/Primitives.jsx"></script>
+  <script type="text/babel" src="../ui_kits/app/PromptEditor.jsx"></script>
+  <script type="text/babel" src="../ui_kits/app/OutputDetail.jsx"></script>
+  <script type="text/babel">
+    const detail = {
+      rowIndex: 12,
+      promptName: 'Prompt 1',
+      model: 'gpt-4.1',
+      status: 'Completed',
+      tokens: 169, tokensIn: 155, tokensOut: 14,
+      cost: '$0.0002', latencyMs: 681,
+      sim: 0.108, r1: 0.074, r2: 0.038, rl: 0.074,
+      output: '- The Carter Crewneck is a midweight cotton pullover designed for layering through cooler months.\n- Pre-shrunk, garment-dyed, and finished with a brushed interior for extra warmth.\n- Available in five core colorways with sizes XS through 2XL.',
+    };
+    ReactDOM.createRoot(document.getElementById('root')).render(
+      <QxOutputDetail detail={detail} onClose={() => {}} />
+    );
+  </script>
+</body>
+</html>

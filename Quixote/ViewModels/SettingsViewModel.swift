@@ -7,8 +7,8 @@ private let kShowExtrapolationKey = "quixote.showExtrapolation"
 private let kExtrapolationScaleKey = "quixote.extrapolationScale"
 private let kShowCosineSimilarityKey = "quixote.showCosineSimilarity"
 private let kShowRougeMetricsKey = "quixote.showRougeMetrics"
-private let kHasSavedOpenAIKey = "quixote.hasSavedOpenAIKey"
 private let kLegacyPlaintextAPIKey = "quixote.openai.apiKey"
+private let kProviderProfilesKey = "quixote.providerProfiles"
 
 extension Notification.Name {
     static let quixoteAPIKeyDidChange = Notification.Name("quixoteAPIKeyDidChange")
@@ -27,14 +27,6 @@ enum APIKeyUIState: Equatable {
     case revoked(String)
 }
 
-enum APIKeyInlineIndicator: Equatable {
-    case none
-    case spinner
-    case success
-    case failure
-    case warning
-}
-
 struct APIKeyStatusLine: Equatable {
     enum Kind: Equatable {
         case success
@@ -49,19 +41,6 @@ struct APIKeyStatusLine: Equatable {
 
 @MainActor
 final class SettingsViewModel: ObservableObject {
-    private enum ValidationMarker {
-        case none
-        case validating
-        case valid(modelCount: Int?)
-        case saved
-        case invalid(String)
-        case revoked(String)
-    }
-
-    @Published var openAIKey: String = ""
-    @Published var isKeyVisible = false
-    @Published private(set) var apiKeyUIState: APIKeyUIState = .blank
-
     @Published var concurrency: Int = UserDefaults.standard.integer(forKey: kConcurrencyKey) == 0
         ? 10 : UserDefaults.standard.integer(forKey: kConcurrencyKey)
     @Published var rateLimit: Int = UserDefaults.standard.integer(forKey: kRateLimitKey) == 0
@@ -92,125 +71,158 @@ final class SettingsViewModel: ObservableObject {
         return UserDefaults.standard.bool(forKey: kShowRougeMetricsKey)
     }()
 
-    @Published private(set) var hasSavedAPIKey: Bool = UserDefaults.standard.bool(forKey: kHasSavedOpenAIKey)
     @Published var availableModels: [ModelConfig] = ModelConfig.builtIn
     @Published var groupedModels: [(family: String, models: [ModelConfig])] = ModelConfig.grouped(ModelConfig.builtIn)
+    @Published var providerProfiles: [ProviderProfile] = []
+    @Published var providerAPIKeyDrafts: [String: String] = [:]
+    @Published var providerStatusLines: [String: APIKeyStatusLine] = [:]
+    @Published var refreshingProviderIDs: Set<String> = []
+    @Published var visibleProviderAPIKeyIDs: Set<String> = []
+    @Published private(set) var providerHasSavedAPIKeyIDs: Set<String> = []
 
-    private var validationMarker: ValidationMarker = .none
-    private var isKeyFieldFocused = false
-    private var revealedSavedKey = ""
+    private var revealedProviderAPIKeys: [String: String] = [:]
 
     init() {
         UserDefaults.standard.removeObject(forKey: kLegacyPlaintextAPIKey)
+        providerProfiles = loadProviderProfiles()
+        refreshProviderSavedAPIKeyState()
+        recomputeAvailableModels()
         observeKeyChanges()
-        recomputeAPIKeyUIState()
     }
 
-    var isValidatingKey: Bool {
-        if case .validating = validationMarker { return true }
-        return false
+    func refreshModels() {
+        refreshModels(for: ProviderProfile.openAIDefaultID)
     }
 
-    var showsEyeToggle: Bool {
-        hasSavedAPIKey || !trimmedDraftKey.isEmpty
+    func refreshModels(for profileID: String) {
+        guard let profile = providerProfiles.first(where: { $0.id == profileID }) else { return }
+        if let message = profile.baseURLValidationMessage {
+            providerStatusLines[profileID] = APIKeyStatusLine(text: message, kind: .failure)
+            return
+        }
+        let key = providerAPIKeyCandidate(for: profile)
+        if profile.requiresAPIKey && key == nil {
+            providerStatusLines[profileID] = APIKeyStatusLine(text: "Save an API key first", kind: .failure)
+            return
+        }
+        refreshingProviderIDs.insert(profileID)
+        providerStatusLines[profileID] = APIKeyStatusLine(text: "Refreshing models...", kind: .neutral)
+        Task {
+            defer {
+                self.refreshingProviderIDs.remove(profileID)
+            }
+            do {
+                let models = try await OpenAICompatibleService.fetchModels(profile: profile, apiKey: key)
+                let ids = models.map(\.id)
+                if let index = self.providerProfiles.firstIndex(where: { $0.id == profileID }) {
+                    self.providerProfiles[index].discoveredModels = ids
+                    self.persistProviderProfiles()
+                }
+                self.recomputeAvailableModels()
+                self.providerStatusLines[profileID] = APIKeyStatusLine(text: "\(ids.count) models available", kind: .success)
+            } catch {
+                self.providerStatusLines[profileID] = APIKeyStatusLine(text: error.localizedDescription, kind: .warning)
+            }
+        }
     }
 
-    var canSaveAPIKey: Bool {
-        !trimmedDraftKey.isEmpty && !isValidatingKey
+    func saveProvider(_ profile: ProviderProfile) {
+        guard let index = providerProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+        providerProfiles[index] = profile.sanitized(fallback: ProviderProfile.defaults.first(where: { $0.id == profile.id }))
+        if !profile.requiresAPIKey {
+            visibleProviderAPIKeyIDs.remove(profile.id)
+            revealedProviderAPIKeys[profile.id] = nil
+        }
+        persistProviderProfiles()
+        refreshProviderSavedAPIKeyState()
+        recomputeAvailableModels()
     }
 
-    var canTestAPIKey: Bool {
-        (!trimmedDraftKey.isEmpty || hasSavedAPIKey) && !isValidatingKey
+    func saveProviderAPIKey(profileID: String) {
+        guard let profile = providerProfiles.first(where: { $0.id == profileID }) else { return }
+        let value = providerAPIKeyDrafts[profileID]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !value.isEmpty else {
+            providerStatusLines[profileID] = APIKeyStatusLine(text: "Enter an API key first", kind: .failure)
+            return
+        }
+        do {
+            try KeychainHelper.saveAPIKey(value, account: profile.keychainAccount)
+            providerAPIKeyDrafts[profileID] = ""
+            visibleProviderAPIKeyIDs.remove(profileID)
+            revealedProviderAPIKeys[profileID] = nil
+            providerHasSavedAPIKeyIDs.insert(profileID)
+            providerStatusLines[profileID] = APIKeyStatusLine(text: "Saved to Keychain", kind: .success)
+            NotificationCenter.default.post(name: .quixoteAPIKeyDidChange, object: nil)
+        } catch {
+            providerStatusLines[profileID] = APIKeyStatusLine(text: error.localizedDescription, kind: .failure)
+        }
     }
 
-    var saveButtonUsesPrimaryStyle: Bool {
-        isKeyFieldFocused || !trimmedDraftKey.isEmpty
+    func testProvider(profileID: String) {
+        refreshModels(for: profileID)
     }
 
-    var apiKeyDisplayText: String {
-        switch apiKeyUIState {
+    func providerAPIKeyState(for profile: ProviderProfile, isFocused: Bool) -> APIKeyUIState {
+        if refreshingProviderIDs.contains(profile.id) {
+            return .validating
+        }
+
+        if let status = providerStatusLines[profile.id] {
+            switch status.kind {
+            case .success:
+                if status.text.localizedCaseInsensitiveContains("saved") {
+                    return .saved
+                }
+                return .valid(modelCount: modelCount(from: status.text))
+            case .failure:
+                return .invalid(status.text)
+            case .warning:
+                return .revoked(status.text)
+            case .neutral:
+                break
+            }
+        }
+
+        let draft = providerAPIKeyDrafts[profile.id]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !draft.isEmpty {
+            if visibleProviderAPIKeyIDs.contains(profile.id) {
+                return .reveal
+            }
+            return isFocused ? .typing : .masked
+        }
+
+        if providerHasSavedAPIKeyIDs.contains(profile.id) {
+            return visibleProviderAPIKeyIDs.contains(profile.id) ? .reveal : .masked
+        }
+
+        return isFocused ? .focused : .blank
+    }
+
+    func providerAPIKeyDisplayText(for profile: ProviderProfile) -> String {
+        let state = providerAPIKeyState(for: profile, isFocused: false)
+        switch state {
         case .blank, .focused:
             return ""
         case .typing:
-            return openAIKey
+            return providerAPIKeyDrafts[profile.id] ?? ""
         case .masked, .validating, .valid, .saved, .invalid, .revoked:
             return String(repeating: "•", count: 20)
         case .reveal:
-            if !trimmedDraftKey.isEmpty { return openAIKey }
-            return revealedSavedKey
+            let draft = providerAPIKeyDrafts[profile.id]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !draft.isEmpty { return providerAPIKeyDrafts[profile.id] ?? "" }
+            return revealedProviderAPIKeys[profile.id] ?? ""
         }
     }
 
-    var apiKeyPlaceholder: String {
-        switch apiKeyUIState {
-        case .blank, .focused:
-            return "sk-..."
-        default:
-            return ""
-        }
-    }
-
-    var showsEditableTextField: Bool {
-        switch apiKeyUIState {
-        case .blank, .focused, .typing:
-            return true
-        case .reveal:
-            return !trimmedDraftKey.isEmpty
-        default:
-            return false
-        }
-    }
-
-    var editableTextColor: Color {
-        trimmedDraftKey.isEmpty ? .quixoteTextMuted : .quixoteTextSecondary
-    }
-
-    var displayTextColor: Color {
-        switch apiKeyUIState {
-        case .blank, .focused:
-            return .quixoteTextMuted
-        case .invalid:
-            return .quixoteTextSecondary
-        case .revoked:
-            return .quixoteTextSecondary
-        default:
-            return .quixoteTextSecondary
-        }
-    }
-
-    var usesMaskedLetterSpacing: Bool {
-        switch apiKeyUIState {
-        case .masked, .validating, .valid, .saved, .invalid, .revoked:
-            return true
-        default:
-            return false
-        }
-    }
-
-    var inlineIndicator: APIKeyInlineIndicator {
-        switch apiKeyUIState {
+    func providerAPIKeyStatusLine(for profile: ProviderProfile) -> APIKeyStatusLine? {
+        switch providerAPIKeyState(for: profile, isFocused: false) {
         case .validating:
-            return .spinner
-        case .valid, .saved:
-            return .success
-        case .invalid:
-            return .failure
-        case .revoked:
-            return .warning
-        default:
-            return .none
-        }
-    }
-
-    var statusLine: APIKeyStatusLine? {
-        switch apiKeyUIState {
-        case .validating:
-            return APIKeyStatusLine(text: "Validating key…", kind: .neutral)
+            return APIKeyStatusLine(text: "Validating key...", kind: .neutral)
         case .valid(let modelCount):
             if let modelCount {
                 return APIKeyStatusLine(text: "\(modelCount) models available · validated just now", kind: .success)
             }
-            return APIKeyStatusLine(text: "API key validated", kind: .success)
+            return providerStatusLines[profile.id] ?? APIKeyStatusLine(text: "API key validated", kind: .success)
         case .saved:
             return APIKeyStatusLine(text: "Saved to Keychain", kind: .success)
         case .invalid(let message):
@@ -222,176 +234,68 @@ final class SettingsViewModel: ObservableObject {
         }
     }
 
-    var keyFieldBorderColor: Color {
-        switch apiKeyUIState {
-        case .focused, .typing, .validating:
-            return .quixoteBlue
-        case .valid, .saved:
-            return .quixoteGreen
-        case .invalid:
-            return .quixoteRed
-        case .revoked:
-            return .quixoteOrange
-        default:
-            return .quixoteDivider
+    func canSaveProviderAPIKey(profileID: String) -> Bool {
+        let draft = providerAPIKeyDrafts[profileID]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return !draft.isEmpty && !refreshingProviderIDs.contains(profileID)
+    }
+
+    func canTestProviderAPIKey(profile: ProviderProfile) -> Bool {
+        guard !refreshingProviderIDs.contains(profile.id) else { return false }
+        if !profile.requiresAPIKey { return true }
+        let draft = providerAPIKeyDrafts[profile.id]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return !draft.isEmpty || providerHasSavedAPIKeyIDs.contains(profile.id)
+    }
+
+    func markProviderAPIKeyEdited(profileID: String) {
+        providerStatusLines[profileID] = nil
+        if providerAPIKeyDrafts[profileID]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            visibleProviderAPIKeyIDs.remove(profileID)
+            revealedProviderAPIKeys[profileID] = nil
         }
     }
 
-    var keyFieldRingColor: Color {
-        switch apiKeyUIState {
-        case .focused, .typing, .validating:
-            return .quixoteBlue.opacity(0.22)
-        case .valid, .saved:
-            return .quixoteGreen.opacity(0.18)
-        case .invalid:
-            return .quixoteRed.opacity(0.20)
-        case .revoked:
-            return .quixoteOrange.opacity(0.18)
-        default:
-            return .clear
-        }
-    }
+    func toggleProviderAPIKeyVisibility(profile: ProviderProfile) {
+        let draft = providerAPIKeyDrafts[profile.id]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !draft.isEmpty || providerHasSavedAPIKeyIDs.contains(profile.id) else { return }
 
-    @discardableResult
-    func saveKey() -> Bool {
-        let trimmed = trimmedDraftKey
-        guard !trimmed.isEmpty else {
-            presentAPIKeyError("Enter an API key first")
-            return false
-        }
-
-        do {
-            try KeychainHelper.saveOpenAIKey(trimmed)
-            openAIKey = ""
-            isKeyVisible = false
-            revealedSavedKey = ""
-            setHasSavedAPIKey(true)
-            validationMarker = .saved
-            recomputeAPIKeyUIState()
-            NotificationCenter.default.post(name: .quixoteAPIKeyDidChange, object: nil)
-            return true
-        } catch {
-            presentAPIKeyError(error.localizedDescription)
-            return false
-        }
-    }
-
-    func validateKey() {
-        let typedDraft = trimmedDraftKey
-        let isValidatingSavedKey = typedDraft.isEmpty
-
-        let keyToValidate: String
-        do {
-            keyToValidate = try apiKeyForUserAction(preferUnsavedInput: true)
-        } catch {
-            presentAPIKeyError(error.localizedDescription)
-            return
-        }
-
-        guard !keyToValidate.isEmpty else {
-            presentAPIKeyError("Enter an API key first")
-            return
-        }
-
-        validationMarker = .validating
-        isKeyVisible = false
-        revealedSavedKey = ""
-        recomputeAPIKeyUIState()
-
-        Task {
-            defer {
-                if case .validating = self.validationMarker {
-                    self.validationMarker = .none
-                    self.recomputeAPIKeyUIState()
-                }
-            }
-
-            do {
-                var request = URLRequest(url: URL(string: "https://api.openai.com/v1/models")!)
-                request.setValue("Bearer \(keyToValidate)", forHTTPHeaderField: "Authorization")
-                let (_, response) = try await URLSession.shared.data(for: request)
-
-                guard let http = response as? HTTPURLResponse else {
-                    self.presentAPIKeyError("Unexpected response — try again")
-                    return
-                }
-
-                switch http.statusCode {
-                case 200:
-                    let models = try? await OpenAIService.fetchModels(apiKey: keyToValidate)
-                    if let models {
-                        self.updateAvailableModels(models)
-                    }
-                    self.validationMarker = .valid(modelCount: models?.count)
-                    self.recomputeAPIKeyUIState()
-                case 401:
-                    if isValidatingSavedKey && self.hasSavedAPIKey {
-                        self.validationMarker = .revoked("Key may be revoked — requests are failing")
-                    } else {
-                        self.validationMarker = .invalid("Invalid API key — check your key and try again")
-                    }
-                    self.recomputeAPIKeyUIState()
-                default:
-                    self.validationMarker = .invalid("Unexpected response — try again")
-                    self.recomputeAPIKeyUIState()
-                }
-            } catch {
-                self.presentAPIKeyError("Network error: \(error.localizedDescription)")
+        if visibleProviderAPIKeyIDs.contains(profile.id) {
+            visibleProviderAPIKeyIDs.remove(profile.id)
+            revealedProviderAPIKeys[profile.id] = nil
+        } else {
+            visibleProviderAPIKeyIDs.insert(profile.id)
+            if draft.isEmpty {
+                revealedProviderAPIKeys[profile.id] = (try? KeychainHelper.readAPIKey(account: profile.keychainAccount)) ?? ""
             }
         }
     }
 
-    func refreshModels() {
-        let trimmed: String
-        do {
-            trimmed = try apiKeyForUserAction(preferUnsavedInput: true)
-        } catch {
-            return
-        }
-
-        Task {
-            if let models = try? await OpenAIService.fetchModels(apiKey: trimmed) {
-                updateAvailableModels(models)
-            }
+    func addManualModel(profileID: String, modelID: String) {
+        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let index = providerProfiles.firstIndex(where: { $0.id == profileID }) else { return }
+        if !providerProfiles[index].manualModels.contains(trimmed) {
+            providerProfiles[index].manualModels.append(trimmed)
+            providerProfiles[index].manualModels.sort()
+            persistProviderProfiles()
+            recomputeAvailableModels()
         }
     }
 
-    func markKeyFieldEdited() {
-        validationMarker = .none
-        recomputeAPIKeyUIState()
-    }
-
-    func updateKeyFieldFocus(_ focused: Bool) {
-        isKeyFieldFocused = focused
-        recomputeAPIKeyUIState()
-    }
-
-    func toggleKeyVisibility() {
-        guard showsEyeToggle else { return }
-        isKeyVisible.toggle()
-
-        if isKeyVisible, trimmedDraftKey.isEmpty, hasSavedAPIKey {
-            revealedSavedKey = (try? KeychainHelper.readOpenAIKey()) ?? ""
-        } else if !isKeyVisible {
-            revealedSavedKey = ""
-        }
-
-        validationMarker = .none
-        recomputeAPIKeyUIState()
+    func removeManualModel(profileID: String, modelID: String) {
+        guard let index = providerProfiles.firstIndex(where: { $0.id == profileID }) else { return }
+        providerProfiles[index].manualModels.removeAll { $0 == modelID }
+        persistProviderProfiles()
+        recomputeAvailableModels()
     }
 
     func presentAPIKeyError(_ message: String) {
-        validationMarker = .invalid(message)
-        recomputeAPIKeyUIState()
+        providerStatusLines[ProviderProfile.openAIDefaultID] = APIKeyStatusLine(text: message, kind: .failure)
     }
 
     func discardUnsavedAPIKeyChanges() {
-        openAIKey = ""
-        isKeyVisible = false
-        isKeyFieldFocused = false
-        revealedSavedKey = ""
-        validationMarker = .none
-        recomputeAPIKeyUIState()
+        providerAPIKeyDrafts = [:]
+        visibleProviderAPIKeyIDs.removeAll()
+        revealedProviderAPIKeys.removeAll()
     }
 
     func clearCache() {
@@ -433,15 +337,39 @@ final class SettingsViewModel: ObservableObject {
         UserDefaults.standard.set(value, forKey: kShowRougeMetricsKey)
     }
 
-    func apiKeyForUserAction(preferUnsavedInput: Bool = false) throws -> String {
-        if preferUnsavedInput, !trimmedDraftKey.isEmpty {
-            return trimmedDraftKey
+    func providerSecretsForUserAction(modelConfigs: [ResolvedFileModelConfig]) throws -> [String: String] {
+        var secrets: [String: String] = [:]
+        for profile in uniqueProfiles(from: modelConfigs) {
+            guard profile.requiresAPIKey else { continue }
+            if let draft = providerAPIKeyCandidate(for: profile) {
+                secrets[profile.id] = draft
+                continue
+            }
+            secrets[profile.id] = try KeychainHelper.readAPIKey(account: profile.keychainAccount)
         }
-        return try KeychainHelper.readOpenAIKey()
+        return secrets
     }
 
-    private var trimmedDraftKey: String {
-        openAIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    func hasRunnableCredentials(for modelConfigs: [ResolvedFileModelConfig]) -> Bool {
+        for config in modelConfigs {
+            let profile = config.providerProfile
+            guard profile.isEnabled else { return false }
+            if profile.requiresAPIKey {
+                let draft = providerAPIKeyDrafts[profile.id]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if draft.isEmpty && !providerHasSavedAPIKeyIDs.contains(profile.id) {
+                    return false
+                }
+            }
+        }
+        return !modelConfigs.isEmpty
+    }
+
+    private func providerAPIKeyCandidate(for profile: ProviderProfile) -> String? {
+        let draft = providerAPIKeyDrafts[profile.id]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !draft.isEmpty {
+            return draft
+        }
+        return try? KeychainHelper.readAPIKey(account: profile.keychainAccount)
     }
 
     private func observeKeyChanges() {
@@ -450,69 +378,103 @@ final class SettingsViewModel: ObservableObject {
         ) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                self.hasSavedAPIKey = UserDefaults.standard.bool(forKey: kHasSavedOpenAIKey)
-                if !self.hasSavedAPIKey {
-                    self.isKeyVisible = false
-                    self.revealedSavedKey = ""
-                }
-                if case .saved = self.validationMarker {
-                    // preserve saved state
-                } else {
-                    self.validationMarker = .none
-                }
-                self.recomputeAPIKeyUIState()
+                self.refreshProviderSavedAPIKeyState()
             }
         }
     }
 
-    private func updateAvailableModels(_ models: [ModelConfig]) {
-        let eligibleModels = ModelConfig.eligibleTextModels(models)
-        availableModels = eligibleModels.isEmpty ? ModelConfig.builtIn : eligibleModels
-        groupedModels = ModelConfig.grouped(availableModels)
-    }
-
-    private func setHasSavedAPIKey(_ hasSaved: Bool) {
-        hasSavedAPIKey = hasSaved
-        UserDefaults.standard.set(hasSaved, forKey: kHasSavedOpenAIKey)
-    }
-
-    private func recomputeAPIKeyUIState() {
-        switch validationMarker {
-        case .validating:
-            apiKeyUIState = .validating
-            return
-        case .valid(let count):
-            apiKeyUIState = .valid(modelCount: count)
-            return
-        case .saved:
-            apiKeyUIState = .saved
-            return
-        case .invalid(let message):
-            apiKeyUIState = .invalid(message)
-            return
-        case .revoked(let message):
-            apiKeyUIState = .revoked(message)
-            return
-        case .none:
-            break
-        }
-
-        if !trimmedDraftKey.isEmpty {
-            if isKeyVisible {
-                apiKeyUIState = .reveal
-            } else if isKeyFieldFocused {
-                apiKeyUIState = .typing
-            } else {
-                apiKeyUIState = .masked
+    private func recomputeAvailableModels() {
+        var models: [ModelConfig] = []
+        for profile in providerProfiles where profile.isEnabled {
+            if profile.id == ProviderProfile.openAIDefaultID {
+                models += ModelConfig.builtIn.map { model in
+                    var copy = model
+                    copy.provider = profile.kind
+                    copy.providerProfileID = profile.id
+                    return copy
+                }
             }
-            return
+            models += profile.availableModelIDs.map { modelID in
+                ModelConfig(
+                    id: modelID,
+                    displayName: displayName(for: modelID),
+                    provider: profile.kind,
+                    providerProfileID: profile.id,
+                    created: nil,
+                    supportedReasoningLevels: ModelConfig.supportedReasoningLevels(for: modelID)
+                )
+            }
         }
-
-        if hasSavedAPIKey {
-            apiKeyUIState = isKeyVisible ? .reveal : .masked
-            return
-        }
-
-        apiKeyUIState = isKeyFieldFocused ? .focused : .blank
+        let unique = Dictionary(grouping: models, by: \.selectionKey).compactMap { $0.value.first }
+        availableModels = ModelConfig.eligibleTextModels(unique)
+        groupedModels = groupedByProvider(availableModels)
     }
+
+    private func refreshProviderSavedAPIKeyState() {
+        providerHasSavedAPIKeyIDs = Set(providerProfiles.compactMap { profile in
+            guard profile.requiresAPIKey else { return nil }
+            return (try? KeychainHelper.readAPIKey(account: profile.keychainAccount)) == nil ? nil : profile.id
+        })
+    }
+
+    private func modelCount(from text: String) -> Int? {
+        guard let first = text.split(separator: " ").first else { return nil }
+        return Int(first)
+    }
+
+    private func loadProviderProfiles() -> [ProviderProfile] {
+        guard let data = UserDefaults.standard.data(forKey: kProviderProfilesKey),
+              let decoded = try? JSONDecoder().decode([ProviderProfile].self, from: data) else {
+            return ProviderProfile.defaults
+        }
+
+        var profilesByID: [String: ProviderProfile] = [:]
+        for profile in decoded {
+            let fallback = ProviderProfile.defaults.first(where: { $0.id == profile.id })
+            profilesByID[profile.id] = profile.sanitized(fallback: fallback)
+        }
+        for fallback in ProviderProfile.defaults where profilesByID[fallback.id] == nil {
+            profilesByID[fallback.id] = fallback
+        }
+        return ProviderProfile.defaults.compactMap { profilesByID[$0.id]?.sanitized(fallback: $0) }
+    }
+
+    private func persistProviderProfiles() {
+        guard let data = try? JSONEncoder().encode(providerProfiles) else { return }
+        UserDefaults.standard.set(data, forKey: kProviderProfilesKey)
+    }
+
+    private func groupedByProvider(_ models: [ModelConfig]) -> [(family: String, models: [ModelConfig])] {
+        let profilesByID = providerProfilesByID()
+        let grouped = Dictionary(grouping: models) { model in
+            let providerName = profilesByID[model.providerProfileID]?.displayName ?? model.provider.displayName
+            return "\(providerName) · \(model.family)"
+        }
+        return grouped
+            .map { (family: $0.key, models: ModelConfig.sortedForSelection($0.value)) }
+            .sorted { $0.family.localizedStandardCompare($1.family) == .orderedAscending }
+    }
+
+    private func displayName(for id: String) -> String {
+        id.replacingOccurrences(of: "-", with: " ").replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    private func uniqueProfiles(from modelConfigs: [ResolvedFileModelConfig]) -> [ProviderProfile] {
+        var seen = Set<String>()
+        var profiles: [ProviderProfile] = []
+        for config in modelConfigs where !seen.contains(config.providerProfile.id) {
+            seen.insert(config.providerProfile.id)
+            profiles.append(config.providerProfile)
+        }
+        return profiles
+    }
+
+    private func providerProfilesByID() -> [String: ProviderProfile] {
+        var profilesByID: [String: ProviderProfile] = [:]
+        for profile in providerProfiles {
+            profilesByID[profile.id] = profile
+        }
+        return profilesByID
+    }
+
 }

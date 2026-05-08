@@ -8,8 +8,8 @@ private struct OpenAIModelListResponse: Codable {
 
 private struct OpenAIModelEntry: Codable {
     let id: String
-    let created: Int
-    let ownedBy: String
+    let created: Int?
+    let ownedBy: String?
 
     enum CodingKeys: String, CodingKey {
         case id, created
@@ -17,11 +17,22 @@ private struct OpenAIModelEntry: Codable {
     }
 }
 
-// MARK: - OpenAIService
+// MARK: - OpenAI-compatible service
 
-struct OpenAIService: LLMService {
-    let apiKey: String
+struct OpenAICompatibleService: LLMService {
+    let profile: ProviderProfile
+    let apiKey: String?
     private let session = URLSession.shared
+
+    init(profile: ProviderProfile, apiKey: String? = nil) {
+        self.profile = profile
+        self.apiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
+
+    init(apiKey: String) {
+        self.profile = ProviderProfile.defaults.first(where: { $0.id == ProviderProfile.openAIDefaultID })!
+        self.apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
 
     func complete(
         prompt: String,
@@ -29,10 +40,12 @@ struct OpenAIService: LLMService {
         model: ModelConfig,
         params: LLMParameters
     ) async throws -> LLMResponse {
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        let url = try endpoint("chat/completions")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        if let apiKey {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         var messages: [[String: Any]] = []
@@ -82,7 +95,7 @@ struct OpenAIService: LLMService {
         case 429:
             throw LLMServiceError.rateLimited
         default:
-            let body = String(data: data, encoding: .utf8) ?? ""
+            let body = Self.errorMessage(from: data)
             throw LLMServiceError.serverError(http.statusCode, body)
         }
 
@@ -92,7 +105,7 @@ struct OpenAIService: LLMService {
             let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let choices = json["choices"] as? [[String: Any]],
             let message = choices.first?["message"] as? [String: Any],
-            let content = message["content"] as? String
+            let content = Self.messageContentString(message["content"])
         else {
             let preview = String(data: data.prefix(200), encoding: .utf8) ?? ""
             throw LLMServiceError.decodingFailed(preview)
@@ -114,10 +127,13 @@ struct OpenAIService: LLMService {
 
     // MARK: - Fetch available models
 
-    static func fetchModels(apiKey: String) async throws -> [ModelConfig] {
-        let url = URL(string: "https://api.openai.com/v1/models")!
+    static func fetchModels(profile: ProviderProfile, apiKey: String?) async throws -> [ModelConfig] {
+        let service = OpenAICompatibleService(profile: profile, apiKey: apiKey)
+        let url = try service.endpoint("models")
         var request = URLRequest(url: url)
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        if let apiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -129,7 +145,7 @@ struct OpenAIService: LLMService {
         case 429: throw LLMServiceError.rateLimited
         case 200: break
         default:
-            let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
+            let body = errorMessage(from: data)
             throw LLMServiceError.serverError(http.statusCode, body)
         }
 
@@ -140,12 +156,24 @@ struct OpenAIService: LLMService {
                 ModelConfig(
                     id: entry.id,
                     displayName: Self.displayName(for: entry.id),
-                    provider: .openAI,
+                    provider: profile.kind,
+                    providerProfileID: profile.id,
                     created: entry.created,
                     supportedReasoningLevels: ModelConfig.supportedReasoningLevels(for: entry.id)
                 )
             }
         return ModelConfig.eligibleTextModels(models)
+    }
+
+    private func endpoint(_ path: String) throws -> URL {
+        if let message = profile.baseURLValidationMessage {
+            throw LLMServiceError.decodingFailed(message)
+        }
+        let base = profile.normalizedBaseURL
+        guard let url = URL(string: "\(base)/\(path)") else {
+            throw LLMServiceError.decodingFailed("Invalid provider URL: \(profile.baseURL)")
+        }
+        return url
     }
 
     // MARK: - Model filtering & display
@@ -197,6 +225,43 @@ struct OpenAIService: LLMService {
         return baseName
     }
 
+    private static func messageContentString(_ value: Any?) -> String? {
+        if let text = value as? String {
+            return text
+        }
+        if let parts = value as? [[String: Any]] {
+            let text = parts.compactMap { part -> String? in
+                if let text = part["text"] as? String { return text }
+                if let text = part["content"] as? String { return text }
+                return nil
+            }.joined()
+            return text.isEmpty ? nil : text
+        }
+        if let object = value as? [String: Any],
+           let text = object["text"] as? String {
+            return text
+        }
+        return nil
+    }
+
+    private static func errorMessage(from data: Data) -> String {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return String(data: data.prefix(500), encoding: .utf8) ?? ""
+        }
+        if let error = json["error"] as? [String: Any] {
+            if let message = error["message"] as? String {
+                return message
+            }
+            if let text = error["error"] as? String {
+                return text
+            }
+        }
+        if let message = json["message"] as? String {
+            return message
+        }
+        return String(data: data.prefix(500), encoding: .utf8) ?? ""
+    }
+
     private static func prettyPrintedJSONString(from data: Data) -> String? {
         guard let object = try? JSONSerialization.jsonObject(with: data),
               JSONSerialization.isValidJSONObject(object),
@@ -205,5 +270,11 @@ struct OpenAIService: LLMService {
             return String(data: data, encoding: .utf8)
         }
         return pretty
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

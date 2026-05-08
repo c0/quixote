@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 private enum DataTableMetrics {
@@ -9,9 +10,7 @@ private enum DataTableMetrics {
     static let singleResultColumnMaxWidth: CGFloat = 260
     static let multiResultColumnMinWidth: CGFloat = 188
     static let multiResultColumnMaxWidth: CGFloat = 224
-    static let outputPaneMinWidth: CGFloat = 320
-    static let outputPaneIdealWidth: CGFloat = 380
-    static let outputPaneMaxWidth: CGFloat = 520
+    static let outputPaneWidth: CGFloat = 380
     static let previewLineLimit: Int = 4
     static let cellHorizontalPadding: CGFloat = 20
 }
@@ -28,7 +27,7 @@ fileprivate struct SelectedResultContext {
 }
 
 private enum OutputDetailTab: String, CaseIterable, Identifiable {
-    case output = "Output"
+    case content = "Content"
     case raw = "Raw"
 
     var id: String { rawValue }
@@ -54,25 +53,47 @@ struct DataTableView: View {
     var onRetry: ((UUID, UUID, UUID) -> Void)? = nil
 
     @State private var selectedResultCell: SelectedResultCell?
-    @State private var outputDetailTab: OutputDetailTab = .output
+    @State private var outputDetailTab: OutputDetailTab = .content
 
     var body: some View {
-        VStack(spacing: 0) {
-            paneHeader
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                paneHeader
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
 
-            QuixoteRowDivider()
+                QuixoteRowDivider()
 
-            if viewModel.columns.isEmpty {
-                ContentUnavailableView(
-                    "No Data",
-                    systemImage: "tablecells",
-                    description: Text("Open a file from the sidebar to preview its contents.")
+                if viewModel.columns.isEmpty {
+                    ContentUnavailableView(
+                        "No Data",
+                        systemImage: "tablecells",
+                        description: Text("Open a file from the sidebar to preview its contents.")
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    tableContent
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if selectedResultContext != nil {
+                Rectangle()
+                    .fill(Color.quixoteDivider)
+                    .frame(width: DataTableMetrics.dividerWidth)
+
+                OutputDetailPane(
+                    selection: selectedResultContext,
+                    selectedTab: $outputDetailTab,
+                    showCosineSimilarity: settings.showCosineSimilarity,
+                    showRougeMetrics: settings.showRougeMetrics,
+                    onClose: {
+                        selectedResultCell = nil
+                    },
+                    onRetry: selectedRetryAction
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                tableContent
+                .frame(width: DataTableMetrics.outputPaneWidth, alignment: .topLeading)
+                .frame(maxHeight: .infinity, alignment: .topLeading)
             }
         }
         .background(Color.quixotePanel)
@@ -168,26 +189,6 @@ struct DataTableView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-            if selectedResultContext != nil {
-                Rectangle()
-                    .fill(Color.quixoteDivider)
-                    .frame(width: DataTableMetrics.dividerWidth)
-
-                OutputDetailPane(
-                    selection: selectedResultContext,
-                    selectedTab: $outputDetailTab,
-                    showCosineSimilarity: settings.showCosineSimilarity,
-                    showRougeMetrics: settings.showRougeMetrics,
-                    onRetry: selectedRetryAction
-                )
-                .frame(
-                    minWidth: DataTableMetrics.outputPaneMinWidth,
-                    idealWidth: DataTableMetrics.outputPaneIdealWidth,
-                    maxWidth: DataTableMetrics.outputPaneMaxWidth,
-                    maxHeight: .infinity,
-                    alignment: .topLeading
-                )
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -273,7 +274,7 @@ struct DataTableView: View {
             selectedResultCell = nil
         } else {
             selectedResultCell = nextSelection
-            outputDetailTab = .output
+            outputDetailTab = .content
         }
     }
 
@@ -557,21 +558,40 @@ struct ResultCell: View {
             .foregroundStyle(color)
             .lineLimit(DataTableMetrics.previewLineLimit)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
+            .padding(.leading, 10)
+            .padding(.trailing, onExpand == nil ? 10 : 34)
             .padding(.vertical, 8)
 
             if let onExpand {
                 Button(action: onExpand) {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.quixoteBlueMuted)
-                        .padding(.top, 8)
-                        .padding(.trailing, 10)
+                    OutputCellArrowIcon()
+                        .stroke(isSelected ? Color.quixoteTextPrimary : Color.quixoteTextSecondary, style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
+                        .frame(width: 12, height: 12)
+                        .frame(width: 18, height: 18)
+                        .contentShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .help("Toggle output detail")
+                .padding(.top, 7)
+                .padding(.trailing, 8)
             }
         }
+    }
+}
+
+private struct OutputCellArrowIcon: Shape {
+    func path(in rect: CGRect) -> Path {
+        let scale = min(rect.width, rect.height) / 12
+        let x = { (value: CGFloat) in rect.minX + value * scale }
+        let y = { (value: CGFloat) in rect.minY + value * scale }
+
+        var path = Path()
+        path.move(to: CGPoint(x: x(3), y: y(9)))
+        path.addLine(to: CGPoint(x: x(9), y: y(3)))
+        path.move(to: CGPoint(x: x(4), y: y(3)))
+        path.addLine(to: CGPoint(x: x(9), y: y(3)))
+        path.addLine(to: CGPoint(x: x(9), y: y(8)))
+        return path
     }
 }
 
@@ -580,22 +600,30 @@ private struct OutputDetailPane: View {
     @Binding var selectedTab: OutputDetailTab
     let showCosineSimilarity: Bool
     let showRougeMetrics: Bool
+    let onClose: () -> Void
     var onRetry: (() -> Void)? = nil
+
+    @State private var copied = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             paneHeader
                 .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+                .padding(.top, 12)
+                .padding(.bottom, 14)
 
             QuixoteRowDivider()
 
             if let selection {
-                VStack(alignment: .leading, spacing: 16) {
-                    metadataSection(selection)
-                    contentSection(selection)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        metadataSection(selection)
+                        contentSection(selection)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-                .padding(16)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
                 ContentUnavailableView(
@@ -606,20 +634,24 @@ private struct OutputDetailPane: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Color.quixotePanelRaised.opacity(0.55))
+        .background(Color.quixotePanel)
     }
 
     private var paneHeader: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("OUTPUT DETAIL")
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .tracking(1.2)
-                .foregroundStyle(Color.quixoteTextSecondary)
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
+                sectionLabel("OUTPUT DETAIL")
 
-            Text(selectionTitle)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.quixoteTextPrimary)
-                .lineLimit(2)
+                Text(selectionTitle)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Color.quixoteTextPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+
+            Spacer(minLength: 8)
+
+            iconButton(systemName: "xmark", help: "Close output detail", action: onClose)
         }
     }
 
@@ -630,42 +662,17 @@ private struct OutputDetailPane: View {
 
     @ViewBuilder
     private func metadataSection(_ selection: SelectedResultContext) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) {
             Text(selection.column.modelDisplayName)
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(size: 12, weight: .regular, design: .monospaced))
+                .tracking(0.4)
                 .foregroundStyle(Color.quixoteTextSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
 
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 92), spacing: 8, alignment: .leading)],
-                alignment: .leading,
-                spacing: 8
-            ) {
-                infoChip(label: "STATUS", value: statusText(selection.result?.status))
-                if let usage = selection.result?.tokenUsage {
-                    infoChip(label: "TOKENS", value: "\(usage.total)")
-                    infoChip(label: "IN", value: "\(usage.input)")
-                    infoChip(label: "OUT", value: "\(usage.output)")
-                }
-                if let cost = selection.result?.costUSD {
-                    infoChip(label: "COST", value: String(format: "$%.4f", cost))
-                }
-                if let duration = selection.result?.durationMs {
-                    infoChip(label: "LATENCY", value: "\(duration) ms")
-                }
-                if let retries = selection.result?.retryCount, retries > 0 {
-                    infoChip(label: "RETRIES", value: "\(retries)")
-                }
-                if showCosineSimilarity, let similarity = selection.result?.cosineSimilarity {
-                    infoChip(label: "SIM", value: String(format: "%.3f", similarity))
-                }
-                if showRougeMetrics, let rouge1 = selection.result?.rouge1 {
-                    infoChip(label: "R1", value: String(format: "%.3f", rouge1))
-                }
-                if showRougeMetrics, let rouge2 = selection.result?.rouge2 {
-                    infoChip(label: "R2", value: String(format: "%.3f", rouge2))
-                }
-                if showRougeMetrics, let rougeL = selection.result?.rougeL {
-                    infoChip(label: "RL", value: String(format: "%.3f", rougeL))
+            LazyVGrid(columns: metricColumns, alignment: .leading, spacing: 10) {
+                ForEach(metricItems(for: selection)) { metric in
+                    metricItem(metric)
                 }
             }
 
@@ -678,35 +685,50 @@ private struct OutputDetailPane: View {
 
     @ViewBuilder
     private func contentSection(_ selection: SelectedResultContext) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Picker("Content", selection: $selectedTab) {
-                ForEach(OutputDetailTab.allCases) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                sectionLabel("VIEW")
+                    .fixedSize(horizontal: true, vertical: false)
+
+                OutputDetailSegmentedControl(selection: $selectedTab)
+
+                Spacer(minLength: 0)
             }
-            .pickerStyle(.segmented)
+            .padding(.top, 6)
+            .overlay(alignment: .top) {
+                QuixoteRowDivider()
+            }
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text(sectionTitle(for: selection))
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .tracking(1.0)
-                    .foregroundStyle(Color.quixoteTextSecondary)
+            VStack(alignment: .leading, spacing: 8) {
+                sectionLabel(sectionTitle(for: selection))
 
-                ScrollView {
-                    Text(displayText(for: selection))
-                        .font(contentFont)
-                        .foregroundStyle(foregroundColor(for: selection))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
+                ZStack(alignment: .topTrailing) {
+                    ScrollView {
+                        Text(displayText(for: selection))
+                            .font(contentFont)
+                            .foregroundStyle(foregroundColor(for: selection))
+                            .lineSpacing(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                            .padding(12)
+                            .padding(.trailing, 24)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
+
+                    iconButton(
+                        systemName: copied ? "circle.fill" : "doc.on.doc",
+                        help: copied ? "Copied" : "Copy to clipboard",
+                        action: { copyCurrentText(selection) }
+                    )
+                    .padding(.top, 6)
+                    .padding(.trailing, 6)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(12)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.quixotePanel)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.quixoteCard)
                 )
                 .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(Color.quixoteDivider, lineWidth: 1)
                 }
             }
@@ -716,7 +738,7 @@ private struct OutputDetailPane: View {
 
     private func displayText(for selection: SelectedResultContext) -> String {
         switch selectedTab {
-        case .output:
+        case .content:
             return outputText(for: selection)
         case .raw:
             return rawText(for: selection)
@@ -742,25 +764,25 @@ private struct OutputDetailPane: View {
 
     private func sectionTitle(for selection: SelectedResultContext) -> String {
         switch selectedTab {
-        case .output:
-            return selection.result?.status == .failed ? "Error" : "Output"
+        case .content:
+            return selection.result?.status == .failed ? "ERROR" : "CONTENT"
         case .raw:
-            return "Raw"
+            return "RAW"
         }
     }
 
     private var contentFont: Font {
         switch selectedTab {
-        case .output:
-            return .system(size: 12)
+        case .content:
+            return .system(size: 12, design: .monospaced)
         case .raw:
-            return .system(size: 11, design: .monospaced)
+            return .system(size: 12, design: .monospaced)
         }
     }
 
     private func foregroundColor(for selection: SelectedResultContext) -> Color {
         switch selectedTab {
-        case .output:
+        case .content:
             return selection.result?.status == .failed ? .quixoteRed : .quixoteTextPrimary
         case .raw:
             return selection.result?.rawResponse == nil ? .quixoteTextSecondary : .quixoteTextPrimary
@@ -782,20 +804,150 @@ private struct OutputDetailPane: View {
         }
     }
 
-    private func infoChip(label: String, value: String) -> some View {
-        HStack(spacing: 6) {
-            Text(label)
-                .foregroundStyle(Color.quixoteTextSecondary)
-            Text(value)
-                .foregroundStyle(Color.quixoteTextPrimary)
+    private var metricColumns: [GridItem] {
+        [
+            GridItem(.flexible(minimum: 120), spacing: 18, alignment: .leading),
+            GridItem(.flexible(minimum: 120), spacing: 18, alignment: .leading)
+        ]
+    }
+
+    private func metricItems(for selection: SelectedResultContext) -> [MetricItem] {
+        var items: [MetricItem] = [
+            MetricItem(label: "STATUS", value: statusText(selection.result?.status), accent: selection.result?.status == .completed ? .quixoteGreen : nil)
+        ]
+
+        if let usage = selection.result?.tokenUsage {
+            items.append(MetricItem(label: "TOKENS", value: "\(usage.total)"))
+            items.append(MetricItem(label: "IN", value: "\(usage.input)"))
+            items.append(MetricItem(label: "OUT", value: "\(usage.output)"))
         }
-        .font(.system(size: 10, weight: .medium, design: .monospaced))
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        if let cost = selection.result?.costUSD {
+            items.append(MetricItem(label: "COST", value: String(format: "$%.4f", cost)))
+        }
+        if let duration = selection.result?.durationMs {
+            items.append(MetricItem(label: "LATENCY", value: "\(duration)", unit: "ms"))
+        }
+        if let retries = selection.result?.retryCount, retries > 0 {
+            items.append(MetricItem(label: "RETRIES", value: "\(retries)"))
+        }
+        if showCosineSimilarity, let similarity = selection.result?.cosineSimilarity {
+            items.append(MetricItem(label: "SIM", value: String(format: "%.3f", similarity)))
+        }
+        if showRougeMetrics, let rouge1 = selection.result?.rouge1 {
+            items.append(MetricItem(label: "R1", value: String(format: "%.3f", rouge1)))
+        }
+        if showRougeMetrics, let rouge2 = selection.result?.rouge2 {
+            items.append(MetricItem(label: "R2", value: String(format: "%.3f", rouge2)))
+        }
+        if showRougeMetrics, let rougeL = selection.result?.rougeL {
+            items.append(MetricItem(label: "RL", value: String(format: "%.3f", rougeL)))
+        }
+
+        return items
+    }
+
+    private func metricItem(label: String, value: String, unit: String? = nil, accent: Color? = nil) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(label)
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .tracking(1.6)
+                .foregroundStyle(Color.quixoteTextSecondary)
+
+            Text(value)
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .monospacedDigit()
+                .foregroundStyle(accent ?? Color.quixoteTextPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            if let unit {
+                Text(unit.uppercased())
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .tracking(1.2)
+                    .foregroundStyle(Color.quixoteTextMuted)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func metricItem(_ metric: MetricItem) -> some View {
+        metricItem(label: metric.label, value: metric.value, unit: metric.unit, accent: metric.accent)
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+            .tracking(1.9)
+            .foregroundStyle(Color.quixoteTextSecondary)
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private func iconButton(systemName: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: systemName == "circle.fill" ? 8 : 12, weight: .medium))
+                .foregroundStyle(Color.quixoteTextSecondary)
+                .frame(width: 24, height: 24)
+                .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+
+    private func copyCurrentText(_ selection: SelectedResultContext) {
+        let text = displayText(for: selection)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+
+        copied = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.2))
+            copied = false
+        }
+    }
+}
+
+private struct MetricItem: Identifiable {
+    let id = UUID()
+    let label: String
+    let value: String
+    var unit: String?
+    var accent: Color?
+}
+
+private struct OutputDetailSegmentedControl: View {
+    @Binding var selection: OutputDetailTab
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(OutputDetailTab.allCases) { tab in
+                Button {
+                    selection = tab
+                } label: {
+                    Text(tab.rawValue)
+                        .font(.system(size: 11, weight: .semibold))
+                        .tracking(0.4)
+                        .foregroundStyle(selection == tab ? Color.quixoteTextPrimary : Color.quixoteTextSecondary)
+                        .padding(.horizontal, 12)
+                        .frame(height: 24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(selection == tab ? Color.quixoteBlue : Color.clear)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
         .background(
-            Capsule(style: .continuous)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(Color.quixotePanel)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color.quixoteDivider, lineWidth: 1)
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 }
 

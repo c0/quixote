@@ -15,14 +15,14 @@ struct SingleModelPickerPopover: View {
                             .tracking(1.6)
                             .foregroundStyle(Color.quixoteTextSecondary)
 
-                        ForEach(group.models) { model in
+                        ForEach(group.models, id: \.selectionKey) { model in
                             Button {
-                                onSelect(model.id)
+                                onSelect(model.selectionKey)
                             } label: {
                                 HStack(spacing: 10) {
-                                    Image(systemName: selectedID == model.id ? "checkmark.circle.fill" : "circle")
+                                    Image(systemName: selectedID == model.selectionKey ? "checkmark.circle.fill" : "circle")
                                         .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(selectedID == model.id ? Color.quixoteBlue : Color.quixoteTextMuted)
+                                        .foregroundStyle(selectedID == model.selectionKey ? Color.quixoteBlue : Color.quixoteTextMuted)
 
                                     Text(model.displayName)
                                         .font(.system(size: 12))
@@ -34,7 +34,7 @@ struct SingleModelPickerPopover: View {
                                 .padding(.vertical, 8)
                                 .background(
                                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(selectedID == model.id ? Color.quixoteSelection : Color.clear)
+                                        .fill(selectedID == model.selectionKey ? Color.quixoteSelection : Color.clear)
                                 )
                             }
                             .buttonStyle(.plain)

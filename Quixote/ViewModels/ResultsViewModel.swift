@@ -12,6 +12,7 @@ final class ResultsViewModel: ObservableObject {
         let modelDisplayName: String
         let promptID: UUID
         let modelID: String
+        let providerProfileID: String
         let modelConfigID: UUID
     }
 
@@ -40,6 +41,7 @@ final class ResultsViewModel: ObservableObject {
                     modelDisplayName: config.displayName,
                     promptID: prompt.id,
                     modelID: config.modelID,
+                    providerProfileID: config.providerProfileID,
                     modelConfigID: config.id
                 )
             }
@@ -63,6 +65,7 @@ final class ResultsViewModel: ObservableObject {
         guard let r = rawResults[key],
               r.promptID == column.promptID,
               r.modelID == column.modelID,
+              r.providerProfileID == column.providerProfileID,
               r.modelConfigID == column.modelConfigID else { return nil }
         return r
     }

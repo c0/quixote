@@ -134,19 +134,23 @@ function QxTextArea({ value = '', onChange, placeholder, minHeight = 120 }) {
   );
 }
 
-function QxSegmented({ options, value }) {
+function QxSegmented({ options, value, onChange }) {
+  // options can be ['Write','Preview']  OR  [['write','Write'], ['preview','Preview']]
+  const norm = options.map(o => Array.isArray(o) ? o : [o, o]);
   return (
     <div style={{
       display: 'inline-flex', background: QX.panel, borderRadius: 6,
       border: `1px solid ${QX.divider}`, padding: 2,
     }}>
-      {options.map(o => (
-        <div key={o} style={{
+      {norm.map(([v, l]) => (
+        <button key={v} onClick={() => onChange?.(v)} style={{
           padding: '4px 12px', fontSize: 11, fontWeight: 600,
-          color: o === value ? QX.fg1 : QX.fg2,
-          background: o === value ? QX.selection : 'transparent',
-          borderRadius: 4,
-        }}>{o}</div>
+          fontFamily: QX.fontSans,
+          color: v === value ? QX.fg1 : QX.fg2,
+          background: v === value ? QX.blue : 'transparent',
+          border: 'none', borderRadius: 4, cursor: onChange ? 'pointer' : 'default',
+          letterSpacing: '0.04em',
+        }}>{l}</button>
       ))}
     </div>
   );

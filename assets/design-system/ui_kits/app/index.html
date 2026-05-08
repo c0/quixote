@@ -22,6 +22,7 @@
   <script type="text/babel" src="./PromptEditor.jsx"></script>
   <script type="text/babel" src="./ResultsPane.jsx"></script>
   <script type="text/babel" src="./StatsPanel.jsx"></script>
+  <script type="text/babel" src="./OutputDetail.jsx"></script>
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
@@ -60,7 +61,7 @@
       { key: 'compare_at_', width: 148 },
       { key: 'included_cana', width: 148 },
       { key: 'pric', width: 72 },
-      { key: 'output', width: 320 },
+      { key: 'output', label: 'Prompt 1', width: 320, openable: true },
     ];
 
     const SAMPLES = [
@@ -90,6 +91,7 @@
       const [activeTab, setActiveTab] = useState('t1');
       const [promptText, setPromptText] = useState('Summarized in 3 bullet points:\n{{body_html}}');
       const [systemMessage, setSystemMessage] = useState('');
+      const [openedCell, setOpenedCell] = useState({ row: 11, col: 'output' });
 
       // ---------- Tweaks state (persisted via EDITMODE markers) ----------
       const INITIAL_TWEAKS = /*EDITMODE-BEGIN*/{
@@ -191,7 +193,28 @@
               onDownload={() => alert('Download (mock)')}
               stats={tweaks.showStatsPanel ? effectiveStats : null}
               statsVariant={tweaks.statsVariant}
+              onCellOpen={({ rowIndex, col, row }) => setOpenedCell({ row: rowIndex, col })}
+              openedCell={openedCell}
             />
+            {openedCell && (() => {
+              const r = SAMPLES[openedCell.row];
+              const out = r ? r[openedCell.col] : '';
+              return (
+                <QxOutputDetail
+                  detail={{
+                    rowIndex: openedCell.row + 1,
+                    promptName: 'Prompt 1',
+                    model: 'gpt-4.1',
+                    status: 'Completed',
+                    tokens: 169, tokensIn: 155, tokensOut: 14,
+                    cost: '$0.0002', latencyMs: 681,
+                    sim: 0.108, r1: 0.074, r2: 0.038, rl: 0.074,
+                    output: out || '',
+                  }}
+                  onClose={() => setOpenedCell(null)}
+                />
+              );
+            })()}
           </div>
           {tweaksOpen && <TweaksPanel tweaks={tweaks} setTweak={setTweak} />}
         </div>
