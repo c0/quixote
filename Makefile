@@ -1,4 +1,4 @@
-.PHONY: setup generate build open dev site-dev site-build release
+.PHONY: setup generate build test open dev site-dev site-build release
 
 setup:
 	brew install xcodegen
@@ -10,6 +10,12 @@ build:
 	xcodebuild -project Quixote.xcodeproj \
 	           -scheme Quixote \
 	           -configuration Release \
+	           -derivedDataPath .build
+
+test:
+	xcodebuild test -project Quixote.xcodeproj \
+	           -scheme Quixote \
+	           -destination 'platform=macOS' \
 	           -derivedDataPath .build
 
 open:

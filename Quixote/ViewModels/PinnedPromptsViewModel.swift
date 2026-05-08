@@ -1,19 +1,21 @@
 import Foundation
 
+private func defaultPinnedPromptsURL() -> URL {
+    let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    let dir = support.appendingPathComponent("Quixote")
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    return dir.appendingPathComponent("pinned-prompts.json")
+}
+
 @MainActor
 final class PinnedPromptsViewModel: ObservableObject {
     @Published private(set) var prompts: [PinnedPrompt] = []
 
-    private let promptsURL: URL = {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = support.appendingPathComponent("Quixote")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("pinned-prompts.json")
-    }()
-
+    private let promptsURL: URL
     private var saveTask: Task<Void, Never>?
 
-    init() {
+    init(promptsURL: URL = defaultPinnedPromptsURL()) {
+        self.promptsURL = promptsURL
         load()
     }
 
@@ -60,6 +62,12 @@ final class PinnedPromptsViewModel: ObservableObject {
 
     func prompt(for id: UUID) -> PinnedPrompt? {
         prompts.first { $0.id == id }
+    }
+
+    func flushPendingSave() {
+        saveTask?.cancel()
+        saveTask = nil
+        persist()
     }
 
     private func normalizedName(_ name: String) -> String {

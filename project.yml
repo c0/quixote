@@ -60,3 +60,28 @@ targets:
     dependencies:
       - package: Sparkle
       - package: CoreXLSX
+
+  QuixoteTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/QuixoteTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.c0.quixote.tests
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: BH93JMP63R
+    dependencies:
+      - target: Quixote
+
+schemes:
+  Quixote:
+    build:
+      targets:
+        Quixote: all
+        QuixoteTests: [test]
+    test:
+      targets:
+        - QuixoteTests

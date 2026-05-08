@@ -1,5 +1,12 @@
 import Foundation
 
+private func defaultPromptListURL() -> URL {
+    let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    let dir = support.appendingPathComponent("Quixote")
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    return dir.appendingPathComponent("prompts.json")
+}
+
 @MainActor
 final class PromptListViewModel: ObservableObject {
     struct PromptListStore: Codable {
@@ -10,13 +17,7 @@ final class PromptListViewModel: ObservableObject {
     @Published private(set) var prompts: [Prompt] = []
     @Published var selectedPromptID: UUID?
 
-    private let promptsURL: URL = {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = support.appendingPathComponent("Quixote")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("prompts.json")
-    }()
-
+    private let promptsURL: URL
     private var promptsByFile: [UUID: [Prompt]] = [:]
     private var selectedPromptIDs: [UUID: UUID] = [:]
     private var currentFileID: UUID?
@@ -26,7 +27,8 @@ final class PromptListViewModel: ObservableObject {
         prompts.first { $0.id == selectedPromptID }
     }
 
-    init() {
+    init(promptsURL: URL = defaultPromptListURL()) {
+        self.promptsURL = promptsURL
         loadStore()
     }
 
@@ -135,6 +137,12 @@ final class PromptListViewModel: ObservableObject {
         if didChange {
             saveStore()
         }
+    }
+
+    func flushPendingSave() {
+        saveTask?.cancel()
+        saveTask = nil
+        persistStore()
     }
 
     func renamePrompt(id: UUID, name: String) {
