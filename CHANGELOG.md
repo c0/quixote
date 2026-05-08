@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-05-07
+
+### Changed
+- Add multi-provider support and output detail polish
+
 ## [1.0.5] - 2026-05-07
 
 ### Changed
