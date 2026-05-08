@@ -30,6 +30,7 @@
 		85A7D29F3C9A52E76C0EDA97 /* PromptListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 169E1550FA67FCA81B5BFB08 /* PromptListViewModel.swift */; };
 		896A90755BFE179BAC7179A6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = E99737654BBA8327C4CF245C /* Sparkle */; };
 		896E29DFBD1D118D572A7E33 /* CoreXLSX in Frameworks */ = {isa = PBXBuildFile; productRef = 6DFCB88181DE04CD3F681E04 /* CoreXLSX */; };
+		9092A7C53AE31BF74FEE6162 /* CSVParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAB2A5A9DA8390DC7D9CD7A3 /* CSVParserTests.swift */; };
 		9BADE2016E4040B718879DE6 /* ExportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53C4E16F7618A22E8DA2799 /* ExportViewModel.swift */; };
 		9E7AC73B7A052852942E462C /* PinnedPromptEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B43E0DECDE49B151FD58920 /* PinnedPromptEditorView.swift */; };
 		9EF4501301E225F4A9BDB9C6 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4645A84A5F60BF30E1F23E8 /* SettingsView.swift */; };
@@ -104,6 +105,7 @@
 		CC5D10CEC2444571A7CD761E /* DataPreviewViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataPreviewViewModel.swift; sourceTree = "<group>"; };
 		CEA0D7DF1BE08F85E9645EB1 /* StatsPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsPanelView.swift; sourceTree = "<group>"; };
 		D53C4E16F7618A22E8DA2799 /* ExportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportViewModel.swift; sourceTree = "<group>"; };
+		DAB2A5A9DA8390DC7D9CD7A3 /* CSVParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVParserTests.swift; sourceTree = "<group>"; };
 		DC79970E6E9FA9867AF46E67 /* PinnedPromptCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedPromptCoordinator.swift; sourceTree = "<group>"; };
 		E26C91657706E603C44C9555 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		E6F6638295922487A535DA8A /* ExcelParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExcelParser.swift; sourceTree = "<group>"; };
@@ -146,6 +148,7 @@
 		45C0BF7B637BA3818E6E3586 /* QuixoteTests */ = {
 			isa = PBXGroup;
 			children = (
+				DAB2A5A9DA8390DC7D9CD7A3 /* CSVParserTests.swift */,
 				CB2FB13231BA795C7B100B7A /* InterpolationEngineTests.swift */,
 				9D63445A1EFF168B6B5675BD /* PinnedPromptsViewModelTests.swift */,
 				339BF308EFBB53B12BF485CF /* PromptListPinnedPromptTests.swift */,
@@ -403,6 +406,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9092A7C53AE31BF74FEE6162 /* CSVParserTests.swift in Sources */,
 				FB287E06175C3D340C29854B /* InterpolationEngineTests.swift in Sources */,
 				B2E84711167D28A49CC5B8BD /* PinnedPromptsViewModelTests.swift in Sources */,
 				27D5D8991AEBCEC5EC1FD06C /* PromptListPinnedPromptTests.swift in Sources */,

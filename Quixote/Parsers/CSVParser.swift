@@ -23,7 +23,8 @@ struct CSVParser: FileParser {
 
         guard !lines.isEmpty else { return .empty }
 
-        let headerFields = parseFields(lines[0], delimiter: delimiter)
+        let headerIndex = detectHeaderIndex(in: lines, delimiter: delimiter)
+        let headerFields = parseFields(lines[headerIndex], delimiter: delimiter)
         guard !headerFields.isEmpty else {
             throw FileParserError.invalidFormat("No columns found in header row")
         }
@@ -31,17 +32,57 @@ struct CSVParser: FileParser {
         let columns = headerFields.enumerated().map { ColumnDef(name: $0.element, index: $0.offset) }
 
         var rows: [Row] = []
-        for (lineIndex, line) in lines.dropFirst().enumerated() {
+        for line in lines.dropFirst(headerIndex + 1) {
             guard !line.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
             let fields = parseFields(line, delimiter: delimiter)
             var values: [String: String] = [:]
             for (colIndex, column) in columns.enumerated() {
                 values[column.name] = colIndex < fields.count ? fields[colIndex] : ""
             }
-            rows.append(Row(index: lineIndex, values: values))
+            rows.append(Row(index: rows.count, values: values))
         }
 
         return ParsedTable(columns: columns, rows: rows)
+    }
+
+    // MARK: - Header detection
+
+    private func detectHeaderIndex(in lines: [String], delimiter: Character) -> Int {
+        let parsedRows = lines.map { parseFields($0, delimiter: delimiter) }
+
+        for (index, fields) in parsedRows.enumerated() {
+            guard isPlausibleHeader(fields) else { continue }
+            if index == 0 || hasCompatibleDataRow(after: index, in: parsedRows) {
+                return index
+            }
+        }
+
+        return 0
+    }
+
+    private func isPlausibleHeader(_ fields: [String]) -> Bool {
+        let populated = fields.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        guard populated.count >= 2 else { return false }
+
+        let uniqueNames = Set(populated.map { $0.lowercased() })
+        guard uniqueNames.count == populated.count else { return false }
+
+        return populated.contains { field in
+            field.rangeOfCharacter(from: .letters) != nil
+        }
+    }
+
+    private func hasCompatibleDataRow(after headerIndex: Int, in rows: [[String]]) -> Bool {
+        let headerWidth = rows[headerIndex].count
+        guard headerWidth >= 2 else { return false }
+
+        return rows
+            .dropFirst(headerIndex + 1)
+            .prefix(6)
+            .contains { fields in
+                let populated = fields.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
+                return populated >= 2 && fields.count >= max(2, headerWidth - 1)
+            }
     }
 
     // MARK: - Delimiter detection (spec §7.2)
@@ -149,6 +190,12 @@ struct CSVParser: FileParser {
             i = line.index(after: i)
         }
         fields.append(current)
+        fields = fields.map { stripByteOrderMark(from: $0) }
         return fields
+    }
+
+    private func stripByteOrderMark(from value: String) -> String {
+        guard value.first == "\u{FEFF}" else { return value }
+        return String(value.dropFirst())
     }
 }
