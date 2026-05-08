@@ -1,7 +1,12 @@
-.PHONY: setup generate build test open dev site-dev site-build release
+.PHONY: setup install-hooks generate build test open dev site-dev site-build release
 
 setup:
 	brew install xcodegen
+
+install-hooks:
+	mkdir -p .git/hooks
+	cp scripts/git-hooks/pre-commit .git/hooks/pre-commit
+	chmod +x .git/hooks/pre-commit
 
 generate:
 	xcodegen generate
