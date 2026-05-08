@@ -147,6 +147,24 @@ struct LLMParameters: Codable, Equatable {
 
 // MARK: - Prompt
 
+struct PinnedPrompt: Identifiable, Codable, Equatable {
+    let id: UUID
+    var name: String
+    var systemMessage: String
+    var template: String
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(name: String = "New prompt", systemMessage: String = "", template: String = "") {
+        self.id = UUID()
+        self.name = name
+        self.systemMessage = systemMessage
+        self.template = template
+        self.createdAt = Date()
+        self.updatedAt = Date()
+    }
+}
+
 struct Prompt: Identifiable, Codable, Equatable {
     let id: UUID
     var fileID: UUID
@@ -156,6 +174,10 @@ struct Prompt: Identifiable, Codable, Equatable {
     var parameters: LLMParameters
     var createdAt: Date
     var updatedAt: Date
+    var fromPinName: String? = nil
+    var fromPinID: UUID? = nil
+    var isPinned: Bool = false
+    var pinnedPromptID: UUID? = nil
 
     init(fileID: UUID, name: String = "Prompt") {
         self.id = UUID()
@@ -177,6 +199,10 @@ struct Prompt: Identifiable, Codable, Equatable {
         case parameters
         case createdAt
         case updatedAt
+        case fromPinName
+        case fromPinID
+        case isPinned
+        case pinnedPromptID
     }
 
     init(from decoder: Decoder) throws {
@@ -189,6 +215,10 @@ struct Prompt: Identifiable, Codable, Equatable {
         parameters = try container.decodeIfPresent(LLMParameters.self, forKey: .parameters) ?? LLMParameters()
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        fromPinName = try container.decodeIfPresent(String.self, forKey: .fromPinName)
+        fromPinID = try container.decodeIfPresent(UUID.self, forKey: .fromPinID)
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
+        pinnedPromptID = try container.decodeIfPresent(UUID.self, forKey: .pinnedPromptID)
     }
 }
 

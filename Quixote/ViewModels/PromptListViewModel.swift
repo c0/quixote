@@ -73,6 +73,70 @@ final class PromptListViewModel: ObservableObject {
         saveStore()
     }
 
+    func addPromptFromPin(
+        name: String,
+        systemMessage: String,
+        template: String,
+        fromPinID: UUID,
+        fromPinName: String
+    ) {
+        guard let fileID = currentFileID else { return }
+
+        var prompt = Prompt(fileID: fileID, name: name)
+        prompt.systemMessage = systemMessage
+        prompt.template = template
+        prompt.fromPinID = fromPinID
+        prompt.fromPinName = fromPinName
+        prompt.pinnedPromptID = fromPinID
+        prompt.isPinned = true
+        prompt.updatedAt = Date()
+        prompts.append(prompt)
+        promptsByFile[fileID] = prompts
+        selectedPromptID = prompt.id
+        selectedPromptIDs[fileID] = prompt.id
+        saveStore()
+    }
+
+    func markCurrentPromptAsPinned(pinnedPromptID: UUID) {
+        guard let fileID = currentFileID,
+              let selectedPromptID,
+              let index = prompts.firstIndex(where: { $0.id == selectedPromptID }) else { return }
+
+        prompts[index].isPinned = true
+        prompts[index].pinnedPromptID = pinnedPromptID
+        prompts[index].updatedAt = Date()
+        promptsByFile[fileID] = prompts
+        saveStore()
+    }
+
+    func removePinnedPromptReferences(pinnedPromptID: UUID) {
+        var didChange = false
+
+        for fileID in promptsByFile.keys {
+            guard var filePrompts = promptsByFile[fileID] else { continue }
+            var fileDidChange = false
+
+            for index in filePrompts.indices where filePrompts[index].pinnedPromptID == pinnedPromptID {
+                filePrompts[index].pinnedPromptID = nil
+                filePrompts[index].isPinned = false
+                filePrompts[index].updatedAt = Date()
+                fileDidChange = true
+            }
+
+            if fileDidChange {
+                promptsByFile[fileID] = filePrompts
+                if currentFileID == fileID {
+                    prompts = filePrompts
+                }
+                didChange = true
+            }
+        }
+
+        if didChange {
+            saveStore()
+        }
+    }
+
     func renamePrompt(id: UUID, name: String) {
         guard let fileID = currentFileID,
               let index = prompts.firstIndex(where: { $0.id == id }) else { return }

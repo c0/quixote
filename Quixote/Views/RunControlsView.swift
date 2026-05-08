@@ -160,12 +160,17 @@ struct RunActionControls: View {
                     row: row,
                     columns: columns
                 )
+                let expandedSystemMessage = InterpolationEngine.expandSystemMessage(
+                    prompt.systemMessage,
+                    row: row,
+                    columns: columns
+                )
 
                 for modelConfig in modelConfigs {
                     keys.insert(
                         ResponseCache.cacheKey(
                             expandedPrompt: expandedPrompt,
-                            systemMessage: prompt.systemMessage,
+                            systemMessage: expandedSystemMessage,
                             modelID: modelConfig.modelID,
                             providerProfileID: modelConfig.providerProfileID,
                             providerBaseURL: modelConfig.providerProfile.normalizedBaseURL,

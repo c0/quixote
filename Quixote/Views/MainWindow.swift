@@ -13,7 +13,10 @@ struct MainWindow: View {
     @StateObject private var exportVM = ExportViewModel()
     @ObservedObject private var settings: SettingsViewModel
     @StateObject private var fileModelConfigs = FileModelConfigsViewModel()
+    @StateObject private var pinnedPrompts = PinnedPromptsViewModel()
     @State private var showFileChangedAlert = false
+    @State private var sidebarSelection: SidebarSelection?
+    @State private var pendingPinApplication: PendingPinnedPromptApplication?
 
     init(settings: SettingsViewModel) {
         self._settings = ObservedObject(wrappedValue: settings)
@@ -21,42 +24,21 @@ struct MainWindow: View {
 
     var body: some View {
         HSplitView {
-            SidebarView(workspace: workspace)
+            SidebarView(
+                workspace: workspace,
+                pinnedPrompts: pinnedPrompts,
+                selection: $sidebarSelection,
+                onAddPin: { pinnedPromptCoordinator.addPin() },
+                onDuplicatePin: { pinnedPromptCoordinator.duplicatePin(id: $0) },
+                onDeletePin: { pinnedPromptCoordinator.deletePin(id: $0) }
+            )
                 .frame(minWidth: 220, idealWidth: 220, maxWidth: 240)
 
-            PromptEditorView(
-                viewModel: promptEditor,
-                promptList: promptList,
-                settings: settings,
-                modelConfigs: fileModelConfigs,
-                columns: dataPreview.columns
-            )
-            .frame(minWidth: 400, idealWidth: 440, maxWidth: 500)
+            middlePane
+                .frame(minWidth: 400, idealWidth: 440, maxWidth: 500)
 
-            DataTableView(
-                viewModel: dataPreview,
-                results: resultsVM,
-                statsVM: statsVM,
-                processing: processing,
-                settings: settings,
-                selectedPromptID: promptList.selectedPromptID,
-                datasetName: workspace.selectedFile?.displayName ?? "Quixote",
-                datasetSubtitle: subtitleText.isEmpty ? "No dataset loaded" : subtitleText,
-                selectedPrompt: promptList.selectedPrompt,
-                prompts: promptList.prompts,
-                rows: dataPreview.allRows,
-                columns: dataPreview.columns,
-                modelConfigs: resolvedModelConfigs,
-                canExport: canExport,
-                onExport: triggerExport,
-                onOpenSettings: {
-                    openSettings()
-                },
-                onRetry: { rowID, promptID, modelConfigID in
-                    processing.retryResult(rowID: rowID, promptID: promptID, modelConfigID: modelConfigID)
-                }
-            )
-            .frame(minWidth: 580, maxWidth: .infinity)
+            rightPane
+                .frame(minWidth: 580, maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.quixoteAppBackground)
@@ -76,6 +58,9 @@ struct MainWindow: View {
                 processing.clearPersistedCompletedResults(for: file.id)
             }
             loadSelectedFile()
+            if let selectedFileID = workspace.selectedFileID {
+                sidebarSelection = .data(selectedFileID)
+            }
             processing.restoreIfNeeded()
             if !workspace.changedFiles.isEmpty {
                 showFileChangedAlert = true
@@ -86,10 +71,21 @@ struct MainWindow: View {
             refreshDerivedViewModels()
         }
         .onChange(of: workspace.selectedFileID) {
+            if let selectedFileID = workspace.selectedFileID {
+                sidebarSelection = .data(selectedFileID)
+            }
             processing.cancel()
             resultsVM.clear()
             statsVM.clear()
             loadSelectedFile()
+            applyPendingPinIfNeeded()
+        }
+        .onChange(of: sidebarSelection) { _, selection in
+            if case .pinnedPrompt = selection {
+                processing.cancel()
+                resultsVM.clear()
+                statsVM.clear()
+            }
         }
         .onChange(of: promptList.selectedPromptID) {
             syncPromptEditor()
@@ -129,8 +125,76 @@ struct MainWindow: View {
         }
     }
 
+    @ViewBuilder
+    private var middlePane: some View {
+        if case .pinnedPrompt(let id) = sidebarSelection,
+           let prompt = pinnedPrompts.prompt(for: id) {
+            PinnedPromptEditorView(
+                prompt: prompt,
+                pinnedPrompts: pinnedPrompts,
+                workspace: workspace,
+                columnsForFile: { file in workspace.parsedTable(for: file).columns },
+                onRun: runPinOnDataset,
+                onDuplicate: { sourceID in
+                    if let duplicateID = pinnedPromptCoordinator.duplicatePin(id: sourceID) {
+                        sidebarSelection = .pinnedPrompt(duplicateID)
+                    }
+                },
+                onDelete: { id in
+                    pinnedPromptCoordinator.deletePin(id: id)
+                    sidebarSelection = workspace.selectedFileID.map(SidebarSelection.data)
+                }
+            )
+        } else {
+            PromptEditorView(
+                viewModel: promptEditor,
+                promptList: promptList,
+                settings: settings,
+                modelConfigs: fileModelConfigs,
+                columns: dataPreview.columns,
+                onPinCurrent: pinnedPromptCoordinator.pinCurrentTab
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var rightPane: some View {
+        if case .pinnedPrompt(let id) = sidebarSelection,
+           let prompt = pinnedPrompts.prompt(for: id) {
+            PinnedPromptEmptyPane(prompt: prompt)
+        } else {
+            DataTableView(
+                viewModel: dataPreview,
+                results: resultsVM,
+                statsVM: statsVM,
+                processing: processing,
+                settings: settings,
+                selectedPromptID: promptList.selectedPromptID,
+                datasetName: workspace.selectedFile?.displayName ?? "Quixote",
+                datasetSubtitle: subtitleText.isEmpty ? "No dataset loaded" : subtitleText,
+                selectedPrompt: promptList.selectedPrompt,
+                prompts: promptList.prompts,
+                rows: dataPreview.allRows,
+                columns: dataPreview.columns,
+                modelConfigs: resolvedModelConfigs,
+                canExport: canExport,
+                onExport: triggerExport,
+                onOpenSettings: {
+                    openSettings()
+                },
+                onRetry: { rowID, promptID, modelConfigID in
+                    processing.retryResult(rowID: rowID, promptID: promptID, modelConfigID: modelConfigID)
+                }
+            )
+        }
+    }
+
     private var resolvedModelConfigs: [ResolvedFileModelConfig] {
         fileModelConfigs.resolvedConfigs(using: settings.availableModels, providerProfiles: settings.providerProfiles)
+    }
+
+    private var pinnedPromptCoordinator: PinnedPromptCoordinator {
+        PinnedPromptCoordinator(pinnedPrompts: pinnedPrompts, promptList: promptList)
     }
 
     private var canExport: Bool {
@@ -167,6 +231,32 @@ struct MainWindow: View {
             showRougeMetrics: settings.showRougeMetrics,
             suggestedName: file.displayName
         )
+    }
+
+    private func runPinOnDataset(_ pin: PinnedPrompt, fileID: UUID) {
+        let application = PendingPinnedPromptApplication(pin: pin, fileID: fileID)
+        sidebarSelection = .data(fileID)
+
+        guard workspace.selectedFileID == fileID else {
+            pendingPinApplication = application
+            workspace.selectedFileID = fileID
+            return
+        }
+
+        applyPin(application)
+    }
+
+    private func applyPendingPinIfNeeded() {
+        guard let application = pendingPinApplication,
+              application.fileID == workspace.selectedFileID else { return }
+        pendingPinApplication = nil
+        applyPin(application)
+    }
+
+    private func applyPin(_ application: PendingPinnedPromptApplication) {
+        pinnedPromptCoordinator.apply(application)
+        syncPromptEditor()
+        refreshDerivedViewModels()
     }
 
     private func loadSelectedFile() {

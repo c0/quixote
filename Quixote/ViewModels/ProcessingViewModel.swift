@@ -269,6 +269,11 @@ final class ProcessingViewModel: ObservableObject {
                     row: row,
                     columns: columns
                 )
+                let expandedSystemMessage = InterpolationEngine.expandSystemMessage(
+                    prompt.systemMessage,
+                    row: row,
+                    columns: columns
+                )
 
                 for modelConfig in modelConfigs {
                     let compositeKey = resultKey(
@@ -279,7 +284,7 @@ final class ProcessingViewModel: ObservableObject {
 
                     let cacheKey = ResponseCache.cacheKey(
                         expandedPrompt: expanded,
-                        systemMessage: prompt.systemMessage,
+                        systemMessage: expandedSystemMessage,
                         modelID: modelConfig.modelID,
                         providerProfileID: modelConfig.providerProfileID,
                         providerBaseURL: modelConfig.providerProfile.normalizedBaseURL,
@@ -396,6 +401,8 @@ final class ProcessingViewModel: ObservableObject {
 
         let expandedPrompt = InterpolationEngine.expand(
             template: prompt.template, row: row, columns: ctx.columns)
+        let expandedSystemMessage = InterpolationEngine.expandSystemMessage(
+            prompt.systemMessage, row: row, columns: ctx.columns)
         let providerSecrets = ctx.providerSecrets.isEmpty ? readProviderSecrets(for: ctx.modelConfigs) : ctx.providerSecrets
         guard let providerSecrets else { return }
         let maxRetries = ctx.maxRetries
@@ -404,7 +411,7 @@ final class ProcessingViewModel: ObservableObject {
             let result = await Self.callService(
                 providerSecrets: providerSecrets,
                 prompt: expandedPrompt,
-                systemMessage: prompt.systemMessage,
+                systemMessage: expandedSystemMessage,
                 params: config.parameters,
                 row: row, promptID: prompt.id, modelConfig: config,
                 maxRetries: maxRetries
@@ -414,7 +421,7 @@ final class ProcessingViewModel: ObservableObject {
                let usage = result.tokenUsage {
                 let key = ResponseCache.cacheKey(
                     expandedPrompt: expandedPrompt,
-                    systemMessage: prompt.systemMessage,
+                    systemMessage: expandedSystemMessage,
                     modelID: result.modelID,
                     providerProfileID: config.providerProfileID,
                     providerBaseURL: config.providerProfile.normalizedBaseURL,
@@ -661,13 +668,20 @@ final class ProcessingViewModel: ObservableObject {
         var misses: [(Prompt, Row, ResolvedFileModelConfig)] = []
         // Map composite key → expandedPrompt for storing results after API calls
         var expandedPrompts: [String: String] = [:]
+        var expandedSystemMessages: [String: String] = [:]
 
         for (prompt, row, modelConfig) in workItems {
             let expanded = InterpolationEngine.expand(
                 template: prompt.template, row: row, columns: columns)
+            let expandedSystemMessage = InterpolationEngine.expandSystemMessage(
+                prompt.systemMessage, row: row, columns: columns)
+            let compositeKey = resultKey(
+                promptID: prompt.id,
+                rowID: row.id,
+                modelConfigID: modelConfig.id)
             let key = ResponseCache.cacheKey(
                 expandedPrompt: expanded,
-                systemMessage: prompt.systemMessage,
+                systemMessage: expandedSystemMessage,
                 modelID: modelConfig.modelID,
                 providerProfileID: modelConfig.providerProfileID,
                 providerBaseURL: modelConfig.providerProfile.normalizedBaseURL,
@@ -697,11 +711,8 @@ final class ProcessingViewModel: ObservableObject {
                 result.status = .completed
                 updateResult(result)
             } else {
-                let compositeKey = resultKey(
-                    promptID: prompt.id,
-                    rowID: row.id,
-                    modelConfigID: modelConfig.id)
                 expandedPrompts[compositeKey] = expanded
+                expandedSystemMessages[compositeKey] = expandedSystemMessage
                 misses.append((prompt, row, modelConfig))
             }
         }
@@ -719,12 +730,13 @@ final class ProcessingViewModel: ObservableObject {
                     rowID: row.id,
                     modelConfigID: modelConfig.id)
                 let expanded = expandedPrompts[compositeKey]!
+                let expandedSystemMessage = expandedSystemMessages[compositeKey] ?? prompt.systemMessage
                 group.addTask { [modelConfig, prompt, rateLimiter] in
                     try? await rateLimiter.waitForSlot()
                     return await Self.callService(
                         providerSecrets: providerSecrets,
                         prompt: expanded,
-                        systemMessage: prompt.systemMessage,
+                        systemMessage: expandedSystemMessage,
                         params: modelConfig.parameters,
                         row: row, promptID: prompt.id, modelConfig: modelConfig,
                         maxRetries: maxRetries)
@@ -753,7 +765,7 @@ final class ProcessingViewModel: ObservableObject {
                         }
                         let key = ResponseCache.cacheKey(
                             expandedPrompt: expanded,
-                            systemMessage: workItem.0.systemMessage,
+                            systemMessage: expandedSystemMessages[compositeKey] ?? workItem.0.systemMessage,
                             modelID: result.modelID,
                             providerProfileID: workItem.2.providerProfileID,
                             providerBaseURL: workItem.2.providerProfile.normalizedBaseURL,
@@ -786,12 +798,13 @@ final class ProcessingViewModel: ObservableObject {
                         rowID: row.id,
                         modelConfigID: modelConfig.id)
                     let expanded = expandedPrompts[compositeKey]!
+                    let expandedSystemMessage = expandedSystemMessages[compositeKey] ?? prompt.systemMessage
                     group.addTask { [modelConfig, prompt, rateLimiter] in
                         try? await rateLimiter.waitForSlot()
                         return await Self.callService(
                             providerSecrets: providerSecrets,
                             prompt: expanded,
-                            systemMessage: prompt.systemMessage,
+                            systemMessage: expandedSystemMessage,
                             params: modelConfig.parameters,
                             row: row, promptID: prompt.id, modelConfig: modelConfig,
                             maxRetries: maxRetries)
