@@ -24,10 +24,14 @@ fileprivate struct SelectedResultContext {
     let row: Row
     let column: ResultsViewModel.ResultColumn
     let result: PromptResult?
+    let prompt: Prompt?
+    let modelConfig: ResolvedFileModelConfig?
+    let columns: [ColumnDef]
 }
 
 private enum OutputDetailTab: String, CaseIterable, Identifiable {
     case content = "Content"
+    case request = "Request"
     case raw = "Raw"
 
     var id: String { rawValue }
@@ -208,7 +212,10 @@ struct DataTableView: View {
         return SelectedResultContext(
             row: row,
             column: column,
-            result: results.result(for: row.id, column: column)
+            result: results.result(for: row.id, column: column),
+            prompt: prompts.first(where: { $0.id == column.promptID }),
+            modelConfig: modelConfigs.first(where: { $0.id == column.modelConfigID }),
+            columns: columns
         )
     }
 
@@ -731,15 +738,77 @@ private struct OutputDetailPane: View {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(Color.quixoteDivider, lineWidth: 1)
                 }
+
+                rowSection(selection)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func rowSection(_ selection: SelectedResultContext) -> some View {
+        let items = rowItems(for: selection)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            sectionLabel("ROW")
+
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                    HStack(alignment: .top, spacing: 10) {
+                        Text(item.label)
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(Color.quixoteTextSecondary)
+                            .frame(width: 104, alignment: .leading)
+                            .lineLimit(2)
+
+                        Text(item.value)
+                            .font(.system(size: 12))
+                            .foregroundStyle(item.isEmpty ? Color.quixoteTextMuted : Color.quixoteTextPrimary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.vertical, 8)
+
+                    if index < items.count - 1 {
+                        QuixoteRowDivider()
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.quixoteCard)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Color.quixoteDivider, lineWidth: 1)
+            }
+        }
+    }
+
+    private func rowItems(for selection: SelectedResultContext) -> [RowDetailItem] {
+        let orderedItems = selection.columns.map { column in
+            let rawValue = selection.row.values[column.name] ?? ""
+            let isEmpty = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return RowDetailItem(label: column.name, value: isEmpty ? "Empty" : rawValue, isEmpty: isEmpty)
+        }
+
+        guard !orderedItems.isEmpty else {
+            return selection.row.values.keys.sorted().map { key in
+                let rawValue = selection.row.values[key] ?? ""
+                let isEmpty = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                return RowDetailItem(label: key, value: isEmpty ? "Empty" : rawValue, isEmpty: isEmpty)
+            }
+        }
+
+        return orderedItems
     }
 
     private func displayText(for selection: SelectedResultContext) -> String {
         switch selectedTab {
         case .content:
             return outputText(for: selection)
+        case .request:
+            return requestText(for: selection)
         case .raw:
             return rawText(for: selection)
         }
@@ -762,10 +831,38 @@ private struct OutputDetailPane: View {
         selection.result?.rawResponse ?? "Raw response unavailable."
     }
 
+    private func requestText(for selection: SelectedResultContext) -> String {
+        if let requestBodyJSON = selection.result?.requestBodyJSON, !requestBodyJSON.isEmpty {
+            return requestBodyJSON
+        }
+        guard let prompt = selection.prompt,
+              let modelConfig = selection.modelConfig else {
+            return "Request unavailable."
+        }
+
+        let expandedPrompt = InterpolationEngine.expand(
+            template: prompt.template,
+            row: selection.row,
+            columns: selection.columns
+        )
+        let expandedSystemMessage = InterpolationEngine.expandSystemMessage(
+            prompt.systemMessage,
+            row: selection.row,
+            columns: selection.columns
+        )
+        return ProcessingViewModel.requestBodyJSON(
+            prompt: expandedPrompt,
+            systemMessage: expandedSystemMessage,
+            modelConfig: modelConfig
+        ) ?? "Request unavailable."
+    }
+
     private func sectionTitle(for selection: SelectedResultContext) -> String {
         switch selectedTab {
         case .content:
             return selection.result?.status == .failed ? "ERROR" : "CONTENT"
+        case .request:
+            return "REQUEST"
         case .raw:
             return "RAW"
         }
@@ -773,7 +870,7 @@ private struct OutputDetailPane: View {
 
     private var contentFont: Font {
         switch selectedTab {
-        case .content:
+        case .content, .request:
             return .system(size: 12, design: .monospaced)
         case .raw:
             return .system(size: 12, design: .monospaced)
@@ -784,6 +881,8 @@ private struct OutputDetailPane: View {
         switch selectedTab {
         case .content:
             return selection.result?.status == .failed ? .quixoteRed : .quixoteTextPrimary
+        case .request:
+            return requestText(for: selection) == "Request unavailable." ? .quixoteTextSecondary : .quixoteTextPrimary
         case .raw:
             return selection.result?.rawResponse == nil ? .quixoteTextSecondary : .quixoteTextPrimary
         }
@@ -913,6 +1012,13 @@ private struct MetricItem: Identifiable {
     let value: String
     var unit: String?
     var accent: Color?
+}
+
+private struct RowDetailItem: Identifiable {
+    let id = UUID()
+    let label: String
+    let value: String
+    let isEmpty: Bool
 }
 
 private struct OutputDetailSegmentedControl: View {

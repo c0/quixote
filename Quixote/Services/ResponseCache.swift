@@ -6,6 +6,7 @@ import CryptoKit
 struct CachedEntry: Codable {
     var responseText: String
     var rawResponse: String?
+    var requestBodyJSON: String?
     var tokenUsage: TokenUsage
     var durationMs: Int
     var costUSD: Double
@@ -22,6 +23,7 @@ struct CachedEntry: Codable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         responseText = try c.decode(String.self, forKey: .responseText)
         rawResponse = try c.decodeIfPresent(String.self, forKey: .rawResponse)
+        requestBodyJSON = try c.decodeIfPresent(String.self, forKey: .requestBodyJSON)
         tokenUsage = try c.decode(TokenUsage.self, forKey: .tokenUsage)
         durationMs = try c.decode(Int.self, forKey: .durationMs)
         costUSD = try c.decode(Double.self, forKey: .costUSD)
@@ -34,12 +36,13 @@ struct CachedEntry: Codable {
         timingFinishedAt = try c.decodeIfPresent(Date.self, forKey: .timingFinishedAt)
     }
 
-    init(responseText: String, rawResponse: String? = nil, tokenUsage: TokenUsage, durationMs: Int,
+    init(responseText: String, rawResponse: String? = nil, requestBodyJSON: String? = nil, tokenUsage: TokenUsage, durationMs: Int,
          costUSD: Double, cosineSimilarity: Double,
          rouge1: Double? = nil, rouge2: Double? = nil, rougeL: Double? = nil,
          cachedAt: Date, timingCohortID: UUID? = nil, timingFinishedAt: Date? = nil) {
         self.responseText = responseText
         self.rawResponse = rawResponse
+        self.requestBodyJSON = requestBodyJSON
         self.tokenUsage = tokenUsage
         self.durationMs = durationMs
         self.costUSD = costUSD

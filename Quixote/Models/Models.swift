@@ -758,6 +758,7 @@ struct PromptResult: Identifiable, Codable, Equatable {
     var modelConfigID: UUID?
     var responseText: String?
     var rawResponse: String?
+    var requestBodyJSON: String?
     var status: ResultStatus
     var tokenUsage: TokenUsage?
     var costUSD: Double?
@@ -793,6 +794,7 @@ struct PromptResult: Identifiable, Codable, Equatable {
         case modelConfigID
         case responseText
         case rawResponse
+        case requestBodyJSON
         case status
         case tokenUsage
         case costUSD
@@ -819,6 +821,7 @@ struct PromptResult: Identifiable, Codable, Equatable {
         modelConfigID = try container.decodeIfPresent(UUID.self, forKey: .modelConfigID)
         responseText = try container.decodeIfPresent(String.self, forKey: .responseText)
         rawResponse = try container.decodeIfPresent(String.self, forKey: .rawResponse)
+        requestBodyJSON = try container.decodeIfPresent(String.self, forKey: .requestBodyJSON)
         status = try container.decode(ResultStatus.self, forKey: .status)
         tokenUsage = try container.decodeIfPresent(TokenUsage.self, forKey: .tokenUsage)
         costUSD = try container.decodeIfPresent(Double.self, forKey: .costUSD)

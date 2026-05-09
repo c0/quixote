@@ -292,11 +292,27 @@ final class ProcessingViewModel: ObservableObject {
                     )
                     guard let entry = cache.entry(for: cacheKey) else { continue }
 
+                    let fallbackRequestBodyJSON = Self.requestBodyJSON(
+                        prompt: expanded,
+                        systemMessage: expandedSystemMessage,
+                        modelConfig: modelConfig
+                    )
+
                     if var existing = hydratedResults[compositeKey], existing.status == .completed {
-                        guard existing.rawResponse?.isEmpty != false,
-                              let rawResponse = entry.rawResponse,
-                              !rawResponse.isEmpty else { continue }
-                        existing.rawResponse = rawResponse
+                        var changed = false
+                        if existing.rawResponse?.isEmpty != false,
+                           let rawResponse = entry.rawResponse,
+                           !rawResponse.isEmpty {
+                            existing.rawResponse = rawResponse
+                            changed = true
+                        }
+                        if existing.requestBodyJSON?.isEmpty != false,
+                           let requestBodyJSON = entry.requestBodyJSON ?? fallbackRequestBodyJSON,
+                           !requestBodyJSON.isEmpty {
+                            existing.requestBodyJSON = requestBodyJSON
+                            changed = true
+                        }
+                        guard changed else { continue }
                         hydratedResults[compositeKey] = existing
                         continue
                     }
@@ -311,6 +327,7 @@ final class ProcessingViewModel: ObservableObject {
                     result.providerProfileID = modelConfig.providerProfileID
                     result.responseText = entry.responseText
                     result.rawResponse = entry.rawResponse
+                    result.requestBodyJSON = entry.requestBodyJSON ?? fallbackRequestBodyJSON
                     result.tokenUsage = entry.tokenUsage
                     result.durationMs = entry.durationMs
                     result.costUSD = entry.costUSD
@@ -430,6 +447,7 @@ final class ProcessingViewModel: ObservableObject {
                     entry: CachedEntry(
                         responseText: text,
                         rawResponse: result.rawResponse,
+                        requestBodyJSON: result.requestBodyJSON,
                         tokenUsage: usage,
                         durationMs: result.durationMs ?? 0,
                         costUSD: result.costUSD ?? 0,
@@ -697,6 +715,11 @@ final class ProcessingViewModel: ObservableObject {
                 result.providerProfileID = modelConfig.providerProfileID
                 result.responseText = entry.responseText
                 result.rawResponse = entry.rawResponse
+                result.requestBodyJSON = entry.requestBodyJSON ?? Self.requestBodyJSON(
+                    prompt: expanded,
+                    systemMessage: expandedSystemMessage,
+                    modelConfig: modelConfig
+                )
                 result.tokenUsage = entry.tokenUsage
                 result.durationMs = entry.durationMs
                 result.costUSD = entry.costUSD
@@ -774,6 +797,11 @@ final class ProcessingViewModel: ObservableObject {
                             entry: CachedEntry(
                                 responseText: text,
                                 rawResponse: result.rawResponse,
+                                requestBodyJSON: result.requestBodyJSON ?? Self.requestBodyJSON(
+                                    prompt: expanded,
+                                    systemMessage: expandedSystemMessages[compositeKey] ?? workItem.0.systemMessage,
+                                    modelConfig: workItem.2
+                                ),
                                 tokenUsage: usage,
                                 durationMs: result.durationMs ?? 0,
                                 costUSD: result.costUSD ?? 0,
@@ -919,6 +947,19 @@ final class ProcessingViewModel: ObservableObject {
         return (2 * precision * recall) / (precision + recall)
     }
 
+    static func requestBodyJSON(
+        prompt: String,
+        systemMessage: String,
+        modelConfig: ResolvedFileModelConfig
+    ) -> String? {
+        try? OpenAIRequestBodyBuilder.jsonString(
+            prompt: prompt,
+            systemMessage: systemMessage,
+            model: modelConfig.model,
+            params: modelConfig.parameters
+        )
+    }
+
     private static func callService(
         providerSecrets: [String: String],
         prompt: String,
@@ -938,6 +979,11 @@ final class ProcessingViewModel: ObservableObject {
             modelConfigID: modelConfig.id)
         result.providerProfileID = modelConfig.providerProfileID
         result.status = .inProgress
+        result.requestBodyJSON = requestBodyJSON(
+            prompt: prompt,
+            systemMessage: systemMessage,
+            modelConfig: modelConfig
+        )
         result.timingSource = .live
         result.timingCohortID = runID
         let service = OpenAICompatibleService(
@@ -955,6 +1001,7 @@ final class ProcessingViewModel: ObservableObject {
                     params: params)
                 result.responseText = response.text
                 result.rawResponse = response.rawResponse
+                result.requestBodyJSON = response.requestBodyJSON ?? result.requestBodyJSON
                 result.tokenUsage = response.tokenUsage
                 result.durationMs = response.durationMs
                 result.costUSD = modelConfig.model.costFor(

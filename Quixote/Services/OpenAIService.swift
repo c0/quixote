@@ -19,6 +19,51 @@ private struct OpenAIModelEntry: Codable {
 
 // MARK: - OpenAI-compatible service
 
+enum OpenAIRequestBodyBuilder {
+    static func body(
+        prompt: String,
+        systemMessage: String,
+        model: ModelConfig,
+        params: LLMParameters
+    ) -> [String: Any] {
+        var messages: [[String: Any]] = []
+        if !systemMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            messages.append(["role": "system", "content": systemMessage])
+        }
+        messages.append(["role": "user", "content": prompt])
+
+        var body: [String: Any] = [
+            "model": model.id,
+            "messages": messages,
+            "temperature": params.temperature,
+            "top_p": params.topP,
+        ]
+        if let max = params.maxTokens {
+            body["max_tokens"] = max
+        }
+
+        if model.supportsReasoningEffort, let effort = params.reasoningEffort {
+            body["reasoning_effort"] = effort.rawValue
+            body.removeValue(forKey: "temperature")
+        }
+
+        return body
+    }
+
+    static func jsonString(
+        prompt: String,
+        systemMessage: String,
+        model: ModelConfig,
+        params: LLMParameters
+    ) throws -> String {
+        let data = try JSONSerialization.data(
+            withJSONObject: body(prompt: prompt, systemMessage: systemMessage, model: model, params: params),
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        return String(data: data, encoding: .utf8) ?? "{}"
+    }
+}
+
 struct OpenAICompatibleService: LLMService {
     let profile: ProviderProfile
     let apiKey: String?
@@ -48,30 +93,13 @@ struct OpenAICompatibleService: LLMService {
         }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        var messages: [[String: Any]] = []
-        if !systemMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            messages.append(["role": "system", "content": systemMessage])
-        }
-        messages.append(["role": "user", "content": prompt])
-
-        var body: [String: Any] = [
-            "model": model.id,
-            "messages": messages,
-            "temperature": params.temperature,
-            "top_p": params.topP,
-        ]
-        if let max = params.maxTokens {
-            body["max_tokens"] = max
-        }
-
-        // Reasoning models (o-series, GPT-5) support reasoning_effort instead of temperature
-        if model.supportsReasoningEffort, let effort = params.reasoningEffort {
-            body["reasoning_effort"] = effort.rawValue
-            // Remove temperature for reasoning models — not supported
-            body.removeValue(forKey: "temperature")
-        }
-
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let requestBodyJSON = try OpenAIRequestBodyBuilder.jsonString(
+            prompt: prompt,
+            systemMessage: systemMessage,
+            model: model,
+            params: params
+        )
+        request.httpBody = Data(requestBodyJSON.utf8)
 
         let start = Date()
         let (data, response): (Data, URLResponse)
@@ -122,7 +150,13 @@ struct OpenAICompatibleService: LLMService {
             usage = TokenUsage(input: 0, output: 0, total: 0)
         }
 
-        return LLMResponse(text: content, tokenUsage: usage, durationMs: durationMs, rawResponse: rawResponse)
+        return LLMResponse(
+            text: content,
+            tokenUsage: usage,
+            durationMs: durationMs,
+            rawResponse: rawResponse,
+            requestBodyJSON: requestBodyJSON
+        )
     }
 
     // MARK: - Fetch available models

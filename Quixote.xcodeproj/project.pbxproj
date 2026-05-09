@@ -37,6 +37,7 @@
 		A7DBB81D4847189FBF08AC36 /* DataTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C62EE375D61EAF9527A7A6C /* DataTableView.swift */; };
 		AB871107515E0665ED2EF240 /* FileParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47BD9C6322AB886FD3A0546F /* FileParser.swift */; };
 		B2E84711167D28A49CC5B8BD /* PinnedPromptsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D63445A1EFF168B6B5675BD /* PinnedPromptsViewModelTests.swift */; };
+		B858BA12F732D94AE62A1021 /* RequestBodyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D2594875CDDE3E8A4FD7CDB /* RequestBodyTests.swift */; };
 		B8613B58599ADED71F6A38F9 /* app.icon in Resources */ = {isa = PBXBuildFile; fileRef = 85B7DBF04F42BB058909D316 /* app.icon */; };
 		C2F5E571AD06531BA602FAD5 /* FileModelConfigsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DD0E8D127782716552FB2EA /* FileModelConfigsViewModel.swift */; };
 		C4606B0B2D6593AE39026FF6 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C7596ACFD51D8674A5582B /* SidebarView.swift */; };
@@ -80,6 +81,7 @@
 		497D3020B9DBF7CF4AC9173A /* WorkspaceViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceViewModel.swift; sourceTree = "<group>"; };
 		4C62EE375D61EAF9527A7A6C /* DataTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataTableView.swift; sourceTree = "<group>"; };
 		501B32910B80E6677CE0173B /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		5D2594875CDDE3E8A4FD7CDB /* RequestBodyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestBodyTests.swift; sourceTree = "<group>"; };
 		5DA5AD52C96986D002730524 /* SidebarSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarSelection.swift; sourceTree = "<group>"; };
 		617B83335699A4ED1577F375 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
 		67733DDFDF7C6921A1F8F8D5 /* Quixote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Quixote.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -152,6 +154,7 @@
 				CB2FB13231BA795C7B100B7A /* InterpolationEngineTests.swift */,
 				9D63445A1EFF168B6B5675BD /* PinnedPromptsViewModelTests.swift */,
 				339BF308EFBB53B12BF485CF /* PromptListPinnedPromptTests.swift */,
+				5D2594875CDDE3E8A4FD7CDB /* RequestBodyTests.swift */,
 			);
 			name = QuixoteTests;
 			path = Tests/QuixoteTests;
@@ -410,6 +413,7 @@
 				FB287E06175C3D340C29854B /* InterpolationEngineTests.swift in Sources */,
 				B2E84711167D28A49CC5B8BD /* PinnedPromptsViewModelTests.swift in Sources */,
 				27D5D8991AEBCEC5EC1FD06C /* PromptListPinnedPromptTests.swift in Sources */,
+				B858BA12F732D94AE62A1021 /* RequestBodyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

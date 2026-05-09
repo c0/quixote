@@ -5,6 +5,7 @@ struct LLMResponse {
     var tokenUsage: TokenUsage
     var durationMs: Int
     var rawResponse: String?
+    var requestBodyJSON: String?
 }
 
 enum LLMServiceError: LocalizedError {
