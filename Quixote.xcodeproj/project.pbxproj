@@ -436,7 +436,7 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = BH93JMP63R;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Quixote/Info.plist;
@@ -444,7 +444,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.c0.quixote;
 				PRODUCT_NAME = Quixote;
 				SDKROOT = macosx;
@@ -522,7 +522,7 @@
 				CODE_SIGN_ENTITLEMENTS = Quixote/Quixote.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = BH93JMP63R;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Quixote/Info.plist;
@@ -530,7 +530,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.c0.quixote;
 				PRODUCT_NAME = Quixote;
 				SDKROOT = macosx;
